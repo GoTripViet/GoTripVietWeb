@@ -1,0 +1,59 @@
+# ==== Node & package managers ====
+node_modules/
+.pnp/
+.pnp.js
+.pnpm-store/
+.npm/
+# Nếu bạn có .npmrc chứa token/registry riêng, nên ignore:
+.npmrc
+
+# ==== Logs ====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==== Build output ====
+dist/
+build/
+**/dist/
+**/build/
+# Webpack & tooling caches
+.cache/
+**/.cache/
+.eslintcache
+.stylelintcache
+tsconfig.tsbuildinfo
+
+# ==== Coverage / test ====
+coverage/
+.nyc_output/
+coverage-final.json
+
+# ==== Env files ====
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+
+# ==== Editors / OS ====
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ==== Misc ====
+*.orig
+*.rej
+tmp/
+temp/
+*~
