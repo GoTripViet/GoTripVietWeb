@@ -1,6 +1,6 @@
 {
-    "presets": [
-        ["@babel/preset-env", { "targets": ">0.25%, not dead" }],
-        ["@babel/preset-react", { "runtime": "automatic" }]
-    ]
+  "presets": ["@babel/preset-typescript", "@babel/preset-react", "@babel/preset-env"],
+  "plugins": [
+     ["@babel/transform-runtime"]
+  ]
 }

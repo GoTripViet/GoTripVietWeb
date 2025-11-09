@@ -1,0 +1,31 @@
+/* Thanh header màu xanh */
+.auth-navbar {
+  background: #53c3bf; /* bạn có thể thay theo palette của logo */
+  padding: 0.6rem 0;
+}
+
+/* Nút xanh chủ đạo */
+.btn-teal {
+  background-color: #53c3bf;
+  border-color: #53c3bf;
+  color: #fff;
+}
+.btn-teal:disabled {
+  opacity: 0.65;
+}
+
+/* Divider có chữ ở giữa */
+.text-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+.text-divider::before,
+.text-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #ced4da;
+}

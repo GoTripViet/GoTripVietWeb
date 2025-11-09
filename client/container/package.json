@@ -1,27 +1,34 @@
 {
-    "name": "container",
-    "version": "1.0.0",
-    "private": true,
-    "scripts": {
-        "start": "webpack serve --mode development",
-        "build": "webpack --mode production"
-    },
-    "dependencies": {
-        "bootstrap": "5.3.3",
-        "react": "18.2.0",
-        "react-dom": "18.2.0",
-        "react-router-dom": "6.26.2"
-    },
-    "devDependencies": {
-        "@babel/core": "^7.25.0",
-        "@babel/preset-env": "^7.25.0",
-        "@babel/preset-react": "^7.24.7",
-        "babel-loader": "^9.1.3",
-        "css-loader": "^6.10.0",
-        "html-webpack-plugin": "^5.6.0",
-        "style-loader": "^3.3.4",
-        "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4",
-        "webpack-dev-server": "^5.2.2"
-    }
+  "name": "container",
+  "version": "0.0.1",
+  "scripts": {
+    "start": "cross-env NODE_ENV=development rspack serve",
+    "build": "cross-env NODE_ENV=production rspack build",
+    "build:dev": "cross-env NODE_ENV=development rspack build",
+    "build:start": "cd dist && rspack serve"
+  },
+  "devDependencies": {
+    "@rspack/cli": "^1.6.1",
+    "@rspack/core": "^1.6.1",
+    "@rspack/plugin-react-refresh": "~1.0.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.1.0",
+    "cross-env": "^10.1.0",
+    "css-loader": "^7.1.2",
+    "esbuild": "^0.25.12",
+    "html-rspack-plugin": "^6.1.3",
+    "postcss": "^8.2.1",
+    "postcss-loader": "^8.0.0",
+    "react-refresh": "^0.14.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@module-federation/enhanced": "^0.21.3",
+    "bootstrap": "^5.3.8",
+    "bootstrap-icons": "^1.13.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
 }
