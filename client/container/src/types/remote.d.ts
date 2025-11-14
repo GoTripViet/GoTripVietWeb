@@ -1,11 +1,18 @@
 declare module "mfeAuth/Login" {
   import { ComponentType } from "react";
-  const C: ComponentType<any>;
+  export type LoginProps = { onNext: (email: string) => void | Promise<void> };
+  const C: ComponentType<LoginProps>;
   export default C;
 }
 
-declare module "mfeAuth/AuthHeader" {
+declare module "mfeAuth/OtpVerify" {
   import { ComponentType } from "react";
-  const C: ComponentType<any>;
+  type Props = {
+    email: string;
+    onBackToLogin?: () => void;
+    onResend?: () => void;
+    onSubmit?: (code: string) => void;
+  };
+  const C: ComponentType<Props>;
   export default C;
 }
