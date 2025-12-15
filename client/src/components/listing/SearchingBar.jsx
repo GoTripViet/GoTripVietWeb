@@ -1,4 +1,8 @@
 import React, { useState } from "react";
+import Slider from "rc-slider";
+import "rc-slider/assets/index.css";
+import Tooltip from "rc-tooltip";
+import "rc-tooltip/assets/bootstrap.css";
 
 const oldFilters = [
   { id: "self-catering", label: "Tự nấu", count: 3 },
@@ -72,14 +76,6 @@ const SearchingBar = ({ className, mapQuery = "" }) => {
     v.toLocaleString("vi-VN", {
       maximumFractionDigits: 0,
     });
-
-  const handleBudgetMin = (v) => {
-    setBudgetMin(Math.min(v, budgetMax));
-  };
-
-  const handleBudgetMax = (v) => {
-    setBudgetMax(Math.max(v, budgetMin));
-  };
 
   const renderCheckboxGroup = (title, items) => (
     <div className="mb-3">
@@ -201,23 +197,30 @@ const SearchingBar = ({ className, mapQuery = "" }) => {
               }}
             />
 
-            {/* Dual range slider đơn giản */}
-            <div className="d-flex flex-column gap-1">
-              <input
-                type="range"
+            {/* Range slider (min-max chung 1 thanh) */}
+            <div className="px-1">
+              <Slider
+                range
                 min={150000}
                 max={2000000}
                 step={50000}
-                value={budgetMin}
-                onChange={(e) => handleBudgetMin(Number(e.target.value))}
-              />
-              <input
-                type="range"
-                min={150000}
-                max={2000000}
-                step={50000}
-                value={budgetMax}
-                onChange={(e) => handleBudgetMax(Number(e.target.value))}
+                allowCross={false}
+                value={[budgetMin, budgetMax]}
+                onChange={(vals) => {
+                  if (!Array.isArray(vals)) return;
+                  const [minV, maxV] = vals;
+                  setBudgetMin(minV);
+                  setBudgetMax(maxV);
+                }}
+                handleRender={(node, handleProps) => (
+                  <Tooltip
+                    overlay={formatVND(handleProps.value)}
+                    placement="top"
+                    visible={handleProps.dragging} // chỉ hiện khi đang kéo cho đỡ rối
+                  >
+                    {node}
+                  </Tooltip>
+                )}
               />
             </div>
           </div>

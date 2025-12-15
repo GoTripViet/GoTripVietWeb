@@ -6,6 +6,7 @@ import Nav from "react-bootstrap/Nav";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Offcanvas from "react-bootstrap/Offcanvas";
+import { useNavigate, useLocation } from "react-router-dom";
 import "../../styles/layout.css";
 import flagVN from "../../assets/flags/flag_vn.png";
 import flagEN from "../../assets/flags/flag_en.png";
@@ -41,6 +42,8 @@ export default function Header(props) {
   } = props;
 
   const [showMenu, setShowMenu] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const renderUserDesktop = () => {
     if (!userName) return null;
@@ -99,7 +102,15 @@ export default function Header(props) {
     <header className="gv-header gv-header--blue">
       <Navbar expand="lg" className="py-3">
         <Container>
-          <Navbar.Brand href="#" className="me-4">
+          <Navbar.Brand
+            href="/"
+            className="me-4"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/");
+              setShowMenu(false);
+            }}
+          >
             <img src={logoSrc} alt="GoTripViet" className="gv-brand" />
           </Navbar.Brand>
 
@@ -206,7 +217,17 @@ export default function Header(props) {
               }`}
               onClick={(e) => {
                 e.preventDefault();
-                props.onCategoryChange && props.onCategoryChange(idx);
+
+                // đổi tab đang active
+                props.onCategoryChange?.(idx);
+
+                // nếu đang ở trang khác (listing, detail, order...) thì về Home để render đúng tab
+                if (location.pathname !== "/") {
+                  navigate("/");
+                }
+
+                // đóng menu mobile nếu đang mở
+                setShowMenu(false);
               }}
               role="button"
             >
