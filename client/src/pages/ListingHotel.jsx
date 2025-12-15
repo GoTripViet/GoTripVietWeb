@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { cld } from "../utils/cld.js";
 import SearchingBar from "../components/listing/SearchingBar.jsx";
 import BestChoiceSearch from "../components/listing/BestChoiceSearch.jsx";
 import Slider from "../components/listing/Slider.jsx";
-import ListingCard from "../components/listing/HotelCard.jsx"; // hoặc "../components/Card" nếu bạn đặt tên vậy
+import ListingCard from "../components/listing/HotelCard.jsx";
+import { useLocation } from "react-router-dom";
 
 // ====== DUMMY DATA – bạn có thể thay bằng data thật từ API ======
 const SIMILAR_STAYS = [
@@ -136,7 +137,14 @@ const ListingHotel = ({
   onNavigateToHotelDetail,
 }) => {
   const [sortValue, setSortValue] = useState();
+  const location = useLocation();
 
+  const qFromUrl = useMemo(() => {
+    const q = new URLSearchParams(location.search).get("q");
+    return (q || "").trim();
+  }, [location.search]);
+
+  const effectivePlace = qFromUrl || destinationName;
   const mainHotel = hotels[0];
   const otherHotels = hotels.slice(1);
 
@@ -145,7 +153,7 @@ const ListingHotel = ({
       <div className="row">
         {/* Cột trái: thanh lọc */}
         <div className="col-12 col-lg-3 mb-3 mb-lg-0">
-          <SearchingBar />
+          <SearchingBar mapQuery={effectivePlace} />
         </div>
 
         {/* Cột phải: kết quả listing */}
@@ -154,7 +162,7 @@ const ListingHotel = ({
           <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
             <div>
               <h4 className="fw-bold mb-1">
-                {destinationName}: tìm thấy {totalStays} chỗ nghỉ
+                {effectivePlace}: tìm thấy {totalStays} chỗ nghỉ
               </h4>
             </div>
             <BestChoiceSearch

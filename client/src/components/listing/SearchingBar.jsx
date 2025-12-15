@@ -53,7 +53,15 @@ const starRatings = [
   { id: "4-star", label: "4 sao", count: 5 },
 ];
 
-const SearchingBar = ({ className }) => {
+const SearchingBar = ({ className, mapQuery = "" }) => {
+  const safeQuery = (mapQuery || "").trim() || "Việt Nam";
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    safeQuery
+  )}`;
+  const googleEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(
+    safeQuery
+  )}&output=embed`;
+
   const [budgetMin, setBudgetMin] = useState(150_000);
   const [budgetMax, setBudgetMax] = useState(2_000_000);
   const [bedrooms, setBedrooms] = useState(0);
@@ -126,14 +134,31 @@ const SearchingBar = ({ className }) => {
   return (
     <aside className={className} style={{ maxWidth: 320, width: "100%" }}>
       <div className="border rounded-3 overflow-hidden bg-white">
-        {/* Map section (placeholder) */}
-        <div style={{ height: 180, backgroundColor: "#e5eefb" }}>
-          {/* ở đây bạn có thể embed Google Map sau này */}
-          <div className="p-2">
-            <button className="btn btn-primary btn-sm rounded-pill shadow-sm">
+        {/* Map section */}
+        <div
+          className="position-relative"
+          style={{ height: 180, backgroundColor: "#e5eefb" }}
+        >
+          <iframe
+            title={`Google map - ${safeQuery}`}
+            src={googleEmbedUrl}
+            width="100%"
+            height="180"
+            style={{ border: 0 }}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+
+          <div className="position-absolute top-0 start-0 p-2">
+            <a
+              href={googleMapsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary btn-sm rounded-pill shadow-sm"
+            >
               <i className="bi bi-geo-alt-fill me-1" />
               Hiển thị trên bản đồ
-            </button>
+            </a>
           </div>
         </div>
 

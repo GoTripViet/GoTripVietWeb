@@ -151,7 +151,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(c.title);
                     }}
                   />
                 )}
@@ -169,7 +169,9 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...h}
                     onClick={() => {
                       pushDL({ click_top_rated: h.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(
+                        `${h.title}${h.location ? `, ${h.location}` : ""}`
+                      );
                     }}
                     onClickHeart={() =>
                       pushDL({ wishlist_toggle: h.title, row: "top_rated" })
@@ -190,7 +192,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(c.title);
                     }}
                   />
                 )}
@@ -208,7 +210,9 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...h}
                     onClick={() => {
                       pushDL({ click_top_rated: h.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(
+                        `${h.title}${h.location ? `, ${h.location}` : ""}`
+                      );
                     }}
                     onClickHeart={() => pushDL({ wishlist_toggle: h.title })}
                   />
@@ -227,7 +231,9 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...h}
                     onClick={() => {
                       pushDL({ click_top_rated: h.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(
+                        `${h.title}${h.location ? `, ${h.location}` : ""}`
+                      );
                     }}
                     onClickHeart={() => pushDL({ wishlist_toggle: h.title })}
                   />
@@ -243,7 +249,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                 initialVisibleCount={20}
                 onItemClick={() => {
                   pushDL({ click_listing_hotel: true });
-                  onNavigateToHotels && onNavigateToHotels();
+                  onNavigateToHotels?.("Việt Nam");
                 }}
               />
             </Container>
@@ -296,7 +302,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(c.title);
                     }}
                   />
                 )}
@@ -313,7 +319,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(c.title);
                     }}
                   />
                 )}
@@ -327,7 +333,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                 initialVisibleCount={8}
                 onItemClick={() => {
                   pushDL({ click_listing_hotel: true });
-                  onNavigateToHotels && onNavigateToHotels();
+                  onNavigateToHotels?.("Việt Nam");
                 }}
               />
             </Container>
@@ -388,7 +394,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(c.title);
                     }}
                   />
                 )}
@@ -405,7 +411,9 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...h}
                     onClick={() => {
                       pushDL({ click_top_rated: h.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(
+                        `${h.title}${h.location ? `, ${h.location}` : ""}`
+                      );
                     }}
                     onClickHeart={() => pushDL({ wishlist_toggle: h.title })}
                   />
@@ -428,7 +436,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                 initialVisibleCount={8}
                 onItemClick={() => {
                   pushDL({ click_listing_hotel: true });
-                  onNavigateToHotels && onNavigateToHotels();
+                  onNavigateToHotels?.("Việt Nam");
                 }}
               />
             </Container>
@@ -537,7 +545,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels && onNavigateToHotels();
+                      onNavigateToHotels?.(c.title);
                     }}
                   />
                 )}
@@ -551,7 +559,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                 initialVisibleCount={8}
                 onItemClick={() => {
                   pushDL({ click_listing_hotel: true });
-                  onNavigateToHotels && onNavigateToHotels();
+                  onNavigateToHotels?.("Việt Nam");
                 }}
               />
             </Container>

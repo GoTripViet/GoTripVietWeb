@@ -34,7 +34,12 @@ const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
     >
       <Home
         activeCategoryIndex={activeCategoryIndex}
-        onNavigateToHotels={() => navigate("/hotels")}
+        onNavigateToHotels={(q) => {
+          const query = (q || "").trim();
+          navigate(
+            query ? `/hotels?q=${encodeURIComponent(query)}` : "/hotels"
+          );
+        }}
       />
     </UserLayout>
   );
