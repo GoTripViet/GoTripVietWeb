@@ -1,5 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import BookingStepper from "../components/order/stepper";
+import EmailOtpModal from "../components/EmailOtpModal";
 
 const OTP_LENGTH = 6;
 const DEMO_OTP = "123456";
@@ -8,81 +10,158 @@ const Order = () => {
   const navigate = useNavigate();
   const [showOtp, setShowOtp] = useState(false);
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(""));
-  const [otpError, setOtpError] = useState(null);
-  const inputRefs = useRef([]);
+  const [country, setCountry] = useState("VN");
+  const [countries, setCountries] = useState([]);
+  const [countriesLoading, setCountriesLoading] = useState(false);
+
+  const [provinces, setProvinces] = useState([]);
+  const [provincesLoading, setProvincesLoading] = useState(false);
+  const [provinceCode, setProvinceCode] = useState("");
+
+  const [cityProvince, setCityProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+
+  const [countriesError, setCountriesError] = useState(null);
+  const [provincesError, setProvincesError] = useState(null);
+
+  const [reloadCountriesKey, setReloadCountriesKey] = useState(0);
+  const [reloadProvincesKey, setReloadProvincesKey] = useState(0);
+
+  const retryLoadCountries = () => setReloadCountriesKey((k) => k + 1);
+  const retryLoadProvinces = () => setReloadProvincesKey((k) => k + 1);
+
+  // load countries
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const run = async () => {
+      setCountriesLoading(true);
+      setCountriesError(null);
+
+      try {
+        const res = await fetch(
+          "https://restcountries.com/v3.1/all?fields=cca2,name",
+          { signal: controller.signal }
+        );
+
+        if (!res.ok) {
+          throw new Error(`countries http ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        const list = (Array.isArray(data) ? data : [])
+          .map((c) => ({
+            code: c?.cca2,
+            name: c?.name?.common,
+          }))
+          .filter((x) => x.code && x.name)
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        setCountries(list);
+      } catch (err) {
+        // nếu component unmount / effect đổi -> abort thì bỏ qua
+        if (controller.signal.aborted) return;
+        console.error(err);
+        // lỗi thật
+        setCountries([]);
+        setCountriesError(
+          "Không tải được danh sách quốc gia. Bạn thử lại giúp mình nhé."
+        );
+        // (giữ countries = [] để UI fallback VN/US/FR vẫn chạy)
+      } finally {
+        if (!controller.signal.aborted) setCountriesLoading(false);
+      }
+    };
+
+    run();
+    return () => controller.abort();
+  }, [reloadCountriesKey]);
+
+  // load provinces when VN
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const run = async () => {
+      setProvincesError(null);
+
+      if (country !== "VN") {
+        setProvinces([]);
+        setProvinceCode("");
+        return;
+      }
+
+      setProvincesLoading(true);
+
+      try {
+        const res = await fetch(
+          "https://provinces.open-api.vn/api/v1/?depth=1",
+          { signal: controller.signal }
+        );
+
+        if (!res.ok) {
+          throw new Error(`provinces http ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        const list = (Array.isArray(data) ? data : [])
+          .map((p) => ({ code: p?.code, name: p?.name }))
+          .filter((x) => x.code && x.name);
+
+        setProvinces(list);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        console.error(err);
+        setProvinces([]);
+        setProvinceCode("");
+        setProvincesError(
+          "Không tải được danh sách tỉnh/thành. Bạn bấm thử lại giúp mình nhé."
+        );
+      } finally {
+        if (!controller.signal.aborted) setProvincesLoading(false);
+      }
+    };
+
+    run();
+    return () => controller.abort();
+  }, [country, reloadProvincesKey]);
+
+  // optional: try to auto-fill city by postal code (non-VN)
+  const handlePostalBlur = async () => {
+    const c = (country || "").toLowerCase();
+    if (!postalCode || !c || c === "vn") return;
+
+    try {
+      const res = await fetch(
+        `https://api.zippopotam.us/${c}/${encodeURIComponent(postalCode)}`
+      );
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const place = data?.places?.[0];
+      const placeName = place?.["place name"] || "";
+
+      if (placeName && !cityProvince) setCityProvince(placeName);
+    } catch (err) {
+      // có thể bị CORS tuỳ môi trường -> nếu vậy thì proxy qua backend
+      console.error("auto-fill city by postal code failed", err);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setShowOtp(true);
-    setOtp(Array(OTP_LENGTH).fill(""));
-    setOtpError(null);
-    setTimeout(() => {
-      if (inputRefs.current[0]) {
-        inputRefs.current[0].focus();
-      }
-    }, 0);
   };
 
   const handleChangeEmail = (value) => {
     setEmail(value);
   };
 
-  const handleChangeOtp = (index, value) => {
-    if (value.length > 1) return;
-    const newOtp = [...otp];
-    newOtp[index] = value.replace(/\D/g, "");
-    setOtp(newOtp);
-    setOtpError(null);
-
-    if (value && index < OTP_LENGTH - 1) {
-      if (inputRefs.current[index + 1]) {
-        inputRefs.current[index + 1].focus();
-      }
-    }
-  };
-
-  const handleKeyDownOtp = (index, e) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      if (inputRefs.current[index - 1]) {
-        inputRefs.current[index - 1].focus();
-      }
-    }
-  };
-
-  const isOtpComplete = otp.join("").length === OTP_LENGTH;
-
-  const handleVerifyEmail = () => {
-    const enteredOtp = otp.join("");
-    if (!isOtpComplete) return;
-
-    if (enteredOtp === DEMO_OTP) {
-      setOtpError(null);
-      setShowOtp(false);
-      navigate("/confirm-order");
-    } else {
-      setOtpError("Mã OTP không đúng. Vui lòng thử lại (mã demo: 123456).");
-    }
-  };
-
   return (
     <div className="bg-light min-vh-100 d-flex flex-column">
       {/* Bước đặt phòng */}
-      <div className="border-bottom bg-white">
-        <div className="container py-3 d-flex align-items-center justify-content-between">
-          <div className="d-flex align-items-center gap-3">
-            <span className="fw-semibold small text-muted">
-              Lựa chọn của bạn
-            </span>
-            <span className="small text-primary">Thông tin của bạn</span>
-            <span className="small text-muted">Hoàn tất đặt phòng</span>
-          </div>
-
-          <div className="d-flex align-items-center gap-2">
-            <span className="small text-muted">Genius</span>
-          </div>
-        </div>
-      </div>
+      <BookingStepper currentStep={2} />
 
       {/* Nội dung chính */}
       <div className="container my-4 flex-grow-1">
@@ -235,25 +314,116 @@ const Order = () => {
                       <label className="form-label small">
                         Thành phố / Tỉnh <span className="text-danger">*</span>
                       </label>
-                      <input type="text" className="form-control" required />
+
+                      {country === "VN" ? (
+                        <select
+                          className="form-select"
+                          value={provinceCode}
+                          onChange={(e) => {
+                            const code = e.target.value;
+                            setProvinceCode(code);
+                            const selected = provinces.find(
+                              (p) => String(p.code) === String(code)
+                            );
+                            setCityProvince(selected?.name || "");
+                          }}
+                          required
+                          disabled={provincesLoading}
+                        >
+                          <option value="" disabled>
+                            {provincesLoading
+                              ? "Đang tải..."
+                              : "Chọn tỉnh/thành"}
+                          </option>
+                          {provinces.map((p) => (
+                            <option key={p.code} value={p.code}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          className="form-control"
+                          required
+                          value={cityProvince}
+                          onChange={(e) => setCityProvince(e.target.value)}
+                          placeholder="Ví dụ: Paris"
+                        />
+                      )}
+                      {provincesError && (
+                        <div className="form-text text-danger d-flex align-items-center justify-content-between">
+                          <span>{provincesError}</span>
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 ms-2"
+                            onClick={retryLoadProvinces}
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      )}
                     </div>
+
                     <div className="col-md-4">
                       <label className="form-label small">Mã bưu chính</label>
-                      <input type="text" className="form-control" />
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={postalCode}
+                        onChange={(e) => setPostalCode(e.target.value)}
+                        onBlur={handlePostalBlur}
+                        placeholder="Ví dụ: 90210"
+                      />
                     </div>
+
                     <div className="col-md-4">
                       <label className="form-label small">
                         Quốc gia / Khu vực{" "}
                         <span className="text-danger">*</span>
                       </label>
-                      <select className="form-select" defaultValue="">
+
+                      <select
+                        className="form-select"
+                        value={country}
+                        onChange={(e) => {
+                          setCountry(e.target.value);
+                          setCityProvince("");
+                          setPostalCode("");
+                        }}
+                        required
+                      >
                         <option value="" disabled>
-                          Chọn quốc gia
+                          {countriesLoading ? "Đang tải..." : "Chọn quốc gia"}
                         </option>
-                        <option value="VN">Việt Nam</option>
-                        <option value="US">Hoa Kỳ</option>
-                        <option value="FR">Pháp</option>
+
+                        {/* fallback nhanh nếu chưa load kịp */}
+                        {countries.length === 0 ? (
+                          <>
+                            <option value="VN">Việt Nam</option>
+                            <option value="US">Hoa Kỳ</option>
+                            <option value="FR">Pháp</option>
+                          </>
+                        ) : (
+                          countries.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.name}
+                            </option>
+                          ))
+                        )}
                       </select>
+                      {countriesError && (
+                        <div className="form-text text-danger d-flex align-items-center justify-content-between">
+                          <span>{countriesError}</span>
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 ms-2"
+                            onClick={retryLoadCountries}
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="col-12">
@@ -483,80 +653,17 @@ const Order = () => {
 
       {/* Popup OTP */}
       {showOtp && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex justify-content-center align-items-center">
-          <div
-            className="bg-white rounded-3 shadow p-4"
-            style={{ maxWidth: 420, width: "100%" }}
-          >
-            <div className="d-flex justify-content-between align-items-start mb-3">
-              <h5 className="mb-0">Xác minh địa chỉ email của bạn</h5>
-              <button
-                type="button"
-                className="btn btn-sm btn-link text-muted text-decoration-none"
-                onClick={() => setShowOtp(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="small mb-3">
-              Chúng tôi đã gửi mã xác minh demo đến{" "}
-              <strong>{email || "email của bạn"}</strong>. <br />
-              Vui lòng nhập mã <strong>{DEMO_OTP}</strong> để test hệ thống.
-            </p>
-
-            <div className="d-flex justify-content-between mb-2">
-              {Array.from({ length: OTP_LENGTH }).map((_, index) => (
-                <input
-                  key={index}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  className="form-control text-center fs-4"
-                  style={{ width: 48, height: 56 }}
-                  value={otp[index]}
-                  onChange={(e) => handleChangeOtp(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDownOtp(index, e)}
-                  ref={(el) => {
-                    inputRefs.current[index] = el;
-                  }}
-                />
-              ))}
-            </div>
-
-            {otpError && <p className="small text-danger mb-2">{otpError}</p>}
-
-            <button
-              type="button"
-              className="btn w-100 mb-2"
-              style={{ backgroundColor: "#e7e9ee", color: "#a0a3ad" }}
-              disabled={!isOtpComplete}
-              onClick={handleVerifyEmail}
-            >
-              Xác minh email
-            </button>
-
-            <p className="small text-muted mb-1">
-              Bạn chưa nhận được email? Vì đây là mã demo, hãy nhập trực tiếp{" "}
-              <strong>{DEMO_OTP}</strong> để tiếp tục.
-            </p>
-
-            <button
-              type="button"
-              className="btn btn-link w-100 mt-2 p-0"
-              onClick={() => setShowOtp(false)}
-            >
-              Để sau
-            </button>
-
-            <hr className="mt-3" />
-            <p className="small text-muted mb-0">
-              Qua việc đăng nhập hoặc tạo tài khoản, bạn đồng ý với các Điều
-              khoản và Điều kiện cũng như Chính sách An toàn và Bảo mật của
-              chúng tôi.
-            </p>
-          </div>
-        </div>
+        <EmailOtpModal
+          key="email-otp"
+          email={email}
+          otpLength={6}
+          demoOtp="123456"
+          onClose={() => setShowOtp(false)}
+          onVerified={() => {
+            setShowOtp(false);
+            navigate("/confirm-order");
+          }}
+        />
       )}
     </div>
   );

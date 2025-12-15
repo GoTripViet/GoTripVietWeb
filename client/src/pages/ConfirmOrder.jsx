@@ -1,4 +1,5 @@
 import React from "react";
+import BookingStepper from "../components/order/stepper";
 
 const ConfirmOrder = () => {
   const handleCompleteBooking = () => {
@@ -9,25 +10,7 @@ const ConfirmOrder = () => {
   return (
     <div className="bg-light min-vh-100 d-flex flex-column">
       {/* Thanh bước đặt phòng */}
-      <div className="border-bottom bg-white">
-        <div className="container py-3 d-flex align-items-center justify-content-between">
-          <div className="d-flex align-items-center gap-3">
-            <span className="small text-muted">
-              <span className="me-1">●</span> Bạn chọn
-            </span>
-            <span className="small text-muted">
-              <span className="me-1">●</span> Chi tiết về bạn
-            </span>
-            <span className="small text-primary fw-semibold">
-              <span className="me-1">●</span> Hoàn tất đặt phòng
-            </span>
-          </div>
-
-          <div className="d-flex align-items-center gap-2">
-            <span className="small text-muted">Genius</span>
-          </div>
-        </div>
-      </div>
+      <BookingStepper currentStep={3} />
 
       {/* Nội dung chính */}
       <div className="container my-4 flex-grow-1">
