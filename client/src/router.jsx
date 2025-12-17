@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -19,6 +19,8 @@ import Order from "./pages/Order.jsx";
 import ConfirmOrder from "./pages/ConfirmOrder.jsx";
 import Login from "./pages/Login.jsx";
 import OtpVerify from "./pages/OtpVerify.jsx";
+import ListingCities from "./pages/ListingCities.jsx";
+import ListingFlights from "./pages/ListingFlights.jsx";
 
 /**
  * Trang Home được bọc trong UserLayout,
@@ -38,6 +40,12 @@ const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
           const query = (q || "").trim();
           navigate(
             query ? `/hotels?q=${encodeURIComponent(query)}` : "/hotels"
+          );
+        }}
+        onNavigateToCities={(q) => {
+          const query = (q || "").trim();
+          navigate(
+            query ? `/cities?q=${encodeURIComponent(query)}` : "/cities"
           );
         }}
       />
@@ -69,6 +77,28 @@ const HotelDetailPage = ({ activeCategoryIndex, onCategoryChange }) => {
       onCategoryChange={onCategoryChange}
     >
       <HotelDetail />
+    </UserLayout>
+  );
+};
+
+const ListingCitiesPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <ListingCities key={location.search} />
+    </UserLayout>
+  );
+};
+
+const ListingFlightsPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <ListingFlights />
     </UserLayout>
   );
 };
@@ -135,6 +165,16 @@ const OtpVerifyPage = () => {
   );
 };
 
+const ScrollToTop = () => {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }, [pathname, search]);
+
+  return null;
+};
+
 /**
  * Component Router chính – dùng trong main.jsx
  */
@@ -143,6 +183,7 @@ const AppRouter = () => {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Trang chủ */}
         <Route
@@ -193,6 +234,28 @@ const AppRouter = () => {
           path="/confirm-order"
           element={
             <ConfirmOrderPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        {/* Trang danh sách thành phố */}
+        <Route
+          path="/cities"
+          element={
+            <ListingCitiesPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        {/* Trang danh sách chuyến bay */}
+        <Route
+          path="/flights"
+          element={
+            <ListingFlightsPage
               activeCategoryIndex={activeCategoryIndex}
               onCategoryChange={setActiveCategoryIndex}
             />

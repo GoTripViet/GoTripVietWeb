@@ -37,6 +37,7 @@ import {
   TAXI_FAQ_ITEMS,
   RENTCAR_FAQ_ITEMS,
   popularDestinations,
+  FLIGHT_FAQ_ITEMS,
 } from "../data/HomeData.jsx";
 
 // ====== Helper: tracking & highlight ======
@@ -46,7 +47,11 @@ function pushDL(payload) {
   window.dataLayer.push({ event: "gtv_event", ...payload });
 }
 
-export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
+export default function Home({
+  activeCategoryIndex,
+  onNavigateToHotels,
+  onNavigateToCities,
+}) {
   const refEvents = useRef(null);
   const refCities = useRef(null);
   const refHotels = useRef(null);
@@ -302,7 +307,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels?.(c.title);
+                      onNavigateToCities?.(c.title);
                     }}
                   />
                 )}
@@ -319,10 +324,19 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                     {...c}
                     onClick={() => {
                       pushDL({ click_city: c.title });
-                      onNavigateToHotels?.(c.title);
+                      onNavigateToCities?.(c.title);
                     }}
                   />
                 )}
+              />
+            </Container>
+            <Container className="my-4">
+              <Faq
+                title="Các câu hỏi thường gặp về chuyến bay trên GoTripViet"
+                description={null}
+                items={FLIGHT_FAQ_ITEMS}
+                defaultOpenAll={true}
+                columns={2}
               />
             </Container>
             <Container className="my-4">
@@ -333,7 +347,7 @@ export default function Home({ activeCategoryIndex, onNavigateToHotels }) {
                 initialVisibleCount={8}
                 onItemClick={() => {
                   pushDL({ click_listing_hotel: true });
-                  onNavigateToHotels?.("Việt Nam");
+                  onNavigateToCities?.("Việt Nam");
                 }}
               />
             </Container>
