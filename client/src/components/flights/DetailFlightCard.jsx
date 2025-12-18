@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import Modal from "react-bootstrap/Modal";
+import Alert from "react-bootstrap/Alert";
 
 const formatVND = (v) =>
   (v || 0).toLocaleString("vi-VN", { style: "currency", currency: "VND" });
@@ -10,12 +11,131 @@ const StopsText = (processTag) => {
   return processTag.label || "";
 };
 
+const SmallLogo = ({ src }) => {
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt="airline"
+      style={{
+        width: 18,
+        height: 18,
+        borderRadius: "50%",
+        objectFit: "cover",
+        border: "1px solid #e9ecef",
+        background: "#fff",
+      }}
+    />
+  );
+};
+
+const SegmentRow = ({ seg }) => {
+  if (!seg) return null;
+
+  return (
+    <div className="border rounded-3 p-3 mb-2">
+      <div className="d-flex justify-content-between align-items-start">
+        <div className="d-flex gap-2">
+          <SmallLogo src={seg.airlineLogo} />
+          <div>
+            <div className="fw-semibold">{seg.airlineName}</div>
+            <div className="small text-muted">
+              {seg.cabinClass ? seg.cabinClass : ""}
+            </div>
+          </div>
+        </div>
+
+        <div className="small text-muted">
+          {seg.durationText ? `Thời gian bay ${seg.durationText}` : ""}
+        </div>
+      </div>
+
+      <div className="d-flex justify-content-between mt-3">
+        <div>
+          <div className="small text-muted">{seg.departDate}</div>
+          <div className="fw-bold">
+            {seg.fromIata} - {seg.fromName}
+          </div>
+          <div className="small text-muted">{seg.departTime}</div>
+        </div>
+
+        <div className="text-end">
+          <div className="small text-muted">{seg.arriveDate}</div>
+          <div className="fw-bold">
+            {seg.toIata} - {seg.toName}
+          </div>
+          <div className="small text-muted">{seg.arriveTime}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const LayoverBox = ({ layover }) => {
+  if (!layover?.durationText) return null;
+
+  if (layover.type === "self_transfer") {
+    return (
+      <div className="border rounded-3 p-3 mb-2 bg-light">
+        <div className="fw-bold">Tự chuyển tiếp trong lúc quá cảnh</div>
+        <div className="small text-muted mt-2 d-flex flex-column gap-2">
+          <div className="d-flex align-items-center gap-2">
+            <i className="bi bi-clock" />
+            <span>Quá cảnh {layover.durationText}</span>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <i className="bi bi-shield-check" />
+            <span>
+              Tự chuyển tiếp có đảm bảo - bạn được hỗ trợ cho việc chuyển tiếp
+            </span>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <i className="bi bi-luggage" />
+            <span>Nhận và ký gửi lại hành lý cho chuyến bay tiếp theo</span>
+          </div>
+        </div>
+
+        <button type="button" className="btn btn-link p-0 mt-2 small">
+          Tự chuyển tiếp là gì ?
+        </button>
+      </div>
+    );
+  }
+
+  // type normal
+  return (
+    <div className="small text-muted d-flex align-items-center gap-2 mb-2">
+      <i className="bi bi-clock" />
+      <span>Quá cảnh {layover.durationText}</span>
+    </div>
+  );
+};
+
 export default function DetailFlightCard({ flight, onClose }) {
+  const [copied, setCopied] = useState(false);
   if (!flight) return null;
 
   const lines = flight.lines || [];
   const outbound = lines[0];
   const inbound = lines[1];
+
+  const buildShareUrl = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("detail", flight.id); // ✅ mở đúng modal
+    return url.toString();
+  };
+
+  const handleShare = async () => {
+    const shareUrl = buildShareUrl();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback cho browser chặn clipboard
+      window.prompt("Sao chép liên kết này:", shareUrl);
+    }
+  };
 
   return (
     <>
@@ -28,47 +148,35 @@ export default function DetailFlightCard({ flight, onClose }) {
 
       <Modal.Body>
         {/* share */}
-        <button type="button" className="btn btn-link p-0 mb-3">
+        <button
+          type="button"
+          className="btn btn-link p-0 mb-3"
+          onClick={handleShare}
+        >
           <i className="bi bi-share me-2" />
           Chia sẻ
         </button>
+        {copied ? (
+          <Alert variant="success" className="py-2 small mb-3">
+            Đã sao chép địa chỉ. Bạn chỉ cần dán để mở đúng chi tiết chuyến bay
+            này.
+          </Alert>
+        ) : null}
 
         {/* outbound */}
         {outbound ? (
           <div className="mb-4">
             <div className="fw-bold">Chuyến bay đến</div>
-            <div className="small text-muted">
-              {StopsText(outbound.processTag)}
-              {outbound.durationText ? ` · ${outbound.durationText}` : ""}
-            </div>
 
-            <div className="d-flex justify-content-between mt-3">
-              <div>
-                <div className="small text-muted">{outbound.depDate}</div>
-                <div className="fw-bold">
-                  {outbound.depAirport} -{" "}
-                  {outbound.depAirportName || "Sân bay khởi hành"}
-                </div>
-                <div className="small text-muted">{outbound.depTime}</div>
-              </div>
+            {(outbound.segments || []).map((seg, i) => (
+              <React.Fragment key={i}>
+                <SegmentRow seg={seg} />
+                {/* nếu muốn layover nằm giữa seg i và i+1: bạn có thể đưa layover vào mảng layovers theo index */}
+              </React.Fragment>
+            ))}
 
-              <div className="text-end">
-                <div className="small text-muted">{outbound.arrDate}</div>
-                <div className="fw-bold">
-                  {outbound.arrAirport} -{" "}
-                  {outbound.arrAirportName || "Sân bay đến"}
-                </div>
-                <div className="small text-muted">{outbound.arrTime}</div>
-              </div>
-            </div>
-
-            <div className="small text-muted mt-2">
-              {outbound.airlineName ? outbound.airlineName : ""}
-              {outbound.flightNo ? ` · ${outbound.flightNo}` : ""}
-              {outbound.durationText
-                ? ` · Thời gian bay ${outbound.durationText}`
-                : ""}
-            </div>
+            {/* nếu bạn để layover theo line */}
+            <LayoverBox layover={outbound.layover} />
           </div>
         ) : null}
 
@@ -76,123 +184,166 @@ export default function DetailFlightCard({ flight, onClose }) {
         {inbound ? (
           <div className="mb-4">
             <div className="fw-bold">Chuyến bay về</div>
-            <div className="small text-muted">
-              {StopsText(inbound.processTag)}
-              {inbound.durationText ? ` · ${inbound.durationText}` : ""}
-            </div>
 
-            <div className="d-flex justify-content-between mt-3">
-              <div>
-                <div className="small text-muted">{inbound.depDate}</div>
-                <div className="fw-bold">
-                  {inbound.depAirport} -{" "}
-                  {inbound.depAirportName || "Sân bay khởi hành"}
-                </div>
-                <div className="small text-muted">{inbound.depTime}</div>
-              </div>
+            {(inbound.segments || []).map((seg, i) => (
+              <React.Fragment key={i}>
+                <SegmentRow seg={seg} />
+                {/* nếu muốn layover nằm giữa seg i và i+1: bạn có thể đưa layover vào mảng layovers theo index */}
+              </React.Fragment>
+            ))}
 
-              <div className="text-end">
-                <div className="small text-muted">{inbound.arrDate}</div>
-                <div className="fw-bold">
-                  {inbound.arrAirport} -{" "}
-                  {inbound.arrAirportName || "Sân bay đến"}
-                </div>
-                <div className="small text-muted">{inbound.arrTime}</div>
-              </div>
-            </div>
-
-            <div className="small text-muted mt-2">
-              {inbound.airlineName ? inbound.airlineName : ""}
-              {inbound.flightNo ? ` · ${inbound.flightNo}` : ""}
-              {inbound.durationText
-                ? ` · Thời gian bay ${inbound.durationText}`
-                : ""}
-            </div>
+            {/* nếu bạn để layover theo line */}
+            <LayoverBox layover={inbound.layover} />
           </div>
         ) : null}
+        {/* baggage + rules + extras kiểu 2 cột */}
 
-        <hr />
-
-        {/* baggage */}
-        <div className="d-flex justify-content-between align-items-start py-2">
-          <div>
-            <div className="fw-bold">Hành lý tiêu chuẩn</div>
-            <div className="small text-muted">
-              Tổng số hành lý được bao gồm trong giá
-            </div>
-          </div>
-          <div className="text-end small" style={{ color: "#198754" }}>
-            Đã bao gồm
-          </div>
-        </div>
-
-        <div className="small d-flex flex-column gap-2 mb-3">
-          {flight?.baggage?.personal ? (
-            <div className="d-flex align-items-center gap-2">
-              <i className="bi bi-briefcase" /> Vật dụng cá nhân
-            </div>
-          ) : null}
-          {flight?.baggage?.carryOn ? (
-            <div className="d-flex align-items-center gap-2">
-              <i className="bi bi-suitcase2" /> Hành lý xách tay
-            </div>
-          ) : null}
-          {flight?.baggage?.checked ? (
-            <div className="d-flex align-items-center gap-2">
-              <i className="bi bi-luggage" /> Hành lý ký gửi
-            </div>
-          ) : null}
-        </div>
-
-        <hr />
-
-        {/* ticket conditions */}
-        <div className="py-2">
-          <div className="fw-bold">Điều kiện vé</div>
-          <div className="small text-muted mb-2">
-            Thông tin chính sách hữu ích
-          </div>
-
-          <div className="small d-flex flex-column gap-2">
-            <div className="d-flex gap-2">
-              <i className="bi bi-arrow-repeat" />
-              <div>
-                Bạn được phép đổi chuyến bay này{" "}
-                {flight.flexible ? " (có trả phí)" : ""}
+        <div className="border-top pt-3">
+          {/* Hành lý tiêu chuẩn */}
+          <div
+            className="row g-0 py-3"
+            style={{ borderBottom: "1px solid #e9ecef" }}
+          >
+            <div className="col-12 col-md-4 pe-md-3">
+              <div className="fw-bold">Hành lý tiêu chuẩn</div>
+              <div className="small text-muted">
+                Tổng số hành lý được bao gồm trong giá
               </div>
             </div>
-            <div className="d-flex gap-2">
-              <i className="bi bi-x-circle" />
-              <div>
-                Bạn được phép huỷ chuyến bay này{" "}
-                {flight.flexible ? " (có trả phí)" : ""}
+
+            <div
+              className="col-12 col-md-8 ps-md-3"
+              style={{ borderLeft: "1px solid #e9ecef" }}
+            >
+              <div className="d-flex flex-column gap-3">
+                {flight?.baggageDetails?.personal ? (
+                  <div className="d-flex justify-content-between gap-3">
+                    <div className="d-flex gap-2">
+                      <i className="bi bi-briefcase fs-5" />
+                      <div>
+                        <div className="fw-semibold">
+                          {flight.baggageDetails.personal.title}
+                        </div>
+                        <div className="small text-muted">
+                          {flight.baggageDetails.personal.desc}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className="small fw-semibold"
+                      style={{ color: "#198754" }}
+                    >
+                      Đã bao gồm
+                    </div>
+                  </div>
+                ) : null}
+
+                {flight?.baggageDetails?.carryOn ? (
+                  <div className="d-flex justify-content-between gap-3">
+                    <div className="d-flex gap-2">
+                      <i className="bi bi-suitcase2 fs-5" />
+                      <div>
+                        <div className="fw-semibold">
+                          {flight.baggageDetails.carryOn.title}
+                        </div>
+                        <div className="small text-muted">
+                          {flight.baggageDetails.carryOn.desc}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className="small fw-semibold"
+                      style={{ color: "#198754" }}
+                    >
+                      Đã bao gồm
+                    </div>
+                  </div>
+                ) : null}
+
+                {flight?.baggageDetails?.checked ? (
+                  <div className="d-flex justify-content-between gap-3">
+                    <div className="d-flex gap-2">
+                      <i className="bi bi-luggage fs-5" />
+                      <div>
+                        <div className="fw-semibold">
+                          {flight.baggageDetails.checked.title}
+                        </div>
+                        <div className="small text-muted">
+                          {flight.baggageDetails.checked.desc}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className="small fw-semibold"
+                      style={{ color: "#198754" }}
+                    >
+                      Đã bao gồm
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
-        </div>
 
-        <hr />
-
-        {/* extras */}
-        <div className="py-2">
-          <div className="fw-bold">Dịch vụ bổ sung bạn có thể muốn</div>
-          <div className="small text-muted mb-2">Có thể mua thêm</div>
-
-          <div className="small d-flex flex-column gap-2">
-            <div className="d-flex justify-content-between">
-              <div className="d-flex gap-2">
-                <i className="bi bi-luggage" />
-                <div>Hành lý ký gửi</div>
+          {/* Điều kiện vé */}
+          <div
+            className="row g-0 py-3"
+            style={{ borderBottom: "1px solid #e9ecef" }}
+          >
+            <div className="col-12 col-md-4 pe-md-3">
+              <div className="fw-bold">Điều kiện vé</div>
+              <div className="small text-muted">
+                Thông tin chính sách hữu ích
               </div>
-              <div className="text-muted">Có ở các bước tiếp theo</div>
             </div>
 
-            <div className="d-flex justify-content-between">
-              <div className="d-flex gap-2">
-                <i className="bi bi-calendar2-check" />
-                <div>Vé linh động</div>
+            <div
+              className="col-12 col-md-8 ps-md-3"
+              style={{ borderLeft: "1px solid #e9ecef" }}
+            >
+              <div className="d-flex flex-column gap-2">
+                {(flight.ticketRules || []).map((r, idx) => (
+                  <div key={idx} className="d-flex gap-2">
+                    <i className={`bi ${r.icon} fs-5`} />
+                    <div className="small">{r.text}</div>
+                  </div>
+                ))}
               </div>
-              <div className="text-muted">Có ở các bước tiếp theo</div>
+            </div>
+          </div>
+
+          {/* Dịch vụ bổ sung */}
+          <div className="row g-0 py-3">
+            <div className="col-12 col-md-4 pe-md-3">
+              <div className="fw-bold">Dịch vụ bổ sung bạn có thể muốn</div>
+              <div className="small text-muted">Có thể mua thêm</div>
+            </div>
+
+            <div
+              className="col-12 col-md-8 ps-md-3"
+              style={{ borderLeft: "1px solid #e9ecef" }}
+            >
+              <div className="d-flex flex-column gap-3">
+                {(flight.extras || []).map((x, idx) => (
+                  <div
+                    key={idx}
+                    className="d-flex justify-content-between gap-3"
+                  >
+                    <div className="d-flex gap-2">
+                      <i className={`bi ${x.icon} fs-5`} />
+                      <div>
+                        <div className="fw-semibold">{x.title}</div>
+                        {x.sub ? (
+                          <div className="small text-muted">{x.sub}</div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="small text-muted">
+                      {x.note || "Có ở các bước tiếp theo"}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

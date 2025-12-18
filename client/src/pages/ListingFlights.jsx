@@ -1,11 +1,15 @@
 import React, { useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Container from "react-bootstrap/Container";
 import Modal from "react-bootstrap/Modal";
 
 import FilterBar from "../components/flights/FliterBar.jsx";
 import FlightCard from "../components/flights/FlightCard.jsx";
 import DetailFlightCard from "../components/flights/DetailFlightCard.jsx";
+import {
+  DUMMY_FLIGHTS,
+  createDefaultFlightFilters,
+} from "../data/FlightsData.jsx";
 
 const formatVND = (v) =>
   (v || 0).toLocaleString("vi-VN", { style: "currency", currency: "VND" });
@@ -28,93 +32,6 @@ const inBin = (minutes, binKey) => {
   return true;
 };
 
-// dummy data (thay bằng api sau)
-const DUMMY_FLIGHTS = [
-  {
-    id: "f1",
-    tags: ["Rẻ nhất", "Có thể nâng lên thành vé linh hoạt"],
-    flexible: true,
-    best: false,
-    price: 29199642,
-    baggage: { personal: true, carryOn: true, checked: true },
-    lines: [
-      {
-        airlineLogos: ["VA"], // bạn thay bằng url logo nếu có
-        depTime: "14:50",
-        depAirport: "SGN",
-        depDate: "17 tháng 1",
-        processTag: { type: "stops", label: "1 điểm dừng" },
-        durationText: "29 giờ 55 phút",
-        arrTime: "22:45",
-        arrAirport: "HND",
-        arrDate: "18 tháng 1",
-      },
-      {
-        airlineLogos: ["CX", "MU"],
-        depTime: "08:40",
-        depAirport: "HND",
-        depDate: "22 tháng 1",
-        processTag: { type: "stops", label: "3 điểm dừng" },
-        durationText: "33 giờ 50 phút",
-        arrTime: "06:30",
-        arrAirport: "GRU",
-        arrDate: "23 tháng 1",
-      },
-    ],
-    operatedBy:
-      "VietJet Aviation, Hong Kong Express, China Eastern Airlines, Copa Airlines",
-    totalDurationHours: 54,
-    stopsMax: 3,
-    airlines: ["VietJet", "Hong Kong Express", "China Eastern", "Copa"],
-    departMin: timeToMinutes("14:50"),
-    arriveMin: timeToMinutes("22:45"),
-  },
-  {
-    id: "f2",
-    tags: ["Nhanh nhất", "Bay thẳng rẻ nhất"],
-    flexible: false,
-    best: true,
-    price: 75980407,
-    baggage: { personal: true, carryOn: true, checked: true },
-    lines: [
-      {
-        airlineLogos: ["NH"],
-        depTime: "23:05",
-        depAirport: "SGN",
-        depDate: "17 tháng 1",
-        processTag: { type: "direct", label: "Bay thẳng" },
-        durationText: "5 giờ 55 phút",
-        arrTime: "07:00",
-        arrAirport: "HND",
-        arrDate: "18 tháng 1",
-      },
-      {
-        airlineLogos: ["AA"],
-        depTime: "17:10",
-        depAirport: "HND",
-        depDate: "22 tháng 1",
-        processTag: { type: "stops", label: "1 điểm dừng" },
-        durationText: "24 giờ 55 phút",
-        arrTime: "06:05",
-        arrAirport: "GRU",
-        arrDate: "23 tháng 1",
-      },
-    ],
-    operatedBy:
-      "Vietnam Airlines, điều hành bởi NH, Japan Airlines, điều hành bởi American Airlines",
-    totalDurationHours: 31,
-    stopsMax: 1,
-    airlines: [
-      "Vietnam Airlines",
-      "All Nippon Airways",
-      "Japan Airlines",
-      "American Airlines",
-    ],
-    departMin: timeToMinutes("23:05"),
-    arriveMin: timeToMinutes("07:00"),
-  },
-];
-
 const DEFAULT_FILTERS = {
   stops: "any", // any | max1
   airlines: null, // sẽ fill sau
@@ -126,6 +43,7 @@ const DEFAULT_FILTERS = {
 
 export default function ListingFlights() {
   const location = useLocation();
+  const navigate = useNavigate();
   const sp = useMemo(
     () => new URLSearchParams(location.search),
     [location.search]
@@ -136,9 +54,8 @@ export default function ListingFlights() {
   const toIata = sp.get("to") || "HND";
   const departLabel = sp.get("depart") || "";
   const retLabel = sp.get("ret") || "";
-
   const initialCity = location.state?.city?.title || cityFromUrl;
-
+  const detailIdFromUrl = sp.get("detail");
   // airlines options from data
   const airlineStats = useMemo(() => {
     const map = new Map();
@@ -153,12 +70,17 @@ export default function ListingFlights() {
   }, []);
 
   const [filters, setFilters] = useState(() => {
-    const all = new Set(airlineStats.map((x) => x.name));
-    return { ...DEFAULT_FILTERS, airlines: all };
+    return createDefaultFlightFilters(airlineStats.map((x) => x.name));
   });
 
   const [sortMode, setSortMode] = useState("best"); // best | cheap | fast
-  const [selectedFlight, setSelectedFlight] = useState(null);
+  const [manualSelectedId, setManualSelectedId] = useState(null);
+  const activeDetailId = detailIdFromUrl || manualSelectedId;
+
+  const selectedFlight = useMemo(() => {
+    if (!activeDetailId) return null;
+    return DUMMY_FLIGHTS.find((f) => f.id === activeDetailId) || null;
+  }, [activeDetailId]);
 
   const flights = useMemo(() => {
     let arr = [...DUMMY_FLIGHTS];
@@ -211,6 +133,14 @@ export default function ListingFlights() {
     return arr;
   }, [filters, sortMode]);
 
+  const closeDetail = () => {
+    setManualSelectedId(null);
+
+    const next = new URLSearchParams(location.search);
+    next.delete("detail");
+    navigate(`${location.pathname}?${next.toString()}`, { replace: true });
+  };
+
   return (
     <div className="py-3">
       <Container>
@@ -225,10 +155,9 @@ export default function ListingFlights() {
               value={filters}
               onChange={setFilters}
               onResetAll={() => {
-                setFilters({
-                  ...DEFAULT_FILTERS,
-                  airlines: new Set(airlineStats.map((x) => x.name)),
-                });
+                setFilters(
+                  createDefaultFlightFilters(airlineStats.map((x) => x.name))
+                );
               }}
             />
           </div>
@@ -273,7 +202,15 @@ export default function ListingFlights() {
                 <FlightCard
                   key={f.id}
                   flight={f}
-                  onOpenDetail={(flight) => setSelectedFlight(flight)}
+                  onOpenDetail={(flight) => {
+                    setManualSelectedId(flight.id);
+
+                    const next = new URLSearchParams(location.search);
+                    next.set("detail", flight.id);
+                    navigate(`${location.pathname}?${next.toString()}`, {
+                      replace: true,
+                    });
+                  }}
                 />
               ))}
             </div>
@@ -286,15 +223,12 @@ export default function ListingFlights() {
 
             <Modal
               show={!!selectedFlight}
-              onHide={() => setSelectedFlight(null)}
+              onHide={closeDetail}
               centered
               size="lg"
               backdrop="static"
             >
-              <DetailFlightCard
-                flight={selectedFlight}
-                onClose={() => setSelectedFlight(null)}
-              />
+              <DetailFlightCard flight={selectedFlight} onClose={closeDetail} />
             </Modal>
           </div>
         </div>

@@ -95,7 +95,6 @@ const AirlineLogoStack = ({ logos = [] }) => {
   const show = list.slice(0, maxShow);
   const more = list.length - show.length;
 
-  // nếu không có logo url -> fallback icon
   if (list.length === 0) {
     return (
       <div
@@ -108,7 +107,10 @@ const AirlineLogoStack = ({ logos = [] }) => {
   }
 
   return (
-    <div className="d-flex align-items-center" style={{ minWidth: 44 }}>
+    <div
+      className="position-relative d-inline-flex align-items-center"
+      style={{ height: 26 }}
+    >
       <div className="d-flex align-items-center">
         {show.map((src, idx) => (
           <img
@@ -116,12 +118,12 @@ const AirlineLogoStack = ({ logos = [] }) => {
             src={src}
             alt="airline"
             style={{
-              width: 22,
-              height: 22,
+              width: 24,
+              height: 24,
               borderRadius: "50%",
               objectFit: "cover",
               border: "1px solid #e9ecef",
-              marginLeft: idx === 0 ? 0 : -6, // chồng nhẹ
+              marginLeft: idx === 0 ? 0 : -8,
               background: "#fff",
             }}
           />
@@ -130,8 +132,19 @@ const AirlineLogoStack = ({ logos = [] }) => {
 
       {more > 0 ? (
         <span
-          className="ms-2 px-2 py-1 rounded-pill small fw-semibold"
-          style={{ background: "#f1f3f5", color: "#495057" }}
+          className="position-absolute d-flex align-items-center justify-content-center fw-semibold"
+          style={{
+            right: -6,
+            bottom: -6,
+            width: 18,
+            height: 18,
+            borderRadius: 999,
+            background: "#fff",
+            border: "1px solid #dee2e6",
+            fontSize: 11,
+            lineHeight: "18px",
+            color: "#495057",
+          }}
           title={list.slice(maxShow).join(", ")}
         >
           +{more}
@@ -167,14 +180,26 @@ export default function FlightCard({ flight, onOpenDetail }) {
               <div key={idx} className="d-flex align-items-center gap-3">
                 {/* logo placeholder */}
                 <div style={{ width: 54 }}>
-                  <AirlineLogoStack logos={ln.airlineLogos} />
+                  <AirlineLogoStack
+                    logos={[
+                      ...new Set(
+                        (ln.segments || [])
+                          .map((s) => s.airlineLogo)
+                          .filter(Boolean)
+                      ),
+                    ]}
+                  />
                 </div>
 
                 {/* dep */}
                 <div style={{ minWidth: 90 }}>
                   <div className="fw-bold">{ln.depTime}</div>
                   <div className="small text-muted">
-                    {ln.depAirport} · {ln.depDate}
+                    {ln.segments?.[0]?.fromIata || ln.depAirport}
+                    {ln.segments?.[0]?.cabinClass
+                      ? ` · ${ln.segments[0].cabinClass}`
+                      : ""}
+                    {` · ${ln.depDate}`}
                   </div>
                 </div>
 
