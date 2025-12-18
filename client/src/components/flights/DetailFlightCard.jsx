@@ -111,6 +111,129 @@ const LayoverBox = ({ layover }) => {
   );
 };
 
+const getLayoverAfter = (line, idx) => {
+  const arr = Array.isArray(line?.layovers) ? line.layovers : [];
+  // fallback: nếu line còn kiểu cũ (layover), vẫn chạy
+  if (arr.length === 0 && line?.layover && line.layover.afterIndex === idx)
+    return line.layover;
+  return arr.find((l) => l.afterIndex === idx) || null;
+};
+
+const TimelineLine = ({ title, line }) => {
+  if (!line) return null;
+  const segs = line.segments || [];
+
+  return (
+    <div className="mb-4">
+      <div className="fw-bold">{title}</div>
+      <div className="small text-muted">
+        {StopsText(line.processTag)}{" "}
+        {line.durationText ? `· ${line.durationText}` : ""}
+      </div>
+
+      <div className="mt-3">
+        {segs.map((seg, idx) => (
+          <React.Fragment key={idx}>
+            {/* segment timeline row */}
+            <div className="d-flex gap-3">
+              {/* left timeline */}
+              <div
+                style={{ width: 18 }}
+                className="d-flex flex-column align-items-center"
+              >
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 999,
+                    border: "2px solid #adb5bd",
+                    background: "#fff",
+                    marginTop: 4,
+                  }}
+                />
+                <div
+                  style={{
+                    flex: 1,
+                    width: 2,
+                    background: "#adb5bd",
+                    minHeight: 46,
+                  }}
+                />
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 999,
+                    border: "2px solid #adb5bd",
+                    background: "#fff",
+                  }}
+                />
+              </div>
+
+              {/* middle: time + airport */}
+              <div className="flex-grow-1">
+                <div className="small text-muted">{seg.departDate}</div>
+                <div className="fw-bold">
+                  {seg.fromIata} - {seg.fromName}
+                </div>
+
+                <div className="small text-muted mt-1">{seg.departTime}</div>
+
+                <div className="mt-3 small text-muted">{seg.arriveDate}</div>
+                <div className="fw-bold">
+                  {seg.toIata} - {seg.toName}
+                </div>
+                <div className="small text-muted mt-1">{seg.arriveTime}</div>
+              </div>
+
+              {/* right: airline info */}
+              <div style={{ width: 190 }} className="text-end">
+                <div className="d-inline-flex align-items-center gap-2 justify-content-end">
+                  <SmallLogo src={seg.airlineLogo} />
+                  <div className="text-start">
+                    <div className="small fw-semibold">{seg.airlineName}</div>
+                    <div className="small text-muted">
+                      {seg.flightNo ? `${seg.flightNo} · ` : ""}
+                      {seg.cabinClass || ""}
+                    </div>
+                    <div className="small text-muted">
+                      {seg.durationText
+                        ? `Thời gian bay ${seg.durationText}`
+                        : ""}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* layover between segments */}
+            {idx < segs.length - 1 ? (
+              <div className="d-flex gap-3 my-2">
+                <div
+                  style={{ width: 18 }}
+                  className="d-flex flex-column align-items-center"
+                >
+                  <div
+                    style={{ width: 2, background: "#adb5bd", height: 10 }}
+                  />
+                </div>
+
+                <div className="flex-grow-1">
+                  {getLayoverAfter(line, idx) ? (
+                    <LayoverBox layover={getLayoverAfter(line, idx)} />
+                  ) : null}
+                </div>
+
+                <div style={{ width: 190 }} />
+              </div>
+            ) : null}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export default function DetailFlightCard({ flight, onClose }) {
   const [copied, setCopied] = useState(false);
   if (!flight) return null;
@@ -165,37 +288,12 @@ export default function DetailFlightCard({ flight, onClose }) {
 
         {/* outbound */}
         {outbound ? (
-          <div className="mb-4">
-            <div className="fw-bold">Chuyến bay đến</div>
-
-            {(outbound.segments || []).map((seg, i) => (
-              <React.Fragment key={i}>
-                <SegmentRow seg={seg} />
-                {/* nếu muốn layover nằm giữa seg i và i+1: bạn có thể đưa layover vào mảng layovers theo index */}
-              </React.Fragment>
-            ))}
-
-            {/* nếu bạn để layover theo line */}
-            <LayoverBox layover={outbound.layover} />
-          </div>
+          <TimelineLine title="Chuyến bay đến" line={outbound} />
         ) : null}
 
         {/* inbound */}
-        {inbound ? (
-          <div className="mb-4">
-            <div className="fw-bold">Chuyến bay về</div>
+        {inbound ? <TimelineLine title="Chuyến bay về" line={inbound} /> : null}
 
-            {(inbound.segments || []).map((seg, i) => (
-              <React.Fragment key={i}>
-                <SegmentRow seg={seg} />
-                {/* nếu muốn layover nằm giữa seg i và i+1: bạn có thể đưa layover vào mảng layovers theo index */}
-              </React.Fragment>
-            ))}
-
-            {/* nếu bạn để layover theo line */}
-            <LayoverBox layover={inbound.layover} />
-          </div>
-        ) : null}
         {/* baggage + rules + extras kiểu 2 cột */}
 
         <div className="border-top pt-3">
