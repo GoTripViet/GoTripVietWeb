@@ -234,7 +234,7 @@ const TimelineLine = ({ title, line }) => {
   );
 };
 
-export default function DetailFlightCard({ flight, onClose }) {
+export default function DetailFlightCard({ flight, onClose, onContinue }) {
   const [copied, setCopied] = useState(false);
   if (!flight) return null;
 
@@ -459,7 +459,7 @@ export default function DetailFlightCard({ flight, onClose }) {
         <button
           type="button"
           className="btn btn-primary px-4"
-          onClick={onClose}
+          onClick={() => onContinue?.(flight)}
         >
           Tiếp tục
         </button>

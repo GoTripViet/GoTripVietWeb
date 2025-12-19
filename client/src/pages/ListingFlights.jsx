@@ -141,6 +141,13 @@ export default function ListingFlights() {
     navigate(`${location.pathname}?${next.toString()}`, { replace: true });
   };
 
+  const handleContinueOrder = (flight) => {
+    // lưu để refresh không mất
+    sessionStorage.setItem("order_flight", JSON.stringify(flight));
+    closeDetail();
+    navigate("/order-flight", { state: { flightId: flight.id } });
+  };
+
   return (
     <div className="py-3">
       <Container>
@@ -228,7 +235,11 @@ export default function ListingFlights() {
               size="lg"
               backdrop="static"
             >
-              <DetailFlightCard flight={selectedFlight} onClose={closeDetail} />
+              <DetailFlightCard
+                flight={selectedFlight}
+                onClose={closeDetail}
+                onContinue={handleContinueOrder}
+              />
             </Modal>
           </div>
         </div>

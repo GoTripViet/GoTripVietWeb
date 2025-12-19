@@ -21,6 +21,7 @@ import Login from "./pages/Login.jsx";
 import OtpVerify from "./pages/OtpVerify.jsx";
 import ListingCities from "./pages/ListingCities.jsx";
 import ListingFlights from "./pages/ListingFlights.jsx";
+import OrderFlight from "./pages/OrderFlight.jsx";
 
 /**
  * Trang Home được bọc trong UserLayout,
@@ -82,6 +83,7 @@ const HotelDetailPage = ({ activeCategoryIndex, onCategoryChange }) => {
 };
 
 const ListingCitiesPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  const location = useLocation();
   return (
     <UserLayout
       activeCategoryIndex={activeCategoryIndex}
@@ -121,6 +123,17 @@ const ConfirmOrderPage = ({ activeCategoryIndex, onCategoryChange }) => {
       onCategoryChange={onCategoryChange}
     >
       <ConfirmOrder />
+    </UserLayout>
+  );
+};
+
+const OrderFlightPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <OrderFlight />
     </UserLayout>
   );
 };
@@ -256,6 +269,17 @@ const AppRouter = () => {
           path="/flights"
           element={
             <ListingFlightsPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        {/* Trang đặt chuyến bay */}
+        <Route
+          path="/order-flight"
+          element={
+            <OrderFlightPage
               activeCategoryIndex={activeCategoryIndex}
               onCategoryChange={setActiveCategoryIndex}
             />
