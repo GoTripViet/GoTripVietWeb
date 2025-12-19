@@ -76,11 +76,11 @@ export default function OrderFlight() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const flight = useMemo(() => getStoredFlight(), [location.key]);
+  const flight = getStoredFlight();
 
   const summary = useMemo(() => buildTripSummary(flight), [flight]);
 
-  const [step, setStep] = useState(1); // 1..4
+  const [step, setStep] = useState(1); // 1..5
   const [priceOpen, setPriceOpen] = useState(false);
   // phí add-on cho loại vé (bạn chỉnh số cho đúng)
   const STANDARD_FARE_FEE = 0;
@@ -91,13 +91,110 @@ export default function OrderFlight() {
   const fareFee =
     fareType === "flexible" ? FLEXIBLE_FARE_FEE : STANDARD_FARE_FEE;
   const fareLabel = fareType === "flexible" ? "Vé linh hoạt" : "Vé tiêu chuẩn";
+  const FASTTRACK_PRICE = 2392879; // ví dụ theo ảnh, bạn đổi theo thực tế
+  const [fastTrackChoice, setFastTrackChoice] = useState(null);
+  // null | "none" | "add"
+  // ===== Seats (Step 4) =====
+  const SEAT_MIN_PRICE = 163547; // “Chọn ghế từ …”
+  const SEAT_MAX_PRICE = 445858;
 
+  // outbound / inbound seats: lưu danh sách seatId đã chọn
+  const [seatSelection, setSeatSelection] = useState({
+    outbound: [], // ví dụ ["1A","1B"...]
+    inbound: [],
+  });
+
+  // mở/đóng phần seatmap trong từng box
+  const [seatOpen, setSeatOpen] = useState({
+    outbound: false,
+    inbound: false,
+  });
+
+  // collapse chi tiết giá cho seats
+  // (nếu bạn đã có addonOpen thì thêm field seat)
+
+  const [fastTrackBenefitsOpen, setFastTrackBenefitsOpen] = useState(false);
   const baseFlightPrice = flight.price || 0;
 
-  // ✅ chỉ cộng phí loại vé khi đã qua step 2 (tức step >= 2)
-  const addOnFee = step >= 2 ? fareFee : 0;
+  // ✅ chỉ tính “dịch vụ bổ sung” khi đã sang step 3 trở đi
+  const fareAddOn = step >= 3 ? fareFee : 0;
+  const fastTrackAddOn =
+    step >= 3 && fastTrackChoice === "add" ? FASTTRACK_PRICE : 0;
 
-  const totalPrice = baseFlightPrice + addOnFee;
+  const seatsOutboundTotal = (seatSelection.outbound || []).reduce(
+    (sum, seatId) => {
+      const row = Number(String(seatId).match(/^\d+/)?.[0] || 0);
+      return sum + (row ? seatPriceOf(row) : 0);
+    },
+    0
+  );
+
+  const seatsInboundTotal = (seatSelection.inbound || []).reduce(
+    (sum, seatId) => {
+      const row = Number(String(seatId).match(/^\d+/)?.[0] || 0);
+      return sum + (row ? seatPriceOf(row) : 0);
+    },
+    0
+  );
+
+  const seatsTotal = seatsOutboundTotal + seatsInboundTotal;
+
+  // ✅ chỉ tính tiền ghế từ step 4 trở đi
+  const seatsAddOn = step >= 4 ? seatsTotal : 0;
+
+  const addOnsTotal = fareAddOn + fastTrackAddOn + seatsAddOn;
+  const totalPrice = baseFlightPrice + addOnsTotal;
+
+  const [addonOpen, setAddonOpen] = useState({
+    fare: false,
+    fasttrack: false,
+    seat: false,
+  });
+
+  const toggleAddon = (key) =>
+    setAddonOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const cols = ["A", "B", "C", "D", "E", "F"];
+  const rows = Array.from({ length: 32 }, (_, i) => i + 1);
+
+  // seat price theo hàng: hàng càng gần đầu càng mắc (demo)
+  function seatPriceOf(row) {
+    const t = Math.max(0, Math.min(1, (32 - row) / 31));
+    return Math.round(SEAT_MIN_PRICE + t * (SEAT_MAX_PRICE - SEAT_MIN_PRICE));
+  }
+
+  // tạo “ghế không có sẵn” demo (cho giống hình)
+  const isSeatUnavailable = (row, col) => {
+    const key = `${row}${col}`;
+    // vài ghế block cố định để nhìn “thật”
+    const blocked = new Set(["1A", "1B", "1C", "2A", "21B", "21C"]);
+    return blocked.has(key);
+  };
+
+  // “lối thoát” demo: row 11 và 12
+  const isExitRow = (row) => row === 11 || row === 12;
+
+  const toggleSeat = (dir, seatId) => {
+    setSeatSelection((prev) => {
+      const current = prev[dir] || [];
+
+      // remove nếu click lại
+      if (current.includes(seatId)) {
+        return { ...prev, [dir]: current.filter((x) => x !== seatId) };
+      }
+
+      // thêm mới: không vượt quá paxCount
+      if (current.length >= paxCount) {
+        // bạn có thể đổi thành toast sau
+        alert(
+          `Bạn chỉ có thể chọn tối đa ${paxCount} ghế cho ${paxCount} hành khách.`
+        );
+        return prev;
+      }
+
+      return { ...prev, [dir]: [...current, seatId] };
+    });
+  };
 
   // passengers demo: sau này lấy từ PlaneSearch (adult/child)
   const [passengers, setPassengers] = useState(
@@ -106,7 +203,7 @@ export default function OrderFlight() {
 
   const adultCount = passengers.filter((p) => p.type === "adult").length;
   const childCount = passengers.filter((p) => p.type === "child").length;
-
+  const paxCount = adultCount + childCount;
   // state cho contact info
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -141,6 +238,7 @@ export default function OrderFlight() {
               "Thông tin của bạn",
               "Loại vé",
               "Dịch vụ bổ sung",
+              "Chọn ghế",
               "Kiểm tra và thanh toán",
             ]}
           />
@@ -323,7 +421,10 @@ export default function OrderFlight() {
                         type="button"
                         onClick={() => {
                           setFareType("standard");
+                          setFastTrackChoice(null);
                           setStep(3);
+                          setSeatSelection({ outbound: [], inbound: [] });
+                          setSeatOpen({ outbound: false, inbound: false });
                         }}
                       >
                         Tiếp tục
@@ -406,14 +507,11 @@ export default function OrderFlight() {
                         type="button"
                         onClick={() => {
                           setFareType("flexible");
+                          setFastTrackChoice(null);
                           setStep(3);
+                          setSeatSelection({ outbound: [], inbound: [] });
+                          setSeatOpen({ outbound: false, inbound: false });
                         }}
-                        disabled={!flight.flexible} // optional: nếu không có linh hoạt thì disable
-                        title={
-                          !flight.flexible
-                            ? "Chuyến bay này không có vé linh hoạt"
-                            : ""
-                        }
                       >
                         Tiếp tục
                       </button>
@@ -422,16 +520,544 @@ export default function OrderFlight() {
                         Vé linh động chỉ có trong giai đoạn đặt vé. Xem mục Vé
                         linh động để biết điều khoản và điều kiện
                       </div>
-
-                      <button
-                        type="button"
-                        className="btn btn-link p-0 mt-2"
-                        onClick={() => setStep(1)}
-                      >
-                        Quay lại
-                      </button>
                     </div>
                   </div>
+                  <div className="d-flex justify-content-between align-items-center mt-4">
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary px-4"
+                      onClick={() => setStep(1)}
+                    >
+                      <i className="bi bi-chevron-left me-1" />
+                      Quay lại
+                    </button>
+
+                    {/* step 2 không có nút "Tiếp theo" chung vì mỗi box có nút Tiếp tục riêng */}
+                    <div />
+                  </div>
+                </div>
+              </>
+            ) : null}
+            {step === 3 ? (
+              <>
+                <div className="fw-bold fs-3">Fast Track</div>
+                <div className="text-muted mb-3">
+                  Sử dụng làn ưu tiên tại khu vực kiểm tra an ninh ở sân bay để
+                  tiết kiệm thời gian và an tâm hơn.
+                </div>
+
+                <div className="d-flex flex-column gap-3">
+                  {/* Option NONE */}
+                  <button
+                    type="button"
+                    className={`w-100 text-start border rounded-3 p-3 bg-white ${
+                      fastTrackChoice === "none"
+                        ? "border-primary shadow-sm"
+                        : ""
+                    }`}
+                    onClick={() => setFastTrackChoice("none")}
+                  >
+                    <div className="d-flex align-items-start gap-3">
+                      <div className="pt-1">
+                        <i
+                          className={`bi ${
+                            fastTrackChoice === "none"
+                              ? "bi-record-circle-fill text-primary"
+                              : "bi-circle"
+                          }`}
+                        />
+                      </div>
+                      <div className="flex-grow-1">
+                        <div className="fw-bold">Không có Fast Track</div>
+                        <div className="small text-muted">{formatVND(0)}</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Option ADD */}
+                  <div
+                    className={`border rounded-3 p-3 bg-white ${
+                      fastTrackChoice === "add"
+                        ? "border-primary shadow-sm"
+                        : ""
+                    }`}
+                  >
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="w-100 text-start border-0 bg-transparent p-0"
+                      onClick={() => setFastTrackChoice("add")}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setFastTrackChoice("add");
+                        }
+                      }}
+                    >
+                      <div className="d-flex align-items-start gap-3">
+                        <div className="pt-1">
+                          <i
+                            className={`bi ${
+                              fastTrackChoice === "add"
+                                ? "bi-record-circle-fill text-primary"
+                                : "bi-circle"
+                            }`}
+                          />
+                        </div>
+
+                        <div className="flex-grow-1">
+                          <div className="fw-bold">Thêm Fast Track</div>
+                          <div className="small text-muted">
+                            {formatVND(FASTTRACK_PRICE)}
+                          </div>
+                          <div className="small text-muted">
+                            Áp dụng cho tất cả sân bay khởi hành trong đơn đặt
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-link text-decoration-none"
+                          onClick={(e) => {
+                            e.stopPropagation(); // ✅ để bấm “Lợi ích…” không bị chọn option
+                            setFastTrackBenefitsOpen((v) => !v);
+                          }}
+                        >
+                          <span className="fw-semibold text-dark">
+                            Lợi ích của Fast Track
+                          </span>{" "}
+                          <i
+                            className={`bi ${
+                              fastTrackBenefitsOpen
+                                ? "bi-chevron-up"
+                                : "bi-chevron-down"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    <Collapse in={fastTrackBenefitsOpen}>
+                      <div className="mt-2 small text-muted">
+                        <div className="d-flex gap-2">
+                          <i className="bi bi-phone" />
+                          <span>
+                            Lưu giữ thẻ Fast Track ngay trong điện thoại, được
+                            gửi cho bạn trước chuyến bay
+                          </span>
+                        </div>
+                        <div className="d-flex gap-2 mt-2">
+                          <i className="bi bi-shield-check" />
+                          <span>
+                            Không phải xếp hàng tại khu vực kiểm tra an ninh ở
+                            sân bay, chỉ cần xuất trình thẻ Fast Track
+                          </span>
+                        </div>
+                        <div className="d-flex gap-2 mt-2">
+                          <i className="bi bi-cup-hot" />
+                          <span>
+                            Thong thả nghỉ ngơi, mua sắm và ăn uống ở khu khởi
+                            hành
+                          </span>
+                        </div>
+                      </div>
+                    </Collapse>
+                  </div>
+                </div>
+
+                <div className="small text-muted mt-3">
+                  Bạn sẽ không được hoàn tiền khi mua dịch vụ Fast Track, trừ
+                  phi chính sách hủy quy định khoản này. Fast Track không thể
+                  được chuyển nhượng và chỉ áp dụng cho người mua dịch vụ.
+                </div>
+
+                <div className="d-flex justify-content-between align-items-center mt-4">
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary px-4"
+                    onClick={() => setStep(2)}
+                  >
+                    <i className="bi bi-chevron-left me-1" />
+                    Quay lại
+                  </button>
+
+                  <button
+                    className="btn btn-primary px-4"
+                    onClick={() => setStep(4)}
+                    disabled={fastTrackChoice === null}
+                    title={
+                      fastTrackChoice === null
+                        ? "Vui lòng chọn một tùy chọn Fast Track"
+                        : ""
+                    }
+                  >
+                    Tiếp theo
+                  </button>
+                </div>
+              </>
+            ) : null}
+            {step === 4 ? (
+              <>
+                <div className="fw-bold fs-3 mb-3">Chọn ghế</div>
+
+                {/* xác định có inbound không */}
+                {(() => {
+                  const outbound = flight?.lines?.[0];
+                  const inbound = flight?.lines?.[1];
+
+                  const outboundAirline =
+                    outbound?.segments?.[0]?.airlineName ||
+                    outbound?.airline ||
+                    "Hãng bay";
+                  const inboundAirline =
+                    inbound?.segments?.[0]?.airlineName ||
+                    inbound?.airline ||
+                    "Hãng bay";
+
+                  const outboundDur = outbound?.durationText || "";
+                  const inboundDur = inbound?.durationText || "";
+
+                  const outSelected = seatSelection.outbound?.length || 0;
+                  const inSelected = seatSelection.inbound?.length || 0;
+
+                  const outTotal = seatsOutboundTotal;
+                  const inTotal = seatsInboundTotal;
+
+                  const RouteBox = ({
+                    dir,
+                    title,
+                    airline,
+                    duration,
+                    selectedCount,
+                    total,
+                  }) => (
+                    <div className="border rounded-3 bg-white overflow-hidden mb-3">
+                      <button
+                        type="button"
+                        className="w-100 text-start border-0 bg-transparent p-3 d-flex justify-content-between align-items-start"
+                        onClick={() =>
+                          setSeatOpen((prev) => ({
+                            ...prev,
+                            [dir]: !prev[dir],
+                          }))
+                        }
+                      >
+                        <div>
+                          <div className="fw-bold">{title}</div>
+                          <div className="small text-muted mt-1">
+                            {duration ? `${duration} · ` : ""}
+                            {airline}
+                          </div>
+
+                          {selectedCount === 0 ? (
+                            <>
+                              <div className="small text-muted mt-2">
+                                Chưa chọn ghế
+                              </div>
+                              <div className="small text-primary mt-1">
+                                Chọn ghế từ {formatVND(SEAT_MIN_PRICE)}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="small text-muted mt-2">
+                              Đã chọn {selectedCount} ghế · Tổng giá{" "}
+                              {formatVND(total)}
+                            </div>
+                          )}
+
+                          {selectedCount > 0 ? (
+                            <div className="small text-primary mt-2">
+                              Đổi ghế
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="pt-1">
+                          <i
+                            className={`bi ${
+                              seatOpen[dir]
+                                ? "bi-chevron-up"
+                                : "bi-chevron-down"
+                            }`}
+                          />
+                        </div>
+                      </button>
+
+                      <Collapse in={seatOpen[dir]}>
+                        <div className="border-top p-3">
+                          <div className="d-flex gap-3 flex-column flex-lg-row">
+                            {/* LEFT: passenger + legend */}
+                            <div style={{ minWidth: 260 }}>
+                              <div className="border rounded-3 p-3 bg-light">
+                                <div className="fw-semibold mb-1">
+                                  Chọn ghế cho {paxCount} hành khách
+                                </div>
+                                <div className="small text-muted">
+                                  Bạn có thể chọn tối đa {paxCount} ghế cho
+                                  chặng này.
+                                </div>
+
+                                <div className="mt-3 small">
+                                  Đã chọn:{" "}
+                                  <span className="fw-semibold">
+                                    {(seatSelection[dir] || []).length}/
+                                    {paxCount}
+                                  </span>
+                                </div>
+
+                                {(seatSelection[dir] || []).length ? (
+                                  <div className="small text-muted mt-1">
+                                    {seatSelection[dir].join(", ")}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-3 d-flex flex-column gap-2 small">
+                                <div className="d-flex align-items-center gap-2">
+                                  <span
+                                    style={{
+                                      width: 22,
+                                      height: 22,
+                                      border: "1px solid #0d6efd",
+                                      borderRadius: 6,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    $
+                                  </span>
+                                  Ghế có sẵn ({formatVND(SEAT_MIN_PRICE)} –{" "}
+                                  {formatVND(SEAT_MAX_PRICE)})
+                                </div>
+
+                                <div className="d-flex align-items-center gap-2">
+                                  <span
+                                    style={{
+                                      width: 22,
+                                      height: 22,
+                                      border: "1px solid #ced4da",
+                                      borderRadius: 6,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      color: "#adb5bd",
+                                    }}
+                                  >
+                                    ×
+                                  </span>
+                                  Ghế không có sẵn
+                                </div>
+
+                                <div className="d-flex align-items-center gap-2">
+                                  <span
+                                    style={{
+                                      width: 22,
+                                      height: 22,
+                                      border: "1px solid #198754",
+                                      borderRadius: 6,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      background: "#e8f5ee",
+                                      color: "#198754",
+                                    }}
+                                  >
+                                    ✓
+                                  </span>
+                                  Ghế đã chọn
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* RIGHT: seat map */}
+                            <div className="flex-grow-1">
+                              <div className="border rounded-3 p-3">
+                                <div className="d-flex justify-content-center gap-4 mb-2 small fw-semibold">
+                                  {cols.map((c) => (
+                                    <div
+                                      key={c}
+                                      style={{ width: 30, textAlign: "center" }}
+                                    >
+                                      {c}
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="d-flex flex-column gap-2">
+                                  {rows.map((r) => (
+                                    <div
+                                      key={r}
+                                      className="d-flex align-items-center gap-2"
+                                    >
+                                      <div
+                                        style={{ width: 26 }}
+                                        className="small text-muted text-end"
+                                      >
+                                        {r}
+                                      </div>
+
+                                      <div className="d-flex gap-2">
+                                        {cols.map((c) => {
+                                          const id = `${r}${c}`;
+                                          const selected = (
+                                            seatSelection[dir] || []
+                                          ).includes(id);
+                                          const unavailable = isSeatUnavailable(
+                                            r,
+                                            c
+                                          );
+
+                                          const btnStyle = {
+                                            width: 30,
+                                            height: 30,
+                                            borderRadius: 6,
+                                            border: selected
+                                              ? "1px solid #198754"
+                                              : unavailable
+                                              ? "1px solid #ced4da"
+                                              : "1px solid #0d6efd",
+                                            background: selected
+                                              ? "#e8f5ee"
+                                              : unavailable
+                                              ? "#f8f9fa"
+                                              : "#fff",
+                                            color: selected
+                                              ? "#198754"
+                                              : unavailable
+                                              ? "#adb5bd"
+                                              : "#0d6efd",
+                                            cursor: unavailable
+                                              ? "not-allowed"
+                                              : "pointer",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            fontSize: 13,
+                                          };
+
+                                          return (
+                                            <button
+                                              key={id}
+                                              type="button"
+                                              style={btnStyle}
+                                              disabled={unavailable}
+                                              title={
+                                                unavailable
+                                                  ? "Ghế không có sẵn"
+                                                  : `${id} · ${formatVND(
+                                                      seatPriceOf(r)
+                                                    )}`
+                                              }
+                                              onClick={() =>
+                                                toggleSeat(dir, id)
+                                              }
+                                            >
+                                              {unavailable
+                                                ? "×"
+                                                : selected
+                                                ? "✓"
+                                                : "$"}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+
+                                      {isExitRow(r) ? (
+                                        <div className="small text-success ms-2">
+                                          Lối thoát
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="small text-muted mt-2">
+                                (demo) Giá ghế tính theo hàng; bạn có thể thay
+                                bằng data thật sau.
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Collapse>
+                    </div>
+                  );
+
+                  return (
+                    <>
+                      <RouteBox
+                        dir="outbound"
+                        title={`Từ ${summary.fromCity} đến ${summary.toCity}`}
+                        airline={outboundAirline}
+                        duration={outboundDur}
+                        selectedCount={outSelected}
+                        total={outTotal}
+                      />
+
+                      {summary.isRoundTrip && inbound ? (
+                        <RouteBox
+                          dir="inbound"
+                          title={`Từ ${summary.toCity} đến ${summary.fromCity}`}
+                          airline={inboundAirline}
+                          duration={inboundDur}
+                          selectedCount={inSelected}
+                          total={inTotal}
+                        />
+                      ) : null}
+
+                      <div className="d-flex justify-content-between align-items-center mt-4">
+                        <button
+                          className="btn btn-outline-primary px-4"
+                          onClick={() => setStep(3)}
+                          type="button"
+                        >
+                          <i className="bi bi-chevron-left me-1" />
+                          Quay lại
+                        </button>
+
+                        <button
+                          className="btn btn-primary px-4"
+                          onClick={() => setStep(5)}
+                          type="button"
+                        >
+                          Tiếp theo
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            ) : null}
+
+            {step === 5 ? (
+              <>
+                <div className="fw-bold fs-3 mb-2">Kiểm tra và thanh toán</div>
+                <div className="text-muted mb-3">
+                  (demo) Bước này sẽ hiển thị tổng hợp + form thanh toán.
+                </div>
+
+                <div className="border rounded-3 p-3 bg-white">
+                  <div className="fw-semibold">Tóm tắt</div>
+                  <div className="small text-muted">
+                    Bạn sẽ render lại: hành khách, loại vé, fast track, tổng
+                    tiền, điều khoản...
+                  </div>
+                </div>
+
+                <div className="d-flex justify-content-between align-items-center mt-4">
+                  <button
+                    className="btn btn-outline-primary px-4"
+                    onClick={() => setStep(4)}
+                    type="button"
+                  >
+                    <i className="bi bi-chevron-left me-1" />
+                    Quay lại
+                  </button>
+
+                  <button className="btn btn-primary px-4" type="button">
+                    Thanh toán
+                  </button>
                 </div>
               </>
             ) : null}
@@ -490,19 +1116,132 @@ export default function OrderFlight() {
                 </div>
               </Collapse>
 
-              {step >= 2 ? (
+              <hr />
+
+              {step >= 3 ? (
                 <>
-                  <hr />
-                  <div className="fw-bold mt-3">Dịch vụ bổ sung</div>
-                  <div className="d-flex justify-content-between small">
-                    <div>{fareLabel}</div>
-                    <div>{formatVND(fareFee)}</div>
+                  <div className="fw-bold mt-2">Dịch vụ bổ sung</div>
+
+                  {/* 1) Loại vé (luôn có khi đã sang step 3) */}
+                  <div className="d-flex justify-content-between align-items-center mt-2">
+                    <div className="fw-semibold">{fareLabel}</div>
+                    <div className="d-flex align-items-center gap-2">
+                      <div>{formatVND(fareFee)}</div>
+                      <button
+                        className="btn btn-outline-secondary btn-sm"
+                        type="button"
+                        onClick={() => toggleAddon("fare")}
+                      >
+                        <i
+                          className={`bi ${
+                            addonOpen.fare ? "bi-chevron-up" : "bi-chevron-down"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
-                  <hr />
+
+                  <Collapse in={addonOpen.fare}>
+                    <div className="mt-2 small text-muted">
+                      <div className="d-flex justify-content-between">
+                        <div>Giá cơ bản</div>
+                        <div>{formatVND(fareFee)}</div>
+                      </div>
+
+                      {/* nếu sau này có discount thì thêm dòng này */}
+                      {/* <div className="d-flex justify-content-between">
+          <div>Sự kiện giảm giá</div>
+          <div>-{formatVND(50000)}</div>
+        </div> */}
+                    </div>
+                  </Collapse>
+
+                  {/* 2) Fast Track (chỉ show khi khách chọn "Thêm Fast Track") */}
+                  {fastTrackChoice === "add" ? (
+                    <>
+                      <div className="d-flex justify-content-between align-items-center mt-3">
+                        <div className="fw-semibold">Fast Track</div>
+                        <div className="d-flex align-items-center gap-2">
+                          <div>{formatVND(FASTTRACK_PRICE)}</div>
+                          <button
+                            className="btn btn-outline-secondary btn-sm"
+                            type="button"
+                            onClick={() => toggleAddon("fasttrack")}
+                          >
+                            <i
+                              className={`bi ${
+                                addonOpen.fasttrack
+                                  ? "bi-chevron-up"
+                                  : "bi-chevron-down"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      <Collapse in={addonOpen.fasttrack}>
+                        <div className="mt-2 small text-muted">
+                          <div className="d-flex justify-content-between">
+                            <div>Giá cơ bản</div>
+                            <div>{formatVND(FASTTRACK_PRICE)}</div>
+                          </div>
+                          {/* discount demo */}
+                          <div className="d-flex justify-content-between">
+                            <div>Sự kiện giảm giá</div>
+                            <div>-{formatVND(100000)}</div>
+                          </div>
+                        </div>
+                      </Collapse>
+                    </>
+                  ) : null}
+                  {/* 3) Seats (chỉ show từ step 4 và khi có chọn ghế) */}
+                  {step >= 4 && seatsTotal > 0 ? (
+                    <>
+                      <div className="d-flex justify-content-between align-items-center mt-3">
+                        <div className="fw-semibold">
+                          Chỗ ngồi (
+                          {seatSelection.outbound.length +
+                            seatSelection.inbound.length}
+                          )
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          <div>{formatVND(seatsTotal)}</div>
+                          <button
+                            className="btn btn-outline-secondary btn-sm"
+                            type="button"
+                            onClick={() => toggleAddon("seat")}
+                          >
+                            <i
+                              className={`bi ${
+                                addonOpen.seat
+                                  ? "bi-chevron-up"
+                                  : "bi-chevron-down"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      <Collapse in={addonOpen.seat}>
+                        <div className="mt-2 small text-muted">
+                          <div className="d-flex justify-content-between">
+                            <div>Giá cơ bản</div>
+                            <div>{formatVND(seatsTotal)}</div>
+                          </div>
+
+                          {/* nếu sau này có discount thì mở dòng này */}
+                          {/* <div className="d-flex justify-content-between">
+          <div>Sự kiện giảm giá</div>
+          <div>-{formatVND(50000)}</div>
+        </div> */}
+                        </div>
+                      </Collapse>
+                    </>
+                  ) : null}
+
+                  <hr className="mt-3" />
                 </>
-              ) : (
-                <hr />
-              )}
+              ) : null}
 
               <div className="d-flex justify-content-between align-items-baseline">
                 <div className="fw-bold fs-4">Tổng</div>
