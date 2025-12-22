@@ -76,7 +76,7 @@ export default function OrderFlight() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const flight = getStoredFlight();
+  const flight = useMemo(() => getStoredFlight(), []);
 
   const summary = useMemo(() => buildTripSummary(flight), [flight]);
 
@@ -121,6 +121,11 @@ export default function OrderFlight() {
   const fastTrackAddOn =
     step >= 3 && fastTrackChoice === "add" ? FASTTRACK_PRICE : 0;
 
+  // seat price theo hàng: hàng càng gần đầu càng mắc (demo)
+  function seatPriceOf(row) {
+    const t = Math.max(0, Math.min(1, (32 - row) / 31));
+    return Math.round(SEAT_MIN_PRICE + t * (SEAT_MAX_PRICE - SEAT_MIN_PRICE));
+  }
   const seatsOutboundTotal = (seatSelection.outbound || []).reduce(
     (sum, seatId) => {
       const row = Number(String(seatId).match(/^\d+/)?.[0] || 0);
@@ -156,12 +161,6 @@ export default function OrderFlight() {
 
   const cols = ["A", "B", "C", "D", "E", "F"];
   const rows = Array.from({ length: 32 }, (_, i) => i + 1);
-
-  // seat price theo hàng: hàng càng gần đầu càng mắc (demo)
-  function seatPriceOf(row) {
-    const t = Math.max(0, Math.min(1, (32 - row) / 31));
-    return Math.round(SEAT_MIN_PRICE + t * (SEAT_MAX_PRICE - SEAT_MIN_PRICE));
-  }
 
   // tạo “ghế không có sẵn” demo (cho giống hình)
   const isSeatUnavailable = (row, col) => {
@@ -211,6 +210,14 @@ export default function OrderFlight() {
   // pet info
   const [petOpen, setPetOpen] = useState(false);
 
+  const [payName, setPayName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expDate, setExpDate] = useState("");
+  const [cvc, setCvc] = useState("");
+  const [openFlightDetail, setOpenFlightDetail] = useState({});
+  const toggleFlightDetail = (idx) =>
+    setOpenFlightDetail((prev) => ({ ...prev, [idx]: !prev[idx] }));
+
   if (!flight) {
     return (
       <div className="container py-4">
@@ -227,6 +234,40 @@ export default function OrderFlight() {
       </div>
     );
   }
+
+  const getLineHeader = (line) => {
+    const first = line?.segments?.[0];
+    const last = line?.segments?.[line?.segments?.length - 1];
+
+    return {
+      fromCity: toCityLabel(
+        first?.fromName,
+        first?.fromIata || line?.depAirport || ""
+      ),
+      toCity: toCityLabel(last?.toName, last?.toIata || line?.arrAirport || ""),
+      depDate: first?.departDate || line?.depDate || "",
+      arrDate: last?.arriveDate || line?.arrDate || "",
+      duration: line?.totalDuration || "",
+      cabin: line?.cabinClass || "Hạng phổ thông",
+      airlineName: line?.airlineName || first?.airlineName || "",
+      flightNo: line?.flightNo || first?.flightNo || "",
+      logo: line?.airlineLogo || first?.airlineLogo || "",
+    };
+  };
+
+  const handlePayNow = () => {
+    navigate("/order-success", {
+      state: {
+        payload: {
+          source: "flight",
+          totalPrice,
+          email,
+          orderId: `FL-${Date.now()}`,
+          summaryText: `${summary.fromCity} → ${summary.toCity}`,
+        },
+      },
+    });
+  };
 
   return (
     <div>
@@ -301,7 +342,7 @@ export default function OrderFlight() {
                     </label>
                     <input
                       className="form-control mb-2"
-                      value={email}
+                      value={email ?? ""}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="email@domain.com"
                     />
@@ -319,7 +360,7 @@ export default function OrderFlight() {
                       </select>
                       <input
                         className="form-control"
-                        value={phone}
+                        value={phone ?? ""}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="Nhập số điện thoại"
                       />
@@ -1030,37 +1071,376 @@ export default function OrderFlight() {
               </>
             ) : null}
 
-            {step === 5 ? (
-              <>
-                <div className="fw-bold fs-3 mb-2">Kiểm tra và thanh toán</div>
-                <div className="text-muted mb-3">
-                  (demo) Bước này sẽ hiển thị tổng hợp + form thanh toán.
+            {step === 5 && (
+              <div>
+                <div className="h4 fw-bold mb-3">Kiểm tra và thanh toán</div>
+
+                {/* recap giống DetailFlightCard (mini cards) */}
+                <div className="d-flex flex-column gap-3 mb-4">
+                  {(flight?.lines || []).map((line, idx) => {
+                    const h = getLineHeader(line);
+                    return (
+                      <div key={idx} className="border rounded-3 p-3">
+                        <div className="d-flex justify-content-between align-items-center gap-3">
+                          <div className="d-flex align-items-center gap-3">
+                            <div
+                              className="rounded-circle bg-light d-flex align-items-center justify-content-center"
+                              style={{
+                                width: 44,
+                                height: 44,
+                                overflow: "hidden",
+                              }}
+                            >
+                              {h.logo ? (
+                                <img
+                                  src={h.logo}
+                                  alt={h.airlineName}
+                                  style={{
+                                    width: 36,
+                                    height: 36,
+                                    objectFit: "contain",
+                                  }}
+                                />
+                              ) : null}
+                            </div>
+
+                            <div>
+                              <div className="fw-semibold">
+                                {h.fromCity} ({line?.segments?.[0]?.fromIata})
+                                đi {h.toCity} (
+                                {
+                                  line?.segments?.[line?.segments?.length - 1]
+                                    ?.toIata
+                                }
+                                )
+                              </div>
+                              <div className="small text-muted">
+                                {h.depDate}
+                                {h.arrDate ? ` - ${h.arrDate}` : ""}
+                              </div>
+                              <div className="small text-muted">
+                                Bay thẳng · {h.duration} · {h.cabin}
+                              </div>
+                              <div className="small text-muted">
+                                {h.airlineName}
+                                {h.flightNo ? ` · ${h.flightNo}` : ""}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-link text-decoration-none"
+                            onClick={() => toggleFlightDetail(idx)}
+                          >
+                            Hiển thị chi tiết chuyến bay
+                          </button>
+                        </div>
+
+                        <Collapse in={!!openFlightDetail[idx]}>
+                          <div className="pt-3">
+                            <div className="border-top pt-3">
+                              {(line?.segments || []).map((seg, sidx) => (
+                                <div
+                                  key={sidx}
+                                  className="d-flex justify-content-between gap-3 py-2"
+                                >
+                                  <div className="small">
+                                    <div className="fw-semibold">
+                                      {seg?.fromIata} → {seg?.toIata}
+                                    </div>
+                                    <div className="text-muted">
+                                      {seg?.departTime || ""} -{" "}
+                                      {seg?.arriveTime || ""}
+                                    </div>
+                                  </div>
+
+                                  <div className="small text-muted text-end">
+                                    <div>
+                                      {seg?.airlineName || ""}{" "}
+                                      {seg?.flightNo ? `· ${seg.flightNo}` : ""}
+                                    </div>
+                                    <div>{seg?.cabinClass || h.cabin}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </Collapse>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <div className="border rounded-3 p-3 bg-white">
-                  <div className="fw-semibold">Tóm tắt</div>
-                  <div className="small text-muted">
-                    Bạn sẽ render lại: hành khách, loại vé, fast track, tổng
-                    tiền, điều khoản...
+                {/* Thông tin liên lạc */}
+                <div className="border rounded-3 p-3 mb-3">
+                  <div className="fw-bold mb-2">Thông tin liên lạc</div>
+                  <div className="small">
+                    <div>{phone || "Chưa có số điện thoại"}</div>
+                    <div>{email || "Chưa có email"}</div>
                   </div>
                 </div>
 
-                <div className="d-flex justify-content-between align-items-center mt-4">
+                {/* Chi tiết của khách */}
+                <div className="border rounded-3 p-3 mb-3">
+                  <div className="fw-bold mb-2">Chi tiết của khách</div>
+                  <div className="d-flex flex-column gap-2">
+                    {passengers.map((p, idx) => (
+                      <div
+                        key={idx}
+                        className="d-flex align-items-center gap-2 small"
+                      >
+                        <span className="text-muted">👤</span>
+                        <div>
+                          <div className="fw-semibold">
+                            {(p.lastName || "").trim()}{" "}
+                            {(p.firstName || "").trim() || "(chưa nhập tên)"}
+                          </div>
+                          <div className="text-muted">
+                            {(p.type === "child" ? "Trẻ em" : "Người lớn") +
+                              (p.gender ? ` · ${p.gender}` : "")}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hành lý */}
+                <div className="border rounded-3 p-3 mb-3">
+                  <div className="fw-bold mb-1">Hành lý</div>
+                  <div className="small text-muted mb-3">
+                    Tổng số kiện hành lý được bao gồm cho tất cả các hành khách
+                  </div>
+
+                  {(flight?.lines || []).map((line, idx) => {
+                    const h = getLineHeader(line);
+                    const bag = flight?.baggageDetails || {};
+                    return (
+                      <div key={idx} className="mb-3">
+                        <div className="fw-semibold small mb-2">
+                          Chuyến bay đến {h.toCity}
+                        </div>
+
+                        {/* personal */}
+                        {bag.personal?.included ? (
+                          <div className="d-flex gap-2 small mb-2">
+                            <span>🧳</span>
+                            <div>
+                              <div className="fw-semibold">
+                                {bag.personal?.count || 1}{" "}
+                                {bag.personal?.label || "túi xách nhỏ"}
+                              </div>
+                              <div className="text-success">Đã bao gồm</div>
+                              <div className="text-muted">
+                                {bag.personal?.desc}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="d-flex gap-2 small mb-2">
+                            <span>🧳</span>
+                            <div className="text-muted">
+                              {bag.personal?.notIncludedText ||
+                                "Không thể thêm vật dụng cá nhân cho đơn đặt này"}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* carry on */}
+                        {bag.carryOn?.included ? (
+                          <div className="d-flex gap-2 small mb-2">
+                            <span>🎒</span>
+                            <div>
+                              <div className="fw-semibold">
+                                {bag.carryOn?.count || 1}{" "}
+                                {bag.carryOn?.label || "hành lý cabin"}
+                              </div>
+                              <div className="text-success">Đã bao gồm</div>
+                              <div className="text-muted">
+                                {bag.carryOn?.desc}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="d-flex gap-2 small mb-2">
+                            <span>🎒</span>
+                            <div className="text-muted">
+                              {bag.carryOn?.notIncludedText ||
+                                "Không thể thêm hành lý xách tay cho đơn đặt này, nhưng có thể hãng hàng không sẽ cho phép bạn mua sau đó"}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* checked */}
+                        {bag.checked?.included ? (
+                          <div className="d-flex gap-2 small">
+                            <span>🧳</span>
+                            <div>
+                              <div className="fw-semibold">
+                                {bag.checked?.count || 1}{" "}
+                                {bag.checked?.label || "hành lý ký gửi"}
+                              </div>
+                              <div className="text-success">Đã bao gồm</div>
+                              <div className="text-muted">
+                                {bag.checked?.desc}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="d-flex gap-2 small">
+                            <span>🧳</span>
+                            <div className="text-muted">
+                              {bag.checked?.notIncludedText ||
+                                "Không thể thêm hành lý ký gửi cho đơn đặt này, nhưng có thể hãng hàng không sẽ cho phép bạn mua sau đó"}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Chính sách linh động (chỉ khi vé linh hoạt) */}
+                {fareType === "flexible" && (
+                  <div className="border rounded-3 p-3 mb-3">
+                    <div className="fw-bold mb-2">
+                      Chính sách linh động và dịch vụ bảo hiểm
+                    </div>
+                    <div className="small">
+                      <div className="fw-semibold">Vé linh hoạt</div>
+                      <div className="text-muted">
+                        Đổi ngày hoặc giờ đến 24 giờ trước thời điểm bay và chi
+                        trả phần giá chênh lệch (nếu có)
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-link p-0 mt-2 text-decoration-none"
+                      >
+                        Xem chi tiết
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fast Track (chỉ khi khách chọn) */}
+                {fastTrackChoice === "yes" && (
+                  <div className="border rounded-3 p-3 mb-3">
+                    <div className="fw-bold mb-2">Fast Track</div>
+                    <div className="small text-muted mb-2">
+                      Xuất trình thẻ Fast Track tại khu vực kiểm tra an ninh ở
+                      sân bay để sử dụng làn ưu tiên.
+                    </div>
+
+                    {(flight?.lines || []).map((line, idx) => {
+                      const h = getLineHeader(line);
+                      return (
+                        <div
+                          key={idx}
+                          className="d-flex justify-content-between small py-1"
+                        >
+                          <div>Chuyến bay đến {h.toCity}</div>
+                          <div className="text-muted">
+                            Cho {passengers.length} hành khách
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Thông tin thanh toán */}
+                <div className="border rounded-3 p-3 mb-3">
+                  <div className="fw-bold mb-1">
+                    Thông tin thanh toán của bạn
+                  </div>
+                  <div className="small text-muted mb-3">
+                    Đơn giản, an toàn và bảo mật.
+                  </div>
+
+                  <div className="small fw-semibold mb-2">
+                    Bạn muốn thanh toán bằng cách nào?
+                  </div>
+                  <div className="d-flex gap-2 align-items-center mb-3 small text-muted">
+                    <span className="border rounded px-2 py-1">VISA</span>
+                    <span className="border rounded px-2 py-1">Mastercard</span>
+                    <span className="border rounded px-2 py-1">JCB</span>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label small fw-semibold">
+                      Tên chủ thẻ *
+                    </label>
+                    <input
+                      className="form-control"
+                      value={payName}
+                      onChange={(e) => setPayName(e.target.value)}
+                      placeholder="Ví dụ: Cong Tuan Le"
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label small fw-semibold">
+                      Số thẻ *
+                    </label>
+                    <input
+                      className="form-control"
+                      value={cardNumber}
+                      onChange={(e) => setCardNumber(e.target.value)}
+                      placeholder="1234 5678 9012 3456"
+                    />
+                  </div>
+
+                  <div className="row g-2">
+                    <div className="col-6">
+                      <label className="form-label small fw-semibold">
+                        Ngày hết hạn *
+                      </label>
+                      <input
+                        className="form-control"
+                        value={expDate}
+                        onChange={(e) => setExpDate(e.target.value)}
+                        placeholder="MM/YY"
+                      />
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label small fw-semibold">
+                        CVC *
+                      </label>
+                      <input
+                        className="form-control"
+                        value={cvc}
+                        onChange={(e) => setCvc(e.target.value)}
+                        placeholder="123"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="small text-muted mb-3">
+                  Bằng cách nhấn "Thanh toán ngay", bạn đồng ý điều khoản, điều
+                  kiện và chính sách bảo mật của GoTripViet
+                </div>
+
+                <div className="d-flex align-items-center justify-content-between">
                   <button
-                    className="btn btn-outline-primary px-4"
-                    onClick={() => setStep(4)}
                     type="button"
+                    className="btn btn-link text-decoration-none"
+                    onClick={() => setStep(4)}
                   >
-                    <i className="bi bi-chevron-left me-1" />
-                    Quay lại
+                    ‹ Quay lại
                   </button>
 
-                  <button className="btn btn-primary px-4" type="button">
-                    Thanh toán
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handlePayNow}
+                  >
+                    Thanh toán ngay
                   </button>
                 </div>
-              </>
-            ) : null}
+              </div>
+            )}
           </div>
 
           {/* RIGHT: price detail */}

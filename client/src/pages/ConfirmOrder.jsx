@@ -1,10 +1,22 @@
 import React from "react";
 import BookingStepper from "../components/order/stepper";
+import { useNavigate } from "react-router-dom";
 
 const ConfirmOrder = () => {
+  const navigate = useNavigate();
   const handleCompleteBooking = () => {
-    // TODO: gọi API hoàn tất đặt phòng hoặc điều hướng sang trang "đã đặt xong"
-    console.log("Hoàn tất đặt chỗ");
+    // điều hướng sang trang đặt thành công
+    navigate("/order-success", {
+      state: {
+        payload: {
+          source: "hotel",
+          orderId: `HT-${Date.now()}`,
+          totalPrice: 419717, // bạn thay bằng biến tổng tiền thật của bạn
+          email: "biyeo126@gmail.com", // bạn thay bằng email thật user nhập
+          summaryText: "Sao Mai Hotel · 17/11/2025 - 18/11/2025",
+        },
+      },
+    });
   };
 
   return (

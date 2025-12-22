@@ -22,6 +22,7 @@ import OtpVerify from "./pages/OtpVerify.jsx";
 import ListingCities from "./pages/ListingCities.jsx";
 import ListingFlights from "./pages/ListingFlights.jsx";
 import OrderFlight from "./pages/OrderFlight.jsx";
+import OrderSuccess from "./pages/OrderSuccess.jsx";
 
 /**
  * Trang Home được bọc trong UserLayout,
@@ -134,6 +135,17 @@ const OrderFlightPage = ({ activeCategoryIndex, onCategoryChange }) => {
       onCategoryChange={onCategoryChange}
     >
       <OrderFlight />
+    </UserLayout>
+  );
+};
+
+const OrderSuccessPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <OrderSuccess />
     </UserLayout>
   );
 };
@@ -280,6 +292,16 @@ const AppRouter = () => {
           path="/order-flight"
           element={
             <OrderFlightPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        <Route
+          path="/order-success"
+          element={
+            <OrderSuccessPage
               activeCategoryIndex={activeCategoryIndex}
               onCategoryChange={setActiveCategoryIndex}
             />
