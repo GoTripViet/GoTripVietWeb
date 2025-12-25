@@ -10,6 +10,7 @@ import {
 
 // Layout
 import UserLayout from "./layouts/UserLayout.jsx";
+import AdminLayout from "./layouts/AdminLayout.jsx";
 
 // Pages
 import Home from "./pages/Home.jsx";
@@ -313,6 +314,9 @@ const AppRouter = () => {
 
         {/* OTP – KHÔNG dùng UserLayout */}
         <Route path="/otp-verify" element={<OtpVerifyPage />} />
+
+        {/* Admin layout */}
+        <Route path="/admin/*" element={<AdminLayout />} />
 
         {/* Fallback: route lạ -> về trang chủ */}
         <Route path="*" element={<Navigate to="/" replace />} />
