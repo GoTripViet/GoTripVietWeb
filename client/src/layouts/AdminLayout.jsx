@@ -13,6 +13,9 @@ import ManageHotels from "../pages/admin/ManageHotels";
 import ManageUsers from "../pages/admin/ManageUsers";
 import ManageAdmins from "../pages/admin/ManageAdmins";
 import ManageExpenses from "../pages/admin/ManageExpenses";
+import ManagePartnerAirports from "../pages/admin/ManagePartnerAirports";
+import ManagePartnerHotels from "../pages/admin/ManagePartnerHotels";
+import ManageEvents from "../pages/admin/ManageEvents";
 
 export default function AdminLayout() {
   useEffect(() => {
@@ -23,7 +26,7 @@ export default function AdminLayout() {
     <div style={{ display: "flex", minHeight: "100vh", background: "#f6f7fb" }}>
       <NavbarAdmin />
 
-      <div style={{ flex: 1, padding: 20 }}>
+      <div style={{ flex: 1, padding: 20, minWidth: 0, overflowX: "hidden" }}>
         <Routes>
           <Route path="/" element={<Navigate to="dashboard/basic" replace />} />
 
@@ -34,10 +37,19 @@ export default function AdminLayout() {
 
           <Route path="manage/flights" element={<ManageFlights />} />
           <Route path="manage/home" element={<ManageHome />} />
+          <Route path="manage/events" element={<ManageEvents />} />
           <Route path="manage/hotels" element={<ManageHotels />} />
 
           <Route path="manage/users" element={<ManageUsers />} />
           <Route path="manage/admins" element={<ManageAdmins />} />
+          <Route
+            path="manage/partner-airports"
+            element={<ManagePartnerAirports />}
+          />
+          <Route
+            path="manage/partner-hotels"
+            element={<ManagePartnerHotels />}
+          />
 
           <Route path="expenses" element={<ManageExpenses />} />
 

@@ -7,6 +7,10 @@ const KEY = {
   adminMe: "gtv_admin_me",
   admins: "gtv_admin_list",
   users: "gtv_user_list",
+  partner_airports: "gtv_partner_airports",
+  partner_hotels: "gtv_partner_hotels",
+
+  events: "gtv_events",
 
   flights: "gtv_admin_flights",
   home_events: "gtv_home_events",
@@ -108,6 +112,64 @@ export function ensureAdminSeed() {
         status: "BANNED",
       },
     ]);
+  }
+
+  // ===== Partners Airports (Airlines) seed from flights.operatedBy =====
+  if (!read(KEY.partner_airports, null)) {
+    const flights = read(KEY.flights, []);
+    const names = Array.from(
+      new Set(flights.map((x) => x.operatedBy).filter(Boolean))
+    );
+
+    write(
+      KEY.partner_airports,
+      names.map((name, idx) => ({
+        id: `pa_${idx + 1}`,
+        name,
+        contactEmail: "",
+        contactPhone: "",
+        commissionRate: 0,
+        createdAt: new Date().toISOString().slice(0, 10),
+        note: "",
+        status: "ACTIVE",
+      }))
+    );
+  }
+
+  // ===== Partners Hotels seed from listing hotels.title =====
+  if (!read(KEY.partner_hotels, null)) {
+    const listing = read(KEY.hotel_listing_hotels, []);
+    const names = Array.from(
+      new Set(listing.map((x) => x.title).filter(Boolean))
+    );
+
+    write(
+      KEY.partner_hotels,
+      names.map((name, idx) => ({
+        id: `ph_${idx + 1}`,
+        name,
+        contactEmail: "",
+        contactPhone: "",
+        address: "",
+        commissionRate: 0,
+        createdAt: new Date().toISOString().slice(0, 10),
+        note: "",
+        status: "ACTIVE",
+      }))
+    );
+  }
+
+  // ===== Events (nếu tách riêng) =====
+  if (!read(KEY.events, null)) {
+    const homeEvents = read(KEY.home_events, []);
+    write(
+      KEY.events,
+      homeEvents.map((x, i) => ({
+        ...x,
+        id: x.id || `ev_${i}`,
+        status: x.status || "ACTIVE",
+      }))
+    );
   }
 
   // flights

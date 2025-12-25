@@ -108,10 +108,11 @@ export default function CrudTable({
           onChange={(e) => setQ(e.target.value)}
           placeholder="tìm nhanh..."
           style={{
-            width: 260,
-            borderRadius: 12,
+            width: 220,
+            borderRadius: 10,
             border: "1px solid #e5e7eb",
-            padding: "10px 12px",
+            padding: "8px 10px",
+            fontSize: 13,
             outline: "none",
           }}
         />
@@ -131,12 +132,13 @@ export default function CrudTable({
         </button>
       </div>
 
-      <div style={{ overflowX: "auto", marginTop: 12 }}>
+      <div style={{ overflowX: "hidden", marginTop: 12 }}>
         <table
           style={{
             width: "100%",
             borderCollapse: "separate",
             borderSpacing: 0,
+            tableLayout: "fixed",
           }}
         >
           <thead>
@@ -286,18 +288,25 @@ export default function CrudTable({
 
 const th = {
   textAlign: "left",
-  padding: "10px 10px",
-  fontSize: 12,
+  padding: "8px 10px",
+  fontSize: 11,
   color: "#6b7280",
   borderBottom: "1px solid #e5e7eb",
   whiteSpace: "nowrap",
 };
+
 const td = {
-  padding: "10px 10px",
+  padding: "8px 10px",
   borderBottom: "1px solid #f1f5f9",
   verticalAlign: "top",
-  fontSize: 13,
+  fontSize: 12,
+
+  // quan trọng: bẻ chuỗi dài (url) để không tràn ngang
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
 };
+
 const input = {
   borderRadius: 12,
   border: "1px solid #e5e7eb",
