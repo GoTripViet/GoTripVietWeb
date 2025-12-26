@@ -16,6 +16,11 @@ import ManageExpenses from "../pages/admin/ManageExpenses";
 import ManagePartnerAirports from "../pages/admin/ManagePartnerAirports";
 import ManagePartnerHotels from "../pages/admin/ManagePartnerHotels";
 import ManageEvents from "../pages/admin/ManageEvents";
+import ManageOrders from "../pages/admin/ManageOrders";
+import ManageOrderHotels from "../pages/admin/ManageOrderHotels";
+import ManageOrderFlights from "../pages/admin/ManageOrderFlights";
+import ManageOrderHotelDetail from "../pages/admin/ManageOrderHotelDetail";
+import ManageOrderFlightDetail from "../pages/admin/ManageOrderFlightDetail";
 
 export default function AdminLayout() {
   useEffect(() => {
@@ -50,7 +55,20 @@ export default function AdminLayout() {
             path="manage/partner-hotels"
             element={<ManagePartnerHotels />}
           />
-
+          <Route path="manage/orders" element={<ManageOrders />} />
+          <Route path="manage/orders/hotels" element={<ManageOrderHotels />} />
+          <Route
+            path="manage/orders/flights"
+            element={<ManageOrderFlights />}
+          />
+          <Route
+            path="manage/orders/hotels/:id"
+            element={<ManageOrderHotelDetail />}
+          />
+          <Route
+            path="manage/orders/flights/:id"
+            element={<ManageOrderFlightDetail />}
+          />
           <Route path="expenses" element={<ManageExpenses />} />
 
           <Route path="*" element={<Navigate to="/admin" replace />} />

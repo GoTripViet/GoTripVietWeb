@@ -25,6 +25,9 @@ const KEY = {
   hotel_reviews: "gtv_hotel_reviews",
   hotel_similar_stays: "gtv_hotel_similar_stays",
 
+  orders_hotels: "gtv_orders_hotels",
+  orders_flights: "gtv_orders_flights",
+
   expenses: "gtv_admin_expenses",
 };
 
@@ -265,6 +268,64 @@ export function ensureAdminSeed() {
         status: "ACTIVE",
       }))
     );
+
+  // ===== Orders seed (mock) =====
+  if (!read(KEY.orders_hotels, null)) {
+    const listing = read(KEY.hotel_listing_hotels, []);
+    const pick = listing.slice(0, 4);
+
+    write(
+      KEY.orders_hotels,
+      pick.map((h, i) => ({
+        id: `HT-${Date.now()}-${i + 1}`,
+        type: "HOTEL",
+        contactEmail: `guest${i + 1}@example.com`,
+        contactPhone: `09${Math.floor(10000000 + Math.random() * 89999999)}`,
+        hotelId: h.id,
+        hotelName: h.title,
+        location: h.location,
+        checkInDate: "2025-12-28",
+        checkOutDate: "2025-12-30",
+        roomsCount: 1,
+        adultsCount: 2,
+        childrenCount: 0,
+        promoCode: "",
+        paymentMethod: "CARD",
+        paymentStatus: i % 2 === 0 ? "PAID" : "UNPAID",
+        status: i % 2 === 0 ? "CONFIRMED" : "PENDING",
+        totalAmount: 1500000 + i * 350000,
+        createdAt: new Date().toISOString().slice(0, 10),
+        updatedAt: new Date().toISOString().slice(0, 10),
+      }))
+    );
+  }
+
+  if (!read(KEY.orders_flights, null)) {
+    const flights = read(KEY.flights, []);
+    const pick = flights.slice(0, 5);
+
+    write(
+      KEY.orders_flights,
+      pick.map((f, i) => ({
+        id: `FL-${Date.now()}-${i + 1}`,
+        type: "FLIGHT",
+        contactEmail: `pax${i + 1}@example.com`,
+        contactPhone: `09${Math.floor(10000000 + Math.random() * 89999999)}`,
+        flightId: f.id,
+        operatedBy: f.operatedBy,
+        totalDurationHours: f.totalDurationHours,
+        stopsMax: f.stopsMax,
+        paxCount: 1,
+        fareType: i % 2 === 0 ? "flexible" : "standard",
+        paymentMethod: "CARD",
+        paymentStatus: i % 2 === 0 ? "PAID" : "UNPAID",
+        status: i % 2 === 0 ? "CONFIRMED" : "PENDING",
+        totalAmount: Number(f.price || 0),
+        createdAt: new Date().toISOString().slice(0, 10),
+        updatedAt: new Date().toISOString().slice(0, 10),
+      }))
+    );
+  }
 
   // expenses mock
   if (!read(KEY.expenses, null)) {

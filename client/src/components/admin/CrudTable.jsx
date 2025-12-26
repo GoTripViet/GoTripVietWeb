@@ -55,6 +55,7 @@ export default function CrudTable({
   onDelete,
   onToggleStatus,
   statusKey = "status",
+  renderRowActions,
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -186,7 +187,8 @@ export default function CrudTable({
                   </button>
                 </td>
                 <td style={td}>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {renderRowActions ? renderRowActions(row) : null}
                     <button onClick={() => startEdit(row)} style={btn}>
                       Sửa
                     </button>

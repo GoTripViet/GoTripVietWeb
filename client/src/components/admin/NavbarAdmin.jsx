@@ -110,6 +110,9 @@ export default function NavbarAdmin() {
         <NavLink to="/admin/manage/events" style={linkStyle}>
           Quản lý events
         </NavLink>
+        <NavLink to="/admin/manage/orders" style={linkStyle}>
+          Quản lý đơn hàng
+        </NavLink>
 
         <div
           style={{
