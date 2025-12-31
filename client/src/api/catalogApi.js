@@ -1,39 +1,17 @@
 // src/api/catalogApi.js
-import axios from 'axios';
-
-// 1. Cấu hình Client trỏ vào Catalog Service (Cổng 3002)
-const catalogClient = axios.create({
-  baseURL: 'http://localhost:3002', 
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import axiosClient from "./axiosClient";
 
 const catalogApi = {
   // --- SẢN PHẨM ---
-  getAll: (params) => {
-    return catalogClient.get('/products', { params });
-  },
+  getAll: (params) => axiosClient.get("/products", { params }),
+  getById: (id) => axiosClient.get(`/products/${id}`),
 
-  getById: (id) => {
-    return catalogClient.get(`/products/${id}`);
-  },
-  
   // --- ĐỊA ĐIỂM ---
-  getAllLocations: () => {
-    return catalogClient.get('/locations');
-  },
+  getAllLocations: () => axiosClient.get("/locations"),
 
-  // --- DANH MỤC (SỬA LỖI TẠI ĐÂY) ---
-  // Dùng catalogClient (3002) thay vì axiosClient (3001)
-  getAllCategories(params) {
-    // params có thể là { parent: 'null' } hoặc {}
-    return catalogClient.get('/categories', { params });
-  },
-  
-  getCategoryById(idOrSlug) {
-    return catalogClient.get(`/categories/${idOrSlug}`);
-  }
+  // --- DANH MỤC ---
+  getAllCategories: (params) => axiosClient.get("/categories", { params }),
+  getCategoryById: (idOrSlug) => axiosClient.get(`/categories/${idOrSlug}`),
 };
 
 export default catalogApi;
