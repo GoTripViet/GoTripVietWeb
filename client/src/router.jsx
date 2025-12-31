@@ -11,19 +11,23 @@ import {
 // Layout
 import UserLayout from "./layouts/UserLayout.jsx";
 import AdminLayout from "./layouts/AdminLayout.jsx";
-
+import SearchPage from "./pages/SearchPage.jsx";
 // Pages
+import ProductDetail from "./pages/ProductDetail.jsx";
 import Home from "./pages/Home.jsx";
 import ListingHotel from "./pages/ListingHotel.jsx";
 import HotelDetail from "./pages/HotelDetail.jsx";
 import Order from "./pages/Order.jsx";
 import ConfirmOrder from "./pages/ConfirmOrder.jsx";
 import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
 import OtpVerify from "./pages/OtpVerify.jsx";
 import ListingCities from "./pages/ListingCities.jsx";
 import ListingFlights from "./pages/ListingFlights.jsx";
 import OrderFlight from "./pages/OrderFlight.jsx";
 import OrderSuccess from "./pages/OrderSuccess.jsx";
+import Profile from "./pages/Profile.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
 
 /**
  * Trang Home được bọc trong UserLayout,
@@ -54,6 +58,21 @@ const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
       />
     </UserLayout>
   );
+};
+
+const SearchPageWrapper = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <SearchPage />
+    </UserLayout>
+  );
+};
+
+const ForgotPasswordPage = () => {
+  return <ForgotPassword />;
 };
 
 /**
@@ -151,6 +170,25 @@ const OrderSuccessPage = ({ activeCategoryIndex, onCategoryChange }) => {
   );
 };
 
+const ProfilePage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <Profile />
+    </UserLayout>
+  );
+};
+
+/**
+ *
+ * Trang Register cũng KHÔNG bọc UserLayout
+ */
+const RegisterPage = () => {
+  return <Register />;
+};
+
 /**
  * Login KHÔNG bọc UserLayout
  * -> chỉ render nội dung Login + AuthHeader bên trong trang.
@@ -244,6 +282,16 @@ const AppRouter = () => {
           }
         />
 
+        <Route
+          path="/search"
+          element={
+            <SearchPageWrapper
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
         {/* Trang điền thông tin đặt phòng */}
         <Route
           path="/order"
@@ -311,7 +359,8 @@ const AppRouter = () => {
 
         {/* Login – KHÔNG dùng UserLayout */}
         <Route path="/login" element={<LoginPage />} />
-
+        {/* Register – KHÔNG dùng UserLayout */}
+        <Route path="/register" element={<RegisterPage />} />
         {/* OTP – KHÔNG dùng UserLayout */}
         <Route path="/otp-verify" element={<OtpVerifyPage />} />
 
@@ -320,6 +369,18 @@ const AppRouter = () => {
 
         {/* Fallback: route lạ -> về trang chủ */}
         <Route path="*" element={<Navigate to="/" replace />} />
+
+        <Route
+          path="/profile"
+          element={
+            <ProfilePage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        <Route path="/product/:id" element={<ProductDetail />} />
       </Routes>
     </BrowserRouter>
   );

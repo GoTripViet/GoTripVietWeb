@@ -4,7 +4,7 @@ import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 import Form from "react-bootstrap/Form";
 import CloseButton from "react-bootstrap/CloseButton";
-import "../../styles/home.css";
+// import "../../styles/home.css"; // Bỏ comment nếu bạn cần style riêng
 
 function fmtDate(d) {
   if (!d) return "";
@@ -206,7 +206,7 @@ export default function TaxiAirportSearch({ onSearch, className }) {
   }, [departDate, departTime]);
 
   const returnLabel = useMemo(() => {
-    if (!returnDate) return "Add a return";
+    if (!returnDate) return "Thêm ngày về";
     const [h, m] = returnTime.split(":");
     const d = new Date(returnDate);
     d.setHours(Number(h), Number(m), 0, 0);
@@ -268,7 +268,7 @@ export default function TaxiAirportSearch({ onSearch, className }) {
           type="radio"
           id="taxi-one-way"
           name="taxi-trip-type"
-          label="One-way"
+          label="Một chiều"
           checked={oneWay}
           onChange={() => setOneWay(true)}
         />
@@ -276,7 +276,7 @@ export default function TaxiAirportSearch({ onSearch, className }) {
           type="radio"
           id="taxi-return"
           name="taxi-trip-type"
-          label="Return"
+          label="Khứ hồi"
           checked={!oneWay}
           onChange={() => setOneWay(false)}
         />
@@ -297,9 +297,9 @@ export default function TaxiAirportSearch({ onSearch, className }) {
               }}
             >
               <div className="text-truncate">
-                <div className="text-muted small">Enter pick-up location</div>
+                <div className="text-muted small">Nhập điểm đón</div>
                 <div className={pickup ? "" : "text-muted"}>
-                  {pickup || "Enter pick-up location"}
+                  {pickup || "Sân bay, Nhà ga..."}
                 </div>
               </div>
             </div>
@@ -321,9 +321,9 @@ export default function TaxiAirportSearch({ onSearch, className }) {
                 }}
               >
                 <div className="text-truncate">
-                  <div className="text-muted small">Enter destination</div>
+                  <div className="text-muted small">Nhập điểm đến</div>
                   <div className={destination ? "" : "text-muted"}>
-                    {destination || "Enter destination"}
+                    {destination || "Khách sạn, Địa chỉ..."}
                   </div>
                 </div>
               </div>
@@ -343,7 +343,7 @@ export default function TaxiAirportSearch({ onSearch, className }) {
             >
               <i className="bi bi-calendar3 fs-5 me-2" />
               <div className="text-truncate">
-                <div className="text-muted small">Depart</div>
+                <div className="text-muted small">Ngày đi</div>
                 <div className={departDate ? "" : "text-muted"}>
                   {departLabel}
                 </div>
@@ -366,7 +366,7 @@ export default function TaxiAirportSearch({ onSearch, className }) {
               <i className="bi bi-calendar3 fs-5 me-2" />
               <div className="text-truncate">
                 <div className="text-muted small">
-                  {oneWay && !returnDate ? "Add a return" : "Return"}
+                  {oneWay && !returnDate ? "Thêm ngày về" : "Ngày về"}
                 </div>
                 <div className={returnDate ? "" : "text-muted"}>
                   {returnLabel}
@@ -385,8 +385,8 @@ export default function TaxiAirportSearch({ onSearch, className }) {
             >
               <i className="bi bi-person fs-5 me-2" />
               <div className="me-2">
-                <div className="text-muted small">Passengers</div>
-                <div className="text-truncate">{passengers}</div>
+                <div className="text-muted small">Hành khách</div>
+                <div className="text-truncate">{passengers} người</div>
               </div>
               <i className="bi bi-caret-down-fill ms-auto" />
             </div>
@@ -400,13 +400,13 @@ export default function TaxiAirportSearch({ onSearch, className }) {
               disabled={!pickup || !destination || !departDate}
               onClick={submit}
             >
-              Search
+              Tìm xe
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Overlays */}
+      {/* Overlays (Đã Việt hóa tiêu đề) */}
 
       {/* pickup */}
       <Overlay
@@ -429,13 +429,13 @@ export default function TaxiAirportSearch({ onSearch, className }) {
             }}
           >
             <Popover.Header className="d-flex align-items-center justify-content-between">
-              <div className="fw-semibold">Pick-up location</div>
+              <div className="fw-semibold">Chọn điểm đón</div>
               <CloseButton onClick={() => setShowPickup(false)} />
             </Popover.Header>
             <Popover.Body>
               <Form.Control
                 autoFocus
-                placeholder="Enter pick-up location"
+                placeholder="Nhập sân bay, nhà ga, địa chỉ..."
                 value={pickup}
                 onChange={(e) => setPickup(e.target.value)}
               />
@@ -465,13 +465,13 @@ export default function TaxiAirportSearch({ onSearch, className }) {
             }}
           >
             <Popover.Header className="d-flex align-items-center justify-content-between">
-              <div className="fw-semibold">Destination</div>
+              <div className="fw-semibold">Chọn điểm đến</div>
               <CloseButton onClick={() => setShowDest(false)} />
             </Popover.Header>
             <Popover.Body>
               <Form.Control
                 autoFocus
-                placeholder="Enter destination"
+                placeholder="Nhập địa chỉ, khách sạn..."
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
               />
@@ -501,7 +501,7 @@ export default function TaxiAirportSearch({ onSearch, className }) {
             }}
           >
             <Popover.Header className="d-flex align-items-center justify-content-between">
-              <div className="fw-semibold">Depart date &amp; time</div>
+              <div className="fw-semibold">Ngày & Giờ đi</div>
               <CloseButton onClick={() => setShowDepart(false)} />
             </Popover.Header>
             <Popover.Body>
@@ -545,7 +545,7 @@ export default function TaxiAirportSearch({ onSearch, className }) {
             }}
           >
             <Popover.Header className="d-flex align-items-center justify-content-between">
-              <div className="fw-semibold">Return date &amp; time</div>
+              <div className="fw-semibold">Ngày & Giờ về</div>
               <CloseButton onClick={() => setShowReturn(false)} />
             </Popover.Header>
             <Popover.Body>
@@ -589,12 +589,12 @@ export default function TaxiAirportSearch({ onSearch, className }) {
             }}
           >
             <Popover.Header className="d-flex align-items-center justify-content-between">
-              <div className="fw-semibold">Passengers</div>
+              <div className="fw-semibold">Số hành khách</div>
               <CloseButton onClick={() => setShowPax(false)} />
             </Popover.Header>
             <Popover.Body>
               <div className="d-flex align-items-center justify-content-between mb-2">
-                <div className="fw-semibold">Passengers</div>
+                <div className="fw-semibold">Hành khách</div>
                 <div className="d-flex align-items-center gap-2">
                   <Button
                     variant="light"

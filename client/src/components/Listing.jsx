@@ -1,124 +1,69 @@
-import React from "react";
+import React, { useState } from "react";
+import Container from "react-bootstrap/Container";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
 
-const Listing = ({
-  title,
-  description,
-  categories,
-  initialVisibleCount = 20,
-  className,
-  onItemClick,
-}) => {
-  const [activeCatId, setActiveCatId] = React.useState(
-    categories[0]?.id ?? null
-  );
+// 1. Thêm giá trị mặc định categories = []
+export default function Listing({ 
+  title, 
+  description, 
+  categories = [], 
+  initialVisibleCount = 10,
+  onItemClick 
+}) {
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
 
-  const [visibleMap, setVisibleMap] = React.useState(() =>
-    categories.reduce((acc, cat) => {
-      acc[String(cat.id)] = Math.min(initialVisibleCount, cat.items.length);
-      return acc;
-    }, {})
-  );
-
-  if (!categories.length) return null;
-
-  const activeCategory =
-    categories.find((c) => c.id === activeCatId) ?? categories[0];
-
-  const activeCatKey = String(activeCategory.id);
-  const visibleCount = visibleMap[activeCatKey] ?? initialVisibleCount;
-  const itemsToShow = activeCategory.items.slice(0, visibleCount);
-
-  const hasMore = visibleCount < activeCategory.items.length;
-  const isLongCategory = activeCategory.items.length > initialVisibleCount;
-
-  const handleShowMore = () => {
-    setVisibleMap((prev) => ({
-      ...prev,
-      [activeCatKey]: Math.min(
-        (prev[activeCatKey] || initialVisibleCount) + initialVisibleCount,
-        activeCategory.items.length
-      ),
-    }));
-  };
-
-  const pillClass = (id) =>
-    `btn btn-sm rounded-pill me-2 mb-2 ${
-      id === activeCategory.id
-        ? "btn-primary"
-        : "btn-outline-secondary bg-white"
-    }`;
+  // 2. [QUAN TRỌNG] Kiểm tra an toàn: Nếu categories lỗi thì dùng mảng rỗng
+  const safeCategories = Array.isArray(categories) ? categories : [];
+  
+  // 3. Cắt mảng từ biến an toàn
+  const currentItems = safeCategories.slice(0, visibleCount);
 
   return (
-    <section className={className}>
-      {/* Tiêu đề + mô tả */}
-      <h4 className="fw-bold mb-1">{title}</h4>
-      {description && <p className="text-muted small mb-3">{description}</p>}
-
-      {/* Categories */}
-      <div className="mb-3">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            className={pillClass(cat.id)}
-            onClick={() => setActiveCatId(cat.id)}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Items */}
-      <div className="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3">
-        {itemsToShow.map((item) => (
-          <div key={item.id} className="col">
-            <button
-              type="button"
-              className="btn btn-link p-0 text-start w-100 text-reset"
-              onClick={() => onItemClick && onItemClick(item, activeCategory)}
-            >
-              <div className="d-flex align-items-start">
-                {item.imageUrl && (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.title}
-                    className="rounded me-2 flex-shrink-0"
-                    style={{
-                      width: 60,
-                      height: 60,
-                      objectFit: "cover",
-                    }}
+    <div className="py-4">
+      <Container>
+        {title && <h3 className="fw-bold mb-2">{title}</h3>}
+        {description && <p className="text-muted mb-4">{description}</p>}
+        
+        <Row>
+          {currentItems.map((cat, idx) => (
+            <Col key={cat.id || idx} xs={6} md={4} lg={3} className="mb-4">
+              <div 
+                className="d-flex align-items-center gap-3 p-3 border rounded-3 cursor-pointer hover-shadow transition-all bg-white"
+                onClick={() => onItemClick && onItemClick(cat)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div 
+                  className="rounded-3 overflow-hidden flex-shrink-0"
+                  style={{ width: "60px", height: "60px" }}
+                >
+                  <img 
+                    // Sửa luôn lỗi ảnh tại đây
+                    src={cat.imageUrl || "https://placehold.co/60x60"} 
+                    alt={cat.title}
+                    className="w-100 h-100 object-fit-cover"
                   />
-                )}
+                </div>
                 <div>
-                  <div className="small fw-semibold">{item.title}</div>
-                  {item.description && (
-                    <div className="small text-muted">{item.description}</div>
-                  )}
+                  <div className="fw-bold text-dark">{cat.title}</div>
+                  {cat.subTitle && <div className="small text-muted">{cat.subTitle}</div>}
                 </div>
               </div>
+            </Col>
+          ))}
+        </Row>
+
+        {visibleCount < safeCategories.length && (
+          <div className="text-center mt-3">
+            <button 
+              className="btn btn-outline-primary rounded-pill px-4 fw-semibold"
+              onClick={() => setVisibleCount(prev => prev + 10)}
+            >
+              Xem thêm {safeCategories.length - visibleCount} loại hình khác
             </button>
           </div>
-        ))}
-      </div>
-
-      {/* Show more / loaded all */}
-      <div className="mt-3">
-        {hasMore && (
-          <button
-            type="button"
-            className="btn btn-link p-0 small"
-            onClick={handleShowMore}
-          >
-            Hiển thị thêm
-          </button>
         )}
-        {!hasMore && isLongCategory && (
-          <span className="small text-muted">Đã tải tất cả các mục</span>
-        )}
-      </div>
-    </section>
+      </Container>
+    </div>
   );
-};
-
-export default Listing;
+}
