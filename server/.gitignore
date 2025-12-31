@@ -7,12 +7,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-api-gateway/node_modules
-booking-service/node_modules
-catalog-service/node_modules
-inventory-service/node_modules
-payment-service/node_modules
-user-service/node_modules
+# Node dependencies
+node_modules/
+**/node_modules/
+
+# (tuỳ chọn) các cache phổ biến
+.pnpm-store/
+.yarn/
+.yarn-cache/
+npm-cache/
 
 dist
 dist-ssr
