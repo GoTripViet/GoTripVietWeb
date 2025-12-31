@@ -1,0 +1,64 @@
+// routes/user.routes.js
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/user.controller');
+const checkRole = require('../middleware/checkRole.middleware');
+
+// --- QUAN TRỌNG: Import middleware ở đây ---
+const authMiddleware = require('../middleware/auth.middleware');
+
+// --- CÁC TUYẾN ĐƯỜNG ĐƯỢC BẢO VỆ ---
+
+// GET /users/me
+// Gắn authMiddleware vào đây
+router.get('/me', authMiddleware, userController.getMyProfile);
+
+// PUT /users/me
+router.put('/me', authMiddleware, userController.updateMyProfile);
+
+// PUT /users/me/preferences
+router.put('/me/preferences', authMiddleware, userController.updateMyPreferences);
+
+// --- API DÀNH CHO ADMIN ---
+// GET /users
+// Bảo vệ 2 lớp: 1. Phải đăng nhập, 2. Phải là 'admin'
+router.get(
+  '/', // (Lưu ý: đường dẫn là '/' vì app.js đã gắn '/users')
+  authMiddleware,
+  checkRole(['admin']), // Chỉ admin
+  userController.getAllUsers
+);
+
+// PUT /users/:id/role
+router.put(
+  '/:id/role',
+  authMiddleware,
+  checkRole(['admin']), // Chỉ admin
+  userController.updateUserRole
+);
+
+// GET /users/:id (Lấy 1 user)
+router.get(
+  '/:id',
+  authMiddleware,
+  checkRole(['admin']),
+  userController.getUserById
+);
+
+// PUT /users/:id (Cập nhật 1 user)
+router.put(
+  '/:id',
+  authMiddleware,
+  checkRole(['admin']),
+  userController.updateUserById
+);
+
+// DELETE /users/:id (Xóa 1 user)
+router.delete(
+  '/:id',
+  authMiddleware,
+  checkRole(['admin']),
+  userController.deleteUserById
+);
+
+module.exports = router;

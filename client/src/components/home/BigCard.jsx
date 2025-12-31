@@ -1,149 +1,107 @@
 import React from "react";
-import "bootstrap-icons/font/bootstrap-icons.css";
-
-function ratingLabel(v) {
-  if (v == null) return "Chưa có";
-  if (v >= 9) return "Tuyệt hảo";
-  if (v >= 8) return "Rất tốt";
-  if (v >= 7) return "Tốt";
-  return "Dễ chịu";
-}
-
-function fmtPrice(v) {
-  if (v == null) return "";
-  if (typeof v === "number")
-    return v.toLocaleString("vi-VN", {
-      style: "currency",
-      currency: "USD",
-    });
-  return v;
-}
+import Button from "react-bootstrap/Button";
 
 export default function BigCard({
+  id,
   imageUrl,
   title,
-  address,
-  rating,
-  reviews,
-  extra,
-  liked = false,
-  onClickHeart,
-  onClick,
+  price,
+  originalPrice,
+  // Các thông tin chi tiết Tour
+  tourCode,       // Mã tour
+  startPoint,     // Khởi hành
+  duration,       // Thời gian (VD: 6N5Đ)
+  departureDates,
+  transport, transportIcon,
+  onClick
 }) {
-  const isA = extra && extra.kind === "A";
-  const isB = extra && extra.kind === "B";
-  const extraA = isA ? extra : null;
-  const extraB = isB ? extra : null;
-
   return (
-    <div
-      className="card rounded-4 shadow-sm h-100 overflow-hidden"
-      onClick={onClick}
-      role={onClick ? "button" : undefined}
-      style={onClick ? { cursor: "pointer" } : undefined}
-    >
-      {/* Ảnh + nút tim */}
-      <div className="position-relative">
-        <div className="ratio ratio-4x3">
-          <img
-            src={imageUrl}
-            loading="lazy"
-            alt={title}
-            className="w-100 h-100 object-fit-cover"
-          />
-        </div>
-        <button
-          type="button"
-          className={`btn btn-light rounded-circle position-absolute top-0 end-0 m-2 ${
-            liked ? "text-danger" : ""
-          } d-flex align-items-center justify-content-center p-0`}
-          aria-label={liked ? "Bỏ yêu thích" : "Yêu thích"}
-          onClick={(e) => {
-            e.stopPropagation();
-            onClickHeart && onClickHeart();
-          }}
-          style={{ width: 36, height: 36 }}
-        >
-          <i
-            className={`bi ${liked ? "bi-heart-fill" : "bi-heart"}`}
-            style={{ fontSize: 18 }}
-          />
-        </button>
+    <div className="card h-100 border shadow-sm cursor-pointer hover-shadow" onClick={onClick}>
+      {/* 1. ẢNH THUMBNAIL */}
+      <div className="position-relative overflow-hidden">
+        <img
+          src={imageUrl}
+          className="card-img-top transition-transform"
+          alt={title}
+          style={{ height: "200px", objectFit: "cover" }}
+        />
+        {/* Badge giảm giá nếu có */}
+        {originalPrice > price && (
+          <span className="position-absolute top-0 end-0 bg-danger text-white badge m-2 rounded-pill">
+            Giảm {Math.round(((originalPrice - price) / originalPrice) * 100)}%
+          </span>
+        )}
       </div>
 
-      {/* Nội dung */}
-      <div className="card-body">
-        {/* Loại A */}
-        {isA && extraA && (
-          <div className="d-flex align-items-center flex-wrap gap-2 mb-2">
-            <span className="text-muted small">{extraA.category}</span>
-            <span className="text-warning">
-              {Array.from({ length: extraA.stars }).map((_, i) => (
-                <i key={i} className="bi bi-star-fill me-1" />
-              ))}
-            </span>
-            {extraA.badges &&
-              extraA.badges.map((b, i) => (
-                <span key={i} className="badge text-bg-primary">
-                  {b}
-                </span>
-              ))}
+      <div className="card-body p-3 d-flex flex-column">
+        {/* 2. TIÊU ĐỀ TOUR */}
+        <h6 className="card-title fw-bold text-dark mb-3 text-truncate-2-lines" style={{ minHeight: '40px', lineHeight: '1.4' }}>
+          {title}
+        </h6>
+
+        {/* 3. THÔNG TIN CHI TIẾT (GRID 2 CỘT) */}
+        <div className="row g-2 mb-3 small text-secondary">
+          {/* Cột 1: Mã tour */}
+          <div className="col-6 d-flex align-items-center gap-2">
+            <i className="bi bi-ticket-perforated text-muted fs-6"></i>
+            <span className="text-truncate">Mã: <span className="fw-bold text-dark">{tourCode}</span></span>
           </div>
-        )}
 
-        {/* Tiêu đề + địa chỉ */}
-        <h5 className="card-title mb-1 fw-bold">{title}</h5>
-        <div className="text-muted">{address}</div>
+          {/* Cột 2: Khởi hành */}
+          <div className="col-6 d-flex align-items-center gap-2">
+            <i className="bi bi-geo-alt text-muted fs-6"></i>
+            <span className="text-truncate">Từ: <span className="fw-bold text-primary">{startPoint}</span></span>
+          </div>
 
-        {/* Điểm + mô tả + số lượt đánh giá */}
-        <div className="d-flex align-items-start mt-3">
-          {typeof rating === "number" ? (
-            <>
-              <div
-                className="bg-primary text-white rounded-2 px-2 py-1 me-2 fw-semibold"
-                style={{ minWidth: 32, textAlign: "center" }}
-              >
-                {rating.toFixed(1).replace(".", ",")}
-              </div>
-              <div className="flex-grow-1">
-                <div className="fw-semibold">{ratingLabel(rating)}</div>
-                {typeof reviews === "number" && (
-                  <div className="text-muted small">
-                    {reviews.toLocaleString("vi-VN")} đánh giá
-                  </div>
-                )}
-              </div>
-              {isB && extraB && (
-                <div className="mt-2" style={{ minHeight: 28 }}>
-                  {extraB.eventLabel && (
-                    <span className="badge text-bg-success">
-                      {extraB.eventLabel}
-                    </span>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-muted small">Chưa có đánh giá</div>
-          )}
+          {/* Cột 3: Thời gian */}
+          <div className="col-6 d-flex align-items-center gap-2">
+            <i className="bi bi-clock text-muted fs-6"></i>
+            <span>{duration}</span>
+          </div>
+
+          {/* Cột 4: Phương tiện */}
+          <div className="col-6 d-flex align-items-center gap-2">
+            {/* Dùng class icon được truyền vào */}
+            <i className={`bi ${transportIcon || 'bi-bus-front'} text-primary fs-6`}></i>
+            <span className="text-truncate" title={transport}>{transport}</span>
+          </div>
         </div>
 
-        {/* Loại B (giá) */}
-        {isB && extraB && (
-          <div className="mt-1">
-            <div className="d-flex align-items-end justify-content-between gap-2">
-              <div className="text-muted small">{extraB.note}</div>
-              <div className="d-flex align-items-end gap-2 text-end">
-                {extraB.oldPrice != null && (
-                  <div className="text-danger text-decoration-line-through small">
-                    {fmtPrice(extraB.oldPrice)}
-                  </div>
-                )}
-                <div className="fw-bold fs-5">{fmtPrice(extraB.price)}</div>
-              </div>
-            </div>
+        {/* 4. NGÀY KHỞI HÀNH (CÁC Ô NHỎ) */}
+        <div className="d-flex align-items-center gap-2 mb-3">
+          <i className="bi bi-calendar3 text-muted"></i>
+          <span className="small text-muted me-1">Khởi hành:</span>
+          <div className="d-flex gap-1 overflow-hidden">
+            {departureDates && departureDates.length > 0 ? (
+              departureDates.slice(0, 3).map((date, index) => (
+                <span key={index} className="border border-danger text-danger rounded px-2 py-0 small bg-white" style={{ fontSize: '11px' }}>
+                  {date}
+                </span>
+              ))
+            ) : (
+              <span className="text-muted small">Liên hệ</span>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* 5. GIÁ VÀ NÚT BẤM (FOOTER) */}
+        <div className="mt-auto pt-3 border-top d-flex align-items-end justify-content-between">
+          <div>
+            <div className="small text-muted">Giá từ:</div>
+            <div className="fw-bold text-danger fs-5 lh-1">
+              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)}
+            </div>
+            {originalPrice > price && (
+              <small className="text-decoration-line-through text-muted" style={{ fontSize: '11px' }}>
+                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(originalPrice)}
+              </small>
+            )}
+          </div>
+
+          <Button variant="primary" size="sm" className="fw-bold px-3 rounded-1">
+            Xem chi tiết
+          </Button>
+        </div>
       </div>
     </div>
   );
