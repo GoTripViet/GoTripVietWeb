@@ -108,6 +108,9 @@ const styles = {
     borderRadius: 16,
     border: "1px solid #e5e7eb",
     overflow: "hidden",
+    maxHeight: "calc(100vh - 24px)",
+    display: "flex",
+    flexDirection: "column",
   },
   modalHeader: {
     padding: 12,
@@ -118,7 +121,13 @@ const styles = {
     background: "linear-gradient(180deg,#fff,#fafafa)",
     gap: 10,
   },
-  modalBody: { padding: 12, display: "grid", gap: 10 },
+  modalBody: {
+    padding: 12,
+    display: "grid",
+    gap: 10,
+    overflowY: "auto",
+    flex: "1 1 auto",
+  },
   modalFooter: {
     padding: 12,
     borderTop: "1px solid #e5e7eb",
@@ -161,8 +170,18 @@ const styles = {
 function Modal({ open, title, onClose, children }) {
   if (!open) return null;
   return (
-    <div style={styles.overlay} onMouseDown={onClose}>
-      <div style={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
+    <div
+      style={styles.overlay}
+      onMouseDown={onClose}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => e.preventDefault()}
+    >
+      <div
+        style={styles.modal}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => e.preventDefault()}
+      >
         <div style={styles.modalHeader}>
           <div style={{ fontWeight: 900 }}>{title}</div>
           <button style={styles.btn} onClick={onClose} type="button">
@@ -190,6 +209,9 @@ export default function ManageCategory() {
     description: "",
     image: "",
   });
+  /// Cloudinary
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [localPreview, setLocalPreview] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -228,6 +250,7 @@ export default function ManageCategory() {
   const openCreate = () => {
     setEditing(null);
     setForm({ name: "", parentId: "", description: "", image: "" });
+    setLocalPreview("");
     setEditOpen(true);
   };
 
@@ -239,6 +262,7 @@ export default function ManageCategory() {
       description: row?.description || "",
       image: row?.image || "",
     });
+    setLocalPreview("");
     setEditOpen(true);
   };
 
@@ -289,6 +313,46 @@ export default function ManageCategory() {
         e?.response?.data?.message || e?.message || "Xóa danh mục thất bại"
       );
     }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (localPreview) URL.revokeObjectURL(localPreview);
+    };
+  }, [localPreview]);
+
+  const pickAndUpload = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) return alert("Chỉ nhận file ảnh.");
+
+    // preview ngay cho user
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    const preview = URL.createObjectURL(file);
+    setLocalPreview(preview);
+
+    setUploadingImg(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const res = await categoryApi.uploadCategoryImage(fd);
+      const url = res?.data?.url || res?.url;
+      if (!url) throw new Error("Server không trả về url");
+
+      setForm((s) => ({ ...s, image: url }));
+    } catch (e) {
+      console.error(e);
+      alert(e?.response?.data?.message || e?.message || "Upload ảnh thất bại");
+    } finally {
+      setUploadingImg(false);
+    }
+  };
+
+  const onDropImage = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    pickAndUpload(file);
   };
 
   return (
@@ -415,9 +479,12 @@ export default function ManageCategory() {
                       src={detailRow.image}
                       alt="category"
                       style={{
-                        maxWidth: "100%",
+                        width: "100%",
+                        maxHeight: "60vh",
+                        objectFit: "contain",
                         borderRadius: 12,
                         border: "1px solid #e5e7eb",
+                        display: "block",
                       }}
                       onError={(e) => (e.currentTarget.style.display = "none")}
                     />
@@ -504,7 +571,9 @@ export default function ManageCategory() {
           </div>
 
           <div>
-            <div style={styles.label}>Ảnh (URL / path)</div>
+            <div style={styles.label}>Ảnh</div>
+
+            {/* 1) input URL vẫn giữ */}
             <input
               style={styles.input}
               value={form.image}
@@ -513,9 +582,69 @@ export default function ManageCategory() {
               }
               placeholder="https://... hoặc image.jpg"
             />
-            <div style={styles.sub}>
-              Ảnh chỉ hiển thị ở phần <b>Chi tiết</b>, không hiển thị ở bảng
-              danh sách.
+
+            {/* 2) khu vực kéo/thả */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onDropImage}
+              style={{
+                marginTop: 10,
+                border: "2px dashed #e5e7eb",
+                borderRadius: 12,
+                padding: 12,
+                display: "grid",
+                gap: 10,
+                background: "#fafafa",
+              }}
+            >
+              <div style={{ fontWeight: 900 }}>
+                Kéo & thả ảnh vào đây, hoặc bấm chọn file
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <label
+                  style={{ ...styles.primaryBtn, display: "inline-block" }}
+                >
+                  {uploadingImg ? "Đang upload..." : "Chọn ảnh từ máy"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => pickAndUpload(e.target.files?.[0])}
+                    disabled={uploadingImg}
+                  />
+                </label>
+
+                <span style={styles.sub}>
+                  {uploadingImg
+                    ? "Vui lòng chờ upload xong..."
+                    : "Tối đa 5MB, định dạng ảnh"}
+                </span>
+              </div>
+
+              {/* 3) preview */}
+              {(localPreview || form.image) && (
+                <img
+                  src={localPreview || form.image}
+                  alt="preview"
+                  style={{
+                    width: "100%",
+                    maxHeight: "40vh",
+                    objectFit: "contain",
+                    borderRadius: 12,
+                    border: "1px solid #e5e7eb",
+                    background: "#fff",
+                  }}
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              )}
             </div>
           </div>
         </div>

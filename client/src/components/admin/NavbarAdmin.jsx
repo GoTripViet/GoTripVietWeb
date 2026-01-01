@@ -99,10 +99,10 @@ export default function NavbarAdmin() {
           Quản lý dữ liệu
         </div>
         <NavLink to="/admin/manage/locations" style={linkStyle}>
-          Quản lý địa điểm (Location)
+          Quản lý địa điểm
         </NavLink>
         <NavLink to="/admin/manage/categories" style={linkStyle}>
-          Quản lý danh mục (Category)
+          Quản lý danh mục
         </NavLink>
         <NavLink to="/admin/manage/tours" style={linkStyle}>
           Quản lý Tour

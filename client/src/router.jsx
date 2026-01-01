@@ -247,11 +247,14 @@ const RequireAdmin = ({ children }) => {
 
   const roles = Array.isArray(user?.roles) ? user.roles : [];
   const isAdmin = roles.map((r) => String(r).toLowerCase()).includes("admin");
+
   if (!token) {
+    // chưa login -> đá về login và nhớ URL đang muốn vào
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   if (!isAdmin) {
+    // login rồi nhưng không phải admin -> đá về home (hoặc /403)
     return <Navigate to="/" replace />;
   }
 

@@ -16,6 +16,11 @@ const categoryApi = {
   remove(id) {
     return axiosClient.delete(`/categories/${id}`);
   },
+  uploadCategoryImage(formData) {
+    return axiosClient.post("/uploads/category-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
 };
 
 export default categoryApi;
