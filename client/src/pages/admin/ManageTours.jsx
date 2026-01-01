@@ -137,15 +137,7 @@ export default function ManageTours() {
       // params filter theo backend catalog-service
       // Nếu backend bạn dùng key khác, đổi ở đây (vd: type, productType,...)
       const res = await catalogApi.getAll({ product_type: "tour" });
-      console.log("RAW /products response:", res);
-      console.log("RAW data:", res?.data ?? res);
       const list = normalizeListResponse(res);
-
-      // phòng khi API trả về cả hotel/flight...
-      // const tours = list.filter(
-      //   (p) => (p?.product_type || p?.productType) === "tour"
-      // );
-      // setItems(tours);
       setItems(list);
     } catch (e) {
       console.error(e);
@@ -188,7 +180,12 @@ export default function ManageTours() {
 
   const openDetail = (tour) => {
     const id = tour?.id || tour?._id;
-    nav(`/admin/manage/tours/${id}`);
+    nav(`/admin/manage/tours/${id}`); // view mode
+  };
+
+  const openEdit = (tour) => {
+    const id = tour?.id || tour?._id;
+    nav(`/admin/manage/tours/${id}?mode=edit`); // edit mode
   };
 
   return (
@@ -306,6 +303,14 @@ export default function ManageTours() {
                   onClick={() => openDetail(tour)}
                 >
                   Chi tiết
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.smallBtn}
+                  onClick={() => openEdit(tour)}
+                >
+                  Chỉnh sửa
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom"; // [MỚI] Thêm Link
+import { useNavigate, Link, useLocation } from "react-router-dom"; // [MỚI] Thêm Link
 import AuthHeader from "../components/AuthHeader.jsx";
 import authApi from "../api/authApi";
 
@@ -9,6 +9,8 @@ function isEmail(v) {
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,11 +40,15 @@ export default function Login() {
           localStorage.setItem("user", JSON.stringify(response.user));
         }
         alert("Đăng nhập thành công!");
-        navigate("/");
+        const roles = response.user?.roles || [];
+        const isAdmin = Array.isArray(roles) && roles.includes("admin");
+        navigate(isAdmin ? "/admin" : from, { replace: true });
       }
     } catch (error) {
       console.error("Login failed:", error);
-      const message = error.response?.data?.message || "Đăng nhập thất bại. Vui lòng kiểm tra email hoặc mật khẩu.";
+      const message =
+        error.response?.data?.message ||
+        "Đăng nhập thất bại. Vui lòng kiểm tra email hoặc mật khẩu.";
       setErrorMsg(message);
     } finally {
       setLoading(false);
@@ -102,22 +108,29 @@ export default function Login() {
                     <span
                       onClick={togglePasswordVisibility}
                       style={{
-                        position: 'absolute',
-                        right: '15px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        cursor: 'pointer',
-                        color: '#6c757d',
-                        zIndex: 10
+                        position: "absolute",
+                        right: "15px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        cursor: "pointer",
+                        color: "#6c757d",
+                        zIndex: 10,
                       }}
                       title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                     >
-                      <i className={`bi ${showPassword ? "bi-eye-slash-fill" : "bi-eye-fill"} fs-5`}></i>
+                      <i
+                        className={`bi ${
+                          showPassword ? "bi-eye-slash-fill" : "bi-eye-fill"
+                        } fs-5`}
+                      ></i>
                     </span>
                   </div>
 
                   <div className="d-flex justify-content-end mt-1">
-                    <Link to="/forgot-password" className="small text-decoration-none text-muted hover-underline">
+                    <Link
+                      to="/forgot-password"
+                      className="small text-decoration-none text-muted hover-underline"
+                    >
                       Quên mật khẩu?
                     </Link>
                   </div>
@@ -131,7 +144,11 @@ export default function Login() {
                 >
                   {loading ? (
                     <span>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      <span
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
                       Đang xử lý...
                     </span>
                   ) : (
@@ -142,12 +159,15 @@ export default function Login() {
                 {/* --- [MỚI] PHẦN CHUYỂN HƯỚNG ĐĂNG KÝ --- */}
                 <div className="text-center mt-3">
                   <span className="text-muted">Bạn chưa có tài khoản? </span>
-                  <Link to="/register" className="fw-semibold text-decoration-none" style={{ color: "#008080" }}>
+                  <Link
+                    to="/register"
+                    className="fw-semibold text-decoration-none"
+                    style={{ color: "#008080" }}
+                  >
                     Đăng ký ngay
                   </Link>
                 </div>
                 {/* --------------------------------------- */}
-
               </form>
             </div>
 
@@ -157,13 +177,19 @@ export default function Login() {
 
             <div className="row g-3">
               <div className="col-12 col-md-6">
-                <button type="button" className="btn btn-outline-secondary btn-lg w-100 d-flex align-items-center justify-content-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-lg w-100 d-flex align-items-center justify-content-center gap-2"
+                >
                   <i className="bi bi-google"></i>
                   <span className="fs-6">Google</span>
                 </button>
               </div>
               <div className="col-12 col-md-6">
-                <button type="button" className="btn btn-outline-secondary btn-lg w-100 d-flex align-items-center justify-content-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-lg w-100 d-flex align-items-center justify-content-center gap-2"
+                >
                   <i className="bi bi-facebook"></i>
                   <span className="fs-6">Facebook</span>
                 </button>
@@ -171,7 +197,8 @@ export default function Login() {
             </div>
 
             <p className="text-center small mt-4">
-              Bằng việc đăng nhập, bạn đồng ý với Điều khoản & Chính sách của chúng tôi.
+              Bằng việc đăng nhập, bạn đồng ý với Điều khoản & Chính sách của
+              chúng tôi.
             </p>
           </div>
         </div>

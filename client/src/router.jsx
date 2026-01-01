@@ -239,6 +239,25 @@ const ScrollToTop = () => {
   return null;
 };
 
+const RequireAdmin = ({ children }) => {
+  const location = useLocation();
+
+  const token = localStorage.getItem("token");
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  const roles = Array.isArray(user?.roles) ? user.roles : [];
+  const isAdmin = roles.map((r) => String(r).toLowerCase()).includes("admin");
+  if (!token) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
 /**
  * Component Router chính – dùng trong main.jsx
  */
@@ -365,7 +384,14 @@ const AppRouter = () => {
         <Route path="/otp-verify" element={<OtpVerifyPage />} />
 
         {/* Admin layout */}
-        <Route path="/admin/*" element={<AdminLayout />} />
+        <Route
+          path="/admin/*"
+          element={
+            <RequireAdmin>
+              <AdminLayout />
+            </RequireAdmin>
+          }
+        />
 
         {/* Fallback: route lạ -> về trang chủ */}
         <Route path="*" element={<Navigate to="/" replace />} />

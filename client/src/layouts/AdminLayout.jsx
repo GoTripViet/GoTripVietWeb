@@ -6,6 +6,8 @@ import { ensureAdminSeed } from "../data/adminStore";
 import AdminProfile from "../pages/admin/AdminProfile";
 import DashboardBasic from "../pages/admin/DashboardBasic";
 import DashboardAdvanced from "../pages/admin/DashboardAdvanced";
+import ManageCategory from "../pages/admin/ManageCategory";
+import ManageLocation from "../pages/admin/ManageLocation";
 import ManageTours from "../pages/admin/ManageTours";
 import ManageTourDetail from "../pages/admin/ManageTourDetail";
 import ManageUsers from "../pages/admin/ManageUsers";
@@ -32,6 +34,8 @@ export default function AdminLayout() {
 
           <Route path="profile" element={<AdminProfile />} />
 
+          <Route path="manage/categories" element={<ManageCategory />} />
+          <Route path="manage/locations" element={<ManageLocation />} />
           <Route path="manage/tours" element={<ManageTours />} />
           <Route path="manage/tours/:id" element={<ManageTourDetail />} />
           <Route path="manage/events" element={<ManageEvents />} />
