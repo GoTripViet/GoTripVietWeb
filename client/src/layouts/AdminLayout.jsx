@@ -6,21 +6,13 @@ import { ensureAdminSeed } from "../data/adminStore";
 import AdminProfile from "../pages/admin/AdminProfile";
 import DashboardBasic from "../pages/admin/DashboardBasic";
 import DashboardAdvanced from "../pages/admin/DashboardAdvanced";
-
-import ManageFlights from "../pages/admin/ManageFlights";
-import ManageHome from "../pages/admin/ManageHome";
-import ManageHotels from "../pages/admin/ManageHotels";
+import ManageTours from "../pages/admin/ManageTours";
+import ManageTourDetail from "../pages/admin/ManageTourDetail";
 import ManageUsers from "../pages/admin/ManageUsers";
 import ManageAdmins from "../pages/admin/ManageAdmins";
 import ManageExpenses from "../pages/admin/ManageExpenses";
-import ManagePartnerAirports from "../pages/admin/ManagePartnerAirports";
-import ManagePartnerHotels from "../pages/admin/ManagePartnerHotels";
 import ManageEvents from "../pages/admin/ManageEvents";
 import ManageOrders from "../pages/admin/ManageOrders";
-import ManageOrderHotels from "../pages/admin/ManageOrderHotels";
-import ManageOrderFlights from "../pages/admin/ManageOrderFlights";
-import ManageOrderHotelDetail from "../pages/admin/ManageOrderHotelDetail";
-import ManageOrderFlightDetail from "../pages/admin/ManageOrderFlightDetail";
 
 export default function AdminLayout() {
   useEffect(() => {
@@ -40,35 +32,13 @@ export default function AdminLayout() {
 
           <Route path="profile" element={<AdminProfile />} />
 
-          <Route path="manage/flights" element={<ManageFlights />} />
-          <Route path="manage/home" element={<ManageHome />} />
+          <Route path="manage/tours" element={<ManageTours />} />
+          <Route path="manage/tours/:id" element={<ManageTourDetail />} />
           <Route path="manage/events" element={<ManageEvents />} />
-          <Route path="manage/hotels" element={<ManageHotels />} />
+          <Route path="manage/orders" element={<ManageOrders />} />
 
           <Route path="manage/users" element={<ManageUsers />} />
           <Route path="manage/admins" element={<ManageAdmins />} />
-          <Route
-            path="manage/partner-airports"
-            element={<ManagePartnerAirports />}
-          />
-          <Route
-            path="manage/partner-hotels"
-            element={<ManagePartnerHotels />}
-          />
-          <Route path="manage/orders" element={<ManageOrders />} />
-          <Route path="manage/orders/hotels" element={<ManageOrderHotels />} />
-          <Route
-            path="manage/orders/flights"
-            element={<ManageOrderFlights />}
-          />
-          <Route
-            path="manage/orders/hotels/:id"
-            element={<ManageOrderHotelDetail />}
-          />
-          <Route
-            path="manage/orders/flights/:id"
-            element={<ManageOrderFlightDetail />}
-          />
           <Route path="expenses" element={<ManageExpenses />} />
 
           <Route path="*" element={<Navigate to="/admin" replace />} />

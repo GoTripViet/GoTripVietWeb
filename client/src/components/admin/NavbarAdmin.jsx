@@ -98,15 +98,15 @@ export default function NavbarAdmin() {
         >
           Quản lý dữ liệu
         </div>
-        <NavLink to="/admin/manage/home" style={linkStyle}>
-          Quản lý Home
+        <NavLink to="/admin/manage/tours" style={linkStyle}>
+          Quản lý Tour
         </NavLink>
-        <NavLink to="/admin/manage/flights" style={linkStyle}>
+        {/* <NavLink to="/admin/manage/flights" style={linkStyle}>
           Quản lý chuyến bay
         </NavLink>
         <NavLink to="/admin/manage/hotels" style={linkStyle}>
           Quản lý khách sạn
-        </NavLink>
+        </NavLink> */}
         <NavLink to="/admin/manage/events" style={linkStyle}>
           Quản lý events
         </NavLink>
@@ -130,11 +130,8 @@ export default function NavbarAdmin() {
         <NavLink to="/admin/manage/admins" style={linkStyle}>
           Quản lý admin
         </NavLink>
-        <NavLink to="/admin/manage/partner-airports" style={linkStyle}>
-          Đối tác hãng bay
-        </NavLink>
-        <NavLink to="/admin/manage/partner-hotels" style={linkStyle}>
-          Đối tác khách sạn
+        <NavLink to="/admin/manage/partners" style={linkStyle}>
+          Quản lý đối tác
         </NavLink>
 
         <div
