@@ -202,6 +202,16 @@ app.use(
   })
 );
 
+// Uploads (Catalog Service - protected)
+app.use(
+  "/uploads",
+  createProxyMiddleware({
+    ...proxyOptions,
+    target: SERVICES.catalog,
+    pathRewrite: keepPrefix,
+  })
+);
+
 // -------------------------------------------------------------------
 // 4. XỬ LÝ LỖI CHUNG
 // -------------------------------------------------------------------

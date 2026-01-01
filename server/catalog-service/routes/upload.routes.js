@@ -1,19 +1,21 @@
-import express from "express";
-import multer from "multer";
-import cloudinary from "../config/cloudinary.js";
-import { requireAuth, requireAdmin } from "../middlewares/auth.js"; // bạn đổi theo project
+const express = require("express");
+const multer = require("multer");
+const cloudinary = require("../config/cloudinary");
+
+const authMiddleware = require("../middleware/auth.middleware");
+const checkRole = require("../middleware/checkRole.middleware");
 
 const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 router.post(
   "/category-image",
-  requireAuth,
-  requireAdmin,
+  authMiddleware,
+  checkRole(["admin"]),
   upload.single("file"),
   async (req, res) => {
     try {
@@ -24,19 +26,13 @@ router.post(
 
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          {
-            folder: "gotripviet/categories",
-            resource_type: "image",
-          },
+          { folder: "gotripviet/categories", resource_type: "image" },
           (err, out) => (err ? reject(err) : resolve(out))
         );
         stream.end(req.file.buffer);
       });
 
-      return res.json({
-        url: result.secure_url,
-        public_id: result.public_id,
-      });
+      return res.json({ url: result.secure_url, public_id: result.public_id });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ message: "Upload thất bại" });
@@ -44,4 +40,4 @@ router.post(
   }
 );
 
-export default router;
+module.exports = router;
