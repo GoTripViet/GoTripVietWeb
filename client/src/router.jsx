@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -10,6 +10,7 @@ import {
 
 // Layout
 import UserLayout from "./layouts/UserLayout.jsx";
+import AdminLayout from "./layouts/AdminLayout.jsx";
 import SearchPage from "./pages/SearchPage.jsx";
 // Pages
 import ProductDetail from "./pages/ProductDetail.jsx";
@@ -21,6 +22,10 @@ import ConfirmOrder from "./pages/ConfirmOrder.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import OtpVerify from "./pages/OtpVerify.jsx";
+import ListingCities from "./pages/ListingCities.jsx";
+import ListingFlights from "./pages/ListingFlights.jsx";
+import OrderFlight from "./pages/OrderFlight.jsx";
+import OrderSuccess from "./pages/OrderSuccess.jsx";
 import Profile from "./pages/Profile.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import PaymentPage from "./pages/PaymentPage";
@@ -40,7 +45,18 @@ const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
     >
       <Home
         activeCategoryIndex={activeCategoryIndex}
-        onNavigateToHotels={() => navigate("/hotels")}
+        onNavigateToHotels={(q) => {
+          const query = (q || "").trim();
+          navigate(
+            query ? `/hotels?q=${encodeURIComponent(query)}` : "/hotels"
+          );
+        }}
+        onNavigateToCities={(q) => {
+          const query = (q || "").trim();
+          navigate(
+            query ? `/cities?q=${encodeURIComponent(query)}` : "/cities"
+          );
+        }}
       />
     </UserLayout>
   );
@@ -56,7 +72,10 @@ const BookingSuccessPage = ({ activeCategoryIndex, onCategoryChange }) => {
 
 const SearchPageWrapper = ({ activeCategoryIndex, onCategoryChange }) => {
   return (
-    <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
       <SearchPage />
     </UserLayout>
   );
@@ -100,6 +119,29 @@ const HotelDetailPage = ({ activeCategoryIndex, onCategoryChange }) => {
   );
 };
 
+const ListingCitiesPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  const location = useLocation();
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <ListingCities key={location.search} />
+    </UserLayout>
+  );
+};
+
+const ListingFlightsPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <ListingFlights />
+    </UserLayout>
+  );
+};
+
 const OrderPage = ({ activeCategoryIndex, onCategoryChange }) => {
   return (
     <UserLayout
@@ -130,6 +172,28 @@ const ConfirmOrderPage = ({ activeCategoryIndex, onCategoryChange }) => {
   );
 };
 
+const OrderFlightPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <OrderFlight />
+    </UserLayout>
+  );
+};
+
+const OrderSuccessPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
+      <OrderSuccess />
+    </UserLayout>
+  );
+};
+
 const ProfilePage = ({ activeCategoryIndex, onCategoryChange }) => {
   return (
     <UserLayout
@@ -141,9 +205,8 @@ const ProfilePage = ({ activeCategoryIndex, onCategoryChange }) => {
   );
 };
 
-
 /**
- * 
+ *
  * Trang Register cũng KHÔNG bọc UserLayout
  */
 const RegisterPage = () => {
@@ -190,6 +253,38 @@ const OtpVerifyPage = () => {
   );
 };
 
+const ScrollToTop = () => {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }, [pathname, search]);
+
+  return null;
+};
+
+const RequireAdmin = ({ children }) => {
+  const location = useLocation();
+
+  const token = localStorage.getItem("token");
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  const roles = Array.isArray(user?.roles) ? user.roles : [];
+  const isAdmin = roles.map((r) => String(r).toLowerCase()).includes("admin");
+
+  if (!token) {
+    // chưa login -> đá về login và nhớ URL đang muốn vào
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (!isAdmin) {
+    // login rồi nhưng không phải admin -> đá về home (hoặc /403)
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
 /**
  * Component Router chính – dùng trong main.jsx
  */
@@ -198,6 +293,7 @@ const AppRouter = () => {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Trang chủ */}
         <Route
@@ -277,6 +373,49 @@ const AppRouter = () => {
           element={<BookingSuccessPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
         />
 
+        {/* Trang danh sách thành phố */}
+        <Route
+          path="/cities"
+          element={
+            <ListingCitiesPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        {/* Trang danh sách chuyến bay */}
+        <Route
+          path="/flights"
+          element={
+            <ListingFlightsPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        {/* Trang đặt chuyến bay */}
+        <Route
+          path="/order-flight"
+          element={
+            <OrderFlightPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        <Route
+          path="/order-success"
+          element={
+            <OrderSuccessPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
         {/* Login – KHÔNG dùng UserLayout */}
         <Route path="/login" element={<LoginPage />} />
         {/* Register – KHÔNG dùng UserLayout */}
@@ -284,7 +423,16 @@ const AppRouter = () => {
         {/* OTP – KHÔNG dùng UserLayout */}
         <Route path="/otp-verify" element={<OtpVerifyPage />} />
 
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        {/* Admin layout */}
+        <Route
+          path="/admin/*"
+          element={
+            <RequireAdmin>
+              <AdminLayout />
+            </RequireAdmin>
+          }
+        />
+
         {/* Fallback: route lạ -> về trang chủ */}
         <Route path="*" element={<Navigate to="/" replace />} />
 

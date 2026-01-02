@@ -1,13 +1,13 @@
 // app.js
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const morgan = require('morgan');
-const connectDB = require('./config/db');
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+const connectDB = require("./config/db");
 
 // --- Import Routes ---
-const promotionRoutes = require('./routes/promotion.routes');
-const inventoryRoutes = require('./routes/inventory.routes'); // Sẽ làm tiếp
+const promotionRoutes = require("./routes/promotion.routes");
+const inventoryRoutes = require("./routes/inventory.routes"); // Sẽ làm tiếp
 
 // --- Khởi tạo App ---
 const app = express();
@@ -17,13 +17,17 @@ connectDB();
 
 // --- Middlewares ---
 app.use(cors());
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // --- Định tuyến (Routing) ---
-app.use('/promotions', promotionRoutes);
-app.use('/inventory', inventoryRoutes);
+app.use((req, res, next) => {
+  console.log("INVENTORY HIT:", req.method, req.originalUrl);
+  next();
+});
+app.use("/promotions", promotionRoutes);
+app.use("/inventory", inventoryRoutes);
 
 // --- Khởi chạy Server ---
 const PORT = process.env.PORT || 3003;

@@ -1,12 +1,15 @@
 // controllers/promotion.controller.js
-const promotionService = require('../services/promotion.service');
+const promotionService = require("../services/promotion.service");
 
 class PromotionController {
   async createPromotion(req, res) {
+    console.log("CREATE BODY:", req.body);
     try {
       const promotion = await promotionService.createPromotion(req.body);
+      console.log("CREATED:", promotion._id);
       res.status(201).json(promotion);
     } catch (error) {
+      console.error("CREATE PROMOTION ERROR:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -22,16 +25,21 @@ class PromotionController {
 
   async getPromotionByCode(req, res) {
     try {
-      const promotion = await promotionService.getPromotionByCode(req.params.code);
+      const promotion = await promotionService.getPromotionByCode(
+        req.params.code
+      );
       res.status(200).json(promotion);
     } catch (error) {
       res.status(404).json({ message: error.message });
     }
   }
-  
+
   async updatePromotion(req, res) {
     try {
-      const promotion = await promotionService.updatePromotion(req.params.id, req.body);
+      const promotion = await promotionService.updatePromotion(
+        req.params.id,
+        req.body
+      );
       res.status(200).json(promotion);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -44,6 +52,16 @@ class PromotionController {
       res.status(200).json(result);
     } catch (error) {
       res.status(404).json({ message: error.message });
+    }
+  }
+
+  async toggleStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const promotion = await promotionService.toggleStatus(id);
+      res.json(promotion);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
     }
   }
 }

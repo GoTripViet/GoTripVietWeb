@@ -1,4 +1,3 @@
-// src/components/Header.jsx
 import React, { useState, useEffect } from "react";
 import Navbar from "react-bootstrap/Navbar";
 import Container from "react-bootstrap/Container";
@@ -85,7 +84,7 @@ export default function Header(props) {
   // --- RENDER USER TRÊN DESKTOP (Dạng Dropdown) ---
   const renderUserDesktop = () => {
     if (!user) return null;
-    
+
     // Lấy tên hiển thị (ưu tiên fullName, nếu không có thì lấy email)
     const displayName = user.fullName || user.email || "User";
     const initial = displayName.charAt(0).toUpperCase();
@@ -98,8 +97,16 @@ export default function Header(props) {
           style={{ cursor: "pointer" }}
         >
           <div className="bg-white text-primary rounded-pill px-2 py-1 d-flex align-items-center gap-2 shadow-sm">
-            <span className="small fw-semibold ms-1" style={{maxWidth: '100px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                {displayName}
+            <span
+              className="small fw-semibold ms-1"
+              style={{
+                maxWidth: "100px",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {displayName}
             </span>
             <div
               className="rounded-circle overflow-hidden d-flex align-items-center justify-content-center bg-primary text-white"
@@ -134,7 +141,7 @@ export default function Header(props) {
   // --- RENDER USER TRÊN MOBILE ---
   const renderUserMobile = () => {
     if (!user) return null;
-    
+
     const displayName = user.fullName || user.email;
     const initial = displayName.charAt(0).toUpperCase();
 
@@ -143,17 +150,22 @@ export default function Header(props) {
         <div className="d-flex align-items-center gap-3 mb-3">
           <div
             className="rounded-circle overflow-hidden d-flex align-items-center justify-content-center bg-primary text-white"
-            style={{ width: 50, height: 50, fontSize: '1.2rem' }}
+            style={{ width: 50, height: 50, fontSize: "1.2rem" }}
           >
-             <span className="fw-bold">{initial}</span>
+            <span className="fw-bold">{initial}</span>
           </div>
           <div>
             <div className="small text-muted">Xin chào,</div>
             <div className="fw-bold fs-5">{displayName}</div>
           </div>
         </div>
-        <Button variant="outline-danger" size="sm" className="w-100" onClick={handleLogout}>
-            Đăng xuất
+        <Button
+          variant="outline-danger"
+          size="sm"
+          className="w-100"
+          onClick={handleLogout}
+        >
+          Đăng xuất
         </Button>
       </div>
     );
@@ -232,7 +244,11 @@ export default function Header(props) {
                 renderUserDesktop()
               ) : (
                 <>
-                  <Button variant="outline-light" size="sm" onClick={handleLogin}>
+                  <Button
+                    variant="outline-light"
+                    size="sm"
+                    onClick={handleLogin}
+                  >
                     <i className="bi bi-person me-2" /> Đăng nhập
                   </Button>
                   <Button
@@ -272,7 +288,17 @@ export default function Header(props) {
               }`}
               onClick={(e) => {
                 e.preventDefault();
-                props.onCategoryChange && props.onCategoryChange(idx);
+
+                // đổi tab đang active
+                props.onCategoryChange?.(idx);
+
+                // nếu đang ở trang khác (listing, detail, order...) thì về Home để render đúng tab
+                if (location.pathname !== "/") {
+                  navigate("/");
+                }
+
+                // đóng menu mobile nếu đang mở
+                setShowMenu(false);
               }}
               role="button"
             >

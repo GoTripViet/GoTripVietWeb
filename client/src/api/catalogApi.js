@@ -1,39 +1,34 @@
 // src/api/catalogApi.js
-import axios from 'axios';
-
-// 1. Cấu hình Client trỏ vào Catalog Service (Cổng 3002)
-const catalogClient = axios.create({
-  baseURL: 'http://localhost:3002', 
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import axiosClient from "./axiosClient";
 
 const catalogApi = {
   // --- SẢN PHẨM ---
-  getAll: (params) => {
-    return catalogClient.get('/products', { params });
+  getAll: (params) => axiosClient.get("/products", { params }),
+  getById: (id) => axiosClient.get(`/products/${id}`),
+  getByIdAdmin: (idOrSlug) => axiosClient.get(`/products/admin/${idOrSlug}`),
+  create: (payload) => axiosClient.post("/products", payload),
+  update: (id, payload) => axiosClient.put(`/products/${id}`, payload),
+  remove: (id) => axiosClient.delete(`/products/${id}`),
+  uploadTourImage(formData) {
+    return axiosClient.post("/uploads/tour-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
   },
 
-  getById: (id) => {
-    return catalogClient.get(`/products/${id}`);
-  },
-  
   // --- ĐỊA ĐIỂM ---
-  getAllLocations: () => {
-    return catalogClient.get('/locations');
-  },
+  getAllLocations: () => axiosClient.get("/locations"),
+  createLocation: (payload) => axiosClient.post("/locations", payload),
+  updateLocation: (id, payload) =>
+    axiosClient.patch(`/locations/${id}`, payload),
+  deleteLocation: (id) => axiosClient.delete(`/locations/${id}`),
 
-  // --- DANH MỤC (SỬA LỖI TẠI ĐÂY) ---
-  // Dùng catalogClient (3002) thay vì axiosClient (3001)
-  getAllCategories(params) {
-    // params có thể là { parent: 'null' } hoặc {}
-    return catalogClient.get('/categories', { params });
-  },
-  
-  getCategoryById(idOrSlug) {
-    return catalogClient.get(`/categories/${idOrSlug}`);
-  }
+  // --- DANH MỤC ---
+  getAllCategories: (params) => axiosClient.get("/categories", { params }),
+  getCategoryById: (idOrSlug) => axiosClient.get(`/categories/${idOrSlug}`),
+  createCategory: (payload) => axiosClient.post("/categories", payload),
+  updateCategory: (id, payload) =>
+    axiosClient.put(`/categories/${id}`, payload),
+  deleteCategory: (id) => axiosClient.delete(`/categories/${id}`),
 };
 
 export default catalogApi;
