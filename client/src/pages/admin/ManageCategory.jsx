@@ -22,9 +22,9 @@ function toRow(x) {
     // backend lưu parent là ObjectId, nếu populate thì parent là object
     parentId: parentObj?._id || x?.parent || null,
     parentName: parentObj?.name || "",
-
     // slug do backend auto, UI chỉ hiển thị
     slug: x?.slug || "",
+    image: x?.image || "",
   };
 }
 
@@ -336,7 +336,7 @@ export default function ManageCategory() {
       fd.append("file", file);
 
       const res = await categoryApi.uploadCategoryImage(fd);
-      const url = res?.data?.url || res?.url;
+      const url = res?.url;
       if (!url) throw new Error("Server không trả về url");
 
       setForm((s) => ({ ...s, image: url }));
@@ -390,7 +390,7 @@ export default function ManageCategory() {
           </thead>
           <tbody>
             {rows.map((x) => (
-              <tr key={x.id}>
+              <tr key={x.id || x._id}>
                 <td style={styles.td}>
                   <span style={styles.badge("rgba(11,95,255,0.10)", "#0b5fff")}>
                     {x.name}
