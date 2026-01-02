@@ -13,7 +13,7 @@ axiosClient.interceptors.request.use(async (config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // ✅ Chỉ set JSON khi data là object thường (không phải FormData)
+  // Chỉ set JSON khi data là object thường (không phải FormData)
   const isFormData =
     typeof FormData !== "undefined" && config.data instanceof FormData;
 

@@ -13,6 +13,7 @@ import ManageTourDetail from "../pages/admin/ManageTourDetail";
 import ManageUsers from "../pages/admin/ManageUsers";
 import ManageAdmins from "../pages/admin/ManageAdmins";
 import ManageExpenses from "../pages/admin/ManageExpenses";
+import ManagePromotion from "../pages/admin/ManagePromotion";
 import ManageEvents from "../pages/admin/ManageEvents";
 import ManageOrders from "../pages/admin/ManageOrders";
 
@@ -38,6 +39,7 @@ export default function AdminLayout() {
           <Route path="manage/locations" element={<ManageLocation />} />
           <Route path="manage/tours" element={<ManageTours />} />
           <Route path="manage/tours/:id" element={<ManageTourDetail />} />
+          <Route path="manage/promotions" element={<ManagePromotion />} />
           <Route path="manage/events" element={<ManageEvents />} />
           <Route path="manage/orders" element={<ManageOrders />} />
 

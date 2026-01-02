@@ -107,6 +107,9 @@ export default function NavbarAdmin() {
         <NavLink to="/admin/manage/tours" style={linkStyle}>
           Quản lý Tour
         </NavLink>
+        <NavLink to="/admin/manage/promotions" style={linkStyle}>
+          Quản lý khuyến mãi
+        </NavLink>
         <NavLink to="/admin/manage/events" style={linkStyle}>
           Quản lý events
         </NavLink>

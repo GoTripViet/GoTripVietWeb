@@ -154,6 +154,25 @@ app.use(
   })
 );
 
+// Promotion routes (Xem mã khuyến mãi công khai)
+app.use(
+  "/promotions",
+  createProxyMiddleware({
+    ...proxyOptions,
+    target: SERVICES.inventory,
+    changeOrigin: true,
+    proxyTimeout: 120000,
+
+    // đảm bảo không bao giờ bị /promotions/promotions
+    pathRewrite: (path, req) => {
+      // nếu path đã bắt đầu bằng /promotions thì giữ nguyên
+      if (path.startsWith("/promotions")) return path;
+      // còn không thì thêm prefix
+      return `/promotions${path}`;
+    },
+  })
+);
+
 // --- B. Các route BẢO VỆ (Phải có token hợp lệ) ---
 
 // Kích hoạt "tường lửa" (authMiddleware) cho TẤT CẢ các route bên dưới

@@ -1,40 +1,47 @@
 // routes/promotion.routes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const promotionController = require('../controllers/promotion.controller');
-const authMiddleware = require('../middleware/auth.middleware');
-const checkRole = require('../middleware/checkRole.middleware');
+const promotionController = require("../controllers/promotion.controller");
+const authMiddleware = require("../middleware/auth.middleware");
+const checkRole = require("../middleware/checkRole.middleware");
 
 // --- Public Route (Cho Booking Service kiểm tra mã) ---
-router.get('/code/:code', promotionController.getPromotionByCode);
+router.get("/code/:code", promotionController.getPromotionByCode);
 
 // --- Admin Routes (Quản lý mã) ---
 router.post(
-  '/',
+  "/",
   authMiddleware,
-  checkRole(['admin']),
+  checkRole(["admin"]),
   promotionController.createPromotion
 );
 
 router.get(
-  '/',
+  "/",
   authMiddleware,
-  checkRole(['admin']),
+  checkRole(["admin"]),
   promotionController.getAllPromotions
 );
 
 router.put(
-  '/:id',
+  "/:id",
   authMiddleware,
-  checkRole(['admin']),
+  checkRole(["admin"]),
   promotionController.updatePromotion
 );
 
 router.delete(
-  '/:id',
+  "/:id",
   authMiddleware,
-  checkRole(['admin']),
+  checkRole(["admin"]),
   promotionController.deletePromotion
+);
+
+router.patch(
+  "/:id/status",
+  authMiddleware,
+  checkRole(["admin"]),
+  promotionController.toggleStatus
 );
 
 module.exports = router;
