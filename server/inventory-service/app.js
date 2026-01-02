@@ -7,7 +7,8 @@ const connectDB = require("./config/db");
 
 // --- Import Routes ---
 const promotionRoutes = require("./routes/promotion.routes");
-const inventoryRoutes = require("./routes/inventory.routes"); // Sẽ làm tiếp
+const inventoryRoutes = require("./routes/inventory.routes");
+const eventRoutes = require("./routes/event.routes");
 
 // --- Khởi tạo App ---
 const app = express();
@@ -28,6 +29,7 @@ app.use((req, res, next) => {
 });
 app.use("/promotions", promotionRoutes);
 app.use("/inventory", inventoryRoutes);
+app.use("/events", eventRoutes);
 
 // --- Khởi chạy Server ---
 const PORT = process.env.PORT || 3003;

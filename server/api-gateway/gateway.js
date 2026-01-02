@@ -173,6 +173,16 @@ app.use(
   })
 );
 
+// Event routes (Xem sự kiện công khai)
+app.use(
+  "/events",
+  createProxyMiddleware({
+    ...proxyOptions,
+    target: SERVICES.inventory,
+    pathRewrite: (path) => `/events${path}`,
+  })
+);
+
 // --- B. Các route BẢO VỆ (Phải có token hợp lệ) ---
 
 // Kích hoạt "tường lửa" (authMiddleware) cho TẤT CẢ các route bên dưới

@@ -1,16 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  STORE_KEY,
-  getList,
-  addItem,
-  updateItem,
-  deleteItem,
-} from "../../data/adminStore";
+import { useEffect, useMemo, useState } from "react";
+import eventApi from "../../api/eventApi";
+import axiosClient from "../../api/axiosClient";
 
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
+/* ========== UI helpers (same style as ManagePromotion) ========== */
 function Modal({ open, title, children, onClose }) {
   if (!open) return null;
   return (
@@ -28,13 +20,13 @@ function Modal({ open, title, children, onClose }) {
     >
       <div
         style={{
-          width: "min(980px, 92vw)", // nhỏ hơn 1100
-          maxHeight: "86vh", // thấp hơn 90vh
+          width: "min(900px, 92vw)",
+          maxHeight: "86vh",
           overflowY: "auto",
-          overflowX: "hidden", // CHẶN scroll ngang
+          overflowX: "hidden",
           background: "#fff",
           borderRadius: 14,
-          padding: 12, // nhỏ hơn 16
+          padding: 14,
           boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
         }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -43,12 +35,7 @@ function Modal({ open, title, children, onClose }) {
           <div style={{ fontWeight: 900, fontSize: 16, flex: 1 }}>{title}</div>
           <button
             onClick={onClose}
-            style={{
-              border: 0,
-              background: "transparent",
-              cursor: "pointer",
-              fontSize: 18,
-            }}
+            style={{ border: 0, background: "transparent", fontSize: 18 }}
           >
             ✕
           </button>
@@ -70,8 +57,8 @@ function Input({ label, ...props }) {
           borderRadius: 10,
           border: "1px solid #e5e7eb",
           padding: "8px 10px",
-          outline: "none",
           fontSize: 13,
+          outline: "none",
           ...props.style,
         }}
       />
@@ -87,11 +74,12 @@ function Select({ label, children, ...props }) {
         {...props}
         style={{
           borderRadius: 10,
-          fontSize: 11,
+          fontSize: 13,
           border: "1px solid #e5e7eb",
           padding: "8px 10px",
-          outline: "none",
           background: "#fff",
+          outline: "none",
+          ...props.style,
         }}
       >
         {children}
@@ -100,239 +88,171 @@ function Select({ label, children, ...props }) {
   );
 }
 
-function PillButton({ children, onClick, tone = "default" }) {
-  const bg =
-    tone === "primary" ? "#0b5fff" : tone === "danger" ? "#fff" : "#fff";
-  const color = tone === "primary" ? "#fff" : "#111827";
-  const border =
-    tone === "primary"
-      ? "transparent"
-      : tone === "danger"
-      ? "#fecaca"
-      : "#e5e7eb";
-
+function Th({ children }) {
   return (
-    <button
-      onClick={onClick}
-      type="button"
+    <th
       style={{
-        padding: "6px 8px",
-        borderRadius: 999,
-        border: `1px solid ${border}`,
-        background: bg,
-        color,
-        cursor: "pointer",
+        textAlign: "left",
+        padding: "10px",
         fontSize: 12,
-        fontWeight: 900,
-        lineHeight: 1.2,
-        whiteSpace: "normal",
+        color: "#6b7280",
+        borderBottom: "1px solid #e5e7eb",
+        whiteSpace: "nowrap",
       }}
     >
       {children}
-    </button>
+    </th>
   );
 }
 
-function Box({ title, subtitle, children, right }) {
+function Td({ children, colSpan, style }) {
   return (
-    <div
+    <td
+      colSpan={colSpan}
       style={{
-        background: "#fff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 16,
-        padding: 10,
+        padding: "10px",
+        borderBottom: "1px solid #f1f5f9",
+        fontSize: 13,
+        verticalAlign: "top",
+        ...style,
       }}
     >
-      {/* header */}
-      <div style={{ display: "grid", gap: 6 }}>
-        <div>
-          <div style={{ fontWeight: 900, fontSize: 13 }}>{title}</div>
-          {subtitle ? (
-            <div style={{ color: "#6b7280", marginTop: 4, fontSize: 12 }}>
-              {subtitle}
-            </div>
-          ) : null}
-        </div>
-
-        {/* actions: luôn ở hàng riêng để không chen title */}
-        {right ? (
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              justifyContent: "flex-end",
-            }}
-          >
-            {right}
-          </div>
-        ) : null}
-      </div>
-
-      <div style={{ height: 1, background: "#e5e7eb", margin: "8px 0" }} />
       {children}
-    </div>
+    </td>
   );
+}
+
+const btn = {
+  borderRadius: 12,
+  border: "1px solid #e5e7eb",
+  padding: "8px 12px",
+  background: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const iconBtn = {
+  borderRadius: 12,
+  border: "1px solid #e5e7eb",
+  padding: "8px 10px",
+  background: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+  lineHeight: 1,
+};
+
+function normalizeProducts(res) {
+  if (Array.isArray(res)) return res;
+  if (!res || typeof res !== "object") return [];
+  return (
+    res.products ||
+    res.items ||
+    res.data ||
+    res.rows ||
+    res.results ||
+    res.list ||
+    []
+  );
+}
+
+function formatMoney(v) {
+  const n = Number(v || 0);
+  return n.toLocaleString("vi-VN") + "₫";
+}
+
+function mmdd(sm, sd, em, ed) {
+  const pad = (x) => String(x ?? "").padStart(2, "0");
+  return `${pad(sd)}/${pad(sm)} → ${pad(ed)}/${pad(em)}`;
 }
 
 export default function ManageEvents() {
-  // events list
   const [rows, setRows] = useState([]);
-
-  // products source
-  const [flights, setFlights] = useState([]);
-  const [hotels, setHotels] = useState([]);
-
-  // modal state
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [error, setError] = useState("");
 
-  // event form
+  // tours list from catalog-service
+  const [tours, setTours] = useState([]);
+  const [tourQ, setTourQ] = useState("");
+  const [selectedTourIds, setSelectedTourIds] = useState(new Set());
+
+  // image upload
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [localPreview, setLocalPreview] = useState("");
+
+  // form
   const [form, setForm] = useState({
-    id: "",
-    subtitle: "",
-    ctaLabel: "",
-    backgroundUrl: "",
-    startDate: "",
-    endDate: "",
+    name: "",
+    description: "",
+    image: { url: "", public_id: "" },
+
+    discount_type: "percentage", // percentage | fixed_amount
+    discount_value: 1,
+
+    is_yearly: true,
+    start_month: 1,
+    start_day: 1,
+    end_month: 1,
+    end_day: 1,
+
+    apply_to_all_tours: true,
     priority: 0,
-    discountType: "PERCENT", // PERCENT | FIXED
-    discountValue: 0,
-    status: "ACTIVE",
+    is_active: true,
   });
 
-  // selections
-  const [selectedFlightIds, setSelectedFlightIds] = useState(new Set());
-  const [selectedHotelIds, setSelectedHotelIds] = useState(new Set());
-
-  // filters flights
-  const [fFilter, setFFilter] = useState({
-    q: "",
-    operatedBy: "ALL",
-    priceMin: "",
-    priceMax: "",
-    durationMax: "",
-    stopsMax: "ALL",
-  });
-
-  // filters hotels
-  const [hFilter, setHFilter] = useState({
-    q: "",
-    location: "ALL",
-    stars: "ALL",
-    ratingMin: "",
-  });
-
-  const reload = () => {
-    setRows(getList(STORE_KEY.home_events));
-    setFlights(getList(STORE_KEY.flights));
-    setHotels(getList(STORE_KEY.hotel_listing_hotels));
+  const load = async () => {
+    const res = await eventApi.getAll();
+    setRows(Array.isArray(res) ? res : []);
   };
 
-  useEffect(() => reload(), []);
-
-  const airlineOptions = useMemo(() => {
-    const set = new Set(
-      flights.map((x) => String(x.operatedBy || "").trim()).filter(Boolean)
-    );
-    return ["ALL", ...Array.from(set).sort()];
-  }, [flights]);
-
-  const locationOptions = useMemo(() => {
-    const set = new Set(
-      hotels.map((x) => String(x.location || "").trim()).filter(Boolean)
-    );
-    return ["ALL", ...Array.from(set).sort()];
-  }, [hotels]);
-
-  const filteredFlights = useMemo(() => {
-    return flights.filter((x) => {
-      const q = fFilter.q.trim().toLowerCase();
-      const matchQ = !q ? true : JSON.stringify(x).toLowerCase().includes(q);
-
-      const matchAir =
-        fFilter.operatedBy === "ALL"
-          ? true
-          : String(x.operatedBy || "") === fFilter.operatedBy;
-
-      const p = Number(x.price || 0);
-      const priceMin =
-        fFilter.priceMin === "" ? null : Number(fFilter.priceMin);
-      const priceMax =
-        fFilter.priceMax === "" ? null : Number(fFilter.priceMax);
-      const matchPrice =
-        (priceMin === null || p >= priceMin) &&
-        (priceMax === null || p <= priceMax);
-
-      const d = Number(x.totalDurationHours || 0);
-      const durationMax =
-        fFilter.durationMax === "" ? null : Number(fFilter.durationMax);
-      const matchDur = durationMax === null ? true : d <= durationMax;
-
-      const stops = Number(x.stopsMax ?? 0);
-      const matchStops =
-        fFilter.stopsMax === "ALL" ? true : stops <= Number(fFilter.stopsMax);
-
-      return matchQ && matchAir && matchPrice && matchDur && matchStops;
+  const loadTours = async () => {
+    // catalog-service: GET /products?product_type=tour
+    const res = await axiosClient.get("/products", {
+      params: { product_type: "tour", page: 1, limit: 500 },
     });
-  }, [flights, fFilter]);
+    const list = normalizeProducts(res);
+    setTours(Array.isArray(list) ? list : []);
+  };
 
-  const filteredHotels = useMemo(() => {
-    return hotels.filter((x) => {
-      const q = hFilter.q.trim().toLowerCase();
-      const matchQ = !q
-        ? true
-        : String(x.title || "")
-            .toLowerCase()
-            .includes(q) || JSON.stringify(x).toLowerCase().includes(q);
+  useEffect(() => {
+    load();
+    loadTours();
+  }, []);
 
-      const matchLoc =
-        hFilter.location === "ALL"
-          ? true
-          : String(x.location || "") === hFilter.location;
-
-      const stars = Number(x.stars ?? 0);
-      const matchStars =
-        hFilter.stars === "ALL" ? true : stars === Number(hFilter.stars);
-
-      const rating = Number(x.ratingScore ?? 0);
-      const ratingMin =
-        hFilter.ratingMin === "" ? null : Number(hFilter.ratingMin);
-      const matchRating = ratingMin === null ? true : rating >= ratingMin;
-
-      return matchQ && matchLoc && matchStars && matchRating;
+  const filteredTours = useMemo(() => {
+    const q = tourQ.trim().toLowerCase();
+    if (!q) return tours;
+    return tours.filter((t) => {
+      const name = String(t.title || t.name || "").toLowerCase();
+      const id = String(t._id || t.id || "").toLowerCase();
+      return name.includes(q) || id.includes(q);
     });
-  }, [hotels, hFilter]);
+  }, [tours, tourQ]);
 
   const resetForm = () => {
     setForm({
-      id: "",
-      subtitle: "",
-      ctaLabel: "",
-      backgroundUrl: "",
-      startDate: "",
-      endDate: "",
+      name: "",
+      description: "",
+      image: { url: "", public_id: "" },
+
+      discount_type: "percentage",
+      discount_value: 1,
+
+      is_yearly: true,
+      start_month: 1,
+      start_day: 1,
+      end_month: 1,
+      end_day: 1,
+
+      apply_to_all_tours: true,
       priority: 0,
-      discountType: "PERCENT",
-      discountValue: 0,
-      status: "ACTIVE",
+      is_active: true,
     });
-    setSelectedFlightIds(new Set());
-    setSelectedHotelIds(new Set());
-    setFFilter({
-      q: "",
-      operatedBy: "ALL",
-      priceMin: "",
-      priceMax: "",
-      durationMax: "",
-      stopsMax: "ALL",
-    });
-    setHFilter({
-      q: "",
-      location: "ALL",
-      stars: "ALL",
-      ratingMin: "",
-    });
+    setSelectedTourIds(new Set());
+    setTourQ("");
+    setError("");
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    setLocalPreview("");
   };
 
   const openAdd = () => {
@@ -344,106 +264,164 @@ export default function ManageEvents() {
   const openEdit = (row) => {
     setEditing(row);
     setForm({
-      id: row.id || "",
-      subtitle: row.subtitle || "",
-      ctaLabel: row.ctaLabel || "",
-      backgroundUrl: row.backgroundUrl || "",
-      startDate: row.startDate || "",
-      endDate: row.endDate || "",
+      name: row.name || "",
+      description: row.description || "",
+      image: row.image || { url: "", public_id: "" },
+
+      discount_type: row.discount_type || "percentage",
+      discount_value: Number(row.discount_value || 1),
+
+      is_yearly: row.is_yearly ?? true,
+      start_month: Number(row.start_month || 1),
+      start_day: Number(row.start_day || 1),
+      end_month: Number(row.end_month || 1),
+      end_day: Number(row.end_day || 1),
+
+      apply_to_all_tours: row.apply_to_all_tours ?? true,
       priority: Number(row.priority || 0),
-      discountType: row.discountType || "PERCENT",
-      discountValue: Number(row.discountValue || 0),
-      status: row.status || "ACTIVE",
+      is_active: row.is_active ?? true,
     });
 
-    setSelectedHotelIds(new Set(row.applyHotelIds || []));
-    setSelectedFlightIds(new Set(row.applyFlightIds || []));
+    const ids = Array.isArray(row.tour_ids) ? row.tour_ids : [];
+    setSelectedTourIds(new Set(ids));
+    setTourQ("");
+    setError("");
+
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    setLocalPreview("");
     setOpen(true);
   };
 
-  const saveEvent = () => {
+  const validateForm = () => {
+    if (!form.name.trim()) return "Tên event không được rỗng.";
+
+    const v = Number(form.discount_value);
+    if (!Number.isFinite(v)) return "Giá trị giảm không hợp lệ.";
+
+    if (form.discount_type === "percentage") {
+      if (!(v > 0 && v < 100))
+        return "Giảm theo % phải lớn hơn 0 và nhỏ hơn 100.";
+    } else {
+      if (!(v > 0)) return "Giảm số tiền phải lớn hơn 0.";
+      if (v % 1000 !== 0) return "Giảm số tiền phải chia hết cho 1.000.";
+    }
+
+    const sm = Number(form.start_month);
+    const sd = Number(form.start_day);
+    const em = Number(form.end_month);
+    const ed = Number(form.end_day);
+    if (![sm, sd, em, ed].every(Number.isFinite))
+      return "Ngày bắt đầu/kết thúc không hợp lệ.";
+    if (sm < 1 || sm > 12 || em < 1 || em > 12)
+      return "Tháng phải trong khoảng 1-12.";
+    if (sd < 1 || sd > 31 || ed < 1 || ed > 31)
+      return "Ngày phải trong khoảng 1-31.";
+
+    if (!form.apply_to_all_tours && selectedTourIds.size === 0) {
+      return "Bạn phải chọn ít nhất 1 tour hoặc bật 'Áp dụng cho tất cả tour'.";
+    }
+
+    return "";
+  };
+
+  const save = async () => {
+    const msg = validateForm();
+    if (msg) {
+      setError(msg);
+      alert(msg);
+      return;
+    }
+    setError("");
+
     const payload = {
       ...form,
+      discount_value: Number(form.discount_value),
+      start_month: Number(form.start_month),
+      start_day: Number(form.start_day),
+      end_month: Number(form.end_month),
+      end_day: Number(form.end_day),
       priority: Number(form.priority || 0),
-      discountValue: Number(form.discountValue || 0),
-      applyHotelIds: Array.from(selectedHotelIds),
-      applyFlightIds: Array.from(selectedFlightIds),
+      tour_ids: form.apply_to_all_tours ? [] : Array.from(selectedTourIds),
     };
 
-    if (!payload.subtitle?.trim()) {
-      alert("subtitle không được rỗng");
-      return;
-    }
-    if (!payload.ctaLabel?.trim()) {
-      alert("ctaLabel không được rỗng");
-      return;
-    }
-    if (
-      payload.discountType === "PERCENT" &&
-      (payload.discountValue < 0 || payload.discountValue > 100)
-    ) {
-      alert("discount % phải trong 0-100");
-      return;
-    }
-
-    if (editing?.id) {
-      updateItem(STORE_KEY.home_events, editing.id, payload);
+    if (editing?._id) {
+      await eventApi.update(editing._id, payload);
     } else {
-      addItem(STORE_KEY.home_events, {
-        ...payload,
-        id: payload.id?.trim() || uid(),
-        status: payload.status || "ACTIVE",
-        createdAt: new Date().toISOString().slice(0, 10),
-      });
+      await eventApi.create(payload);
     }
 
     setOpen(false);
-    reload();
+    load();
   };
 
-  const toggleStatus = (row) => {
-    updateItem(STORE_KEY.home_events, row.id, {
-      status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-    });
-    reload();
+  const remove = async (id) => {
+    if (!confirm("Xóa event này?")) return;
+    await eventApi.remove(id);
+    load();
   };
 
-  const removeEvent = (id) => {
-    if (!confirm("xóa event này?")) return;
-    deleteItem(STORE_KEY.home_events, id);
-    reload();
+  const toggleStatus = async (id) => {
+    await eventApi.toggleStatus(id);
+    load();
   };
 
-  // selection helpers (visible only)
-  const selectAllVisibleFlights = () => {
-    const next = new Set(selectedFlightIds);
-    filteredFlights.forEach((x) => next.add(x.id));
-    setSelectedFlightIds(next);
-  };
-  const clearAllVisibleFlights = () => {
-    const next = new Set(selectedFlightIds);
-    filteredFlights.forEach((x) => next.delete(x.id));
-    setSelectedFlightIds(next);
+  const pickAndUploadImage = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) return alert("Chỉ nhận file ảnh.");
+    if (file.size > 5 * 1024 * 1024) return alert("Tối đa 5MB.");
+
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    setLocalPreview(URL.createObjectURL(file));
+
+    setUploadingImg(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await eventApi.uploadEventImage(fd);
+      const url = res?.url;
+      const public_id = res?.public_id || "";
+      if (!url) throw new Error("Server không trả về liên kết ảnh");
+
+      setForm((s) => ({ ...s, image: { url, public_id } }));
+    } catch (e) {
+      console.error(e);
+      alert(e?.response?.data?.message || e?.message || "Upload ảnh thất bại");
+    } finally {
+      setUploadingImg(false);
+    }
   };
 
-  const selectAllVisibleHotels = () => {
-    const next = new Set(selectedHotelIds);
-    filteredHotels.forEach((x) => next.add(x.id));
-    setSelectedHotelIds(next);
+  const onDropImage = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const f = e.dataTransfer?.files?.[0];
+    await pickAndUploadImage(f);
   };
-  const clearAllVisibleHotels = () => {
-    const next = new Set(selectedHotelIds);
-    filteredHotels.forEach((x) => next.delete(x.id));
-    setSelectedHotelIds(next);
+
+  const selectAllVisibleTours = () => {
+    const next = new Set(selectedTourIds);
+    filteredTours.forEach((t) => next.add(String(t._id || t.id)));
+    setSelectedTourIds(next);
   };
+
+  const clearAllVisibleTours = () => {
+    const next = new Set(selectedTourIds);
+    filteredTours.forEach((t) => next.delete(String(t._id || t.id)));
+    setSelectedTourIds(next);
+  };
+
+  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "end", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 900, fontSize: 22 }}>Manage Events</div>
+          <div style={{ fontWeight: 900, fontSize: 22 }}>Quản lý sự kiện</div>
           <div style={{ color: "#6b7280" }}>
-            tạo event + set giảm giá + chọn sản phẩm (hotel / flight)
+            Tạo event hằng năm và áp giảm giá vào tour (qua danh sách tour từ
+            catalog-service).
           </div>
         </div>
 
@@ -455,15 +433,15 @@ export default function ManageEvents() {
             border: 0,
             background: "#0b5fff",
             color: "#fff",
-            cursor: "pointer",
             fontWeight: 900,
+            cursor: "pointer",
           }}
         >
           + Tạo event
         </button>
       </div>
 
-      {/* List events */}
+      {/* Table */}
       <div
         style={{
           background: "#fff",
@@ -477,83 +455,132 @@ export default function ManageEvents() {
         </div>
 
         <div style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "separate",
-              borderSpacing: 0,
-            }}
-          >
+          <table style={{ width: "100%", borderCollapse: "separate" }}>
             <thead>
               <tr>
                 <Th>#</Th>
-                <Th>Subtitle</Th>
-                <Th>CTA</Th>
+                <Th>Ảnh</Th>
+                <Th>Tên</Th>
+                <Th>Thời gian</Th>
                 <Th>Giảm giá</Th>
                 <Th>Áp dụng</Th>
-                <Th>Thời gian</Th>
                 <Th>Trạng thái</Th>
-                <Th>Hành động</Th>
+                <Th>Ngày tạo</Th>
+                <Th>Thao tác</Th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, idx) => (
-                <tr key={r.id}>
-                  <Td>{idx + 1}</Td>
-                  <Td style={{ fontWeight: 800 }}>{r.subtitle}</Td>
-                  <Td>{r.ctaLabel}</Td>
-                  <Td>
-                    {r.discountType || "PERCENT"}:{" "}
-                    <b>{Number(r.discountValue || 0)}</b>
-                    {r.discountType === "PERCENT" ? "%" : ""}
-                  </Td>
-                  <Td>
-                    hotels: <b>{(r.applyHotelIds || []).length}</b> <br />
-                    flights: <b>{(r.applyFlightIds || []).length}</b>
-                  </Td>
-                  <Td>
-                    {r.startDate || "—"} → {r.endDate || "—"}
-                  </Td>
-                  <Td>
-                    <button
-                      onClick={() => toggleStatus(r)}
-                      style={{
-                        borderRadius: 999,
-                        border: "1px solid #e5e7eb",
-                        padding: "6px 10px",
-                        cursor: "pointer",
-                        background:
-                          r.status === "ACTIVE"
-                            ? "rgba(16,185,129,0.12)"
-                            : "rgba(239,68,68,0.10)",
-                        fontWeight: 900,
-                      }}
-                      title="bấm để đổi trạng thái"
-                    >
-                      {r.status || "—"}
-                    </button>
-                  </Td>
-                  <Td>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button onClick={() => openEdit(r)} style={btn}>
-                        Sửa
-                      </button>
-                      <button
-                        onClick={() => removeEvent(r.id)}
-                        style={{ ...btn, borderColor: "#fecaca" }}
+              {rows.map((r, idx) => {
+                const active = !!r.is_active;
+                return (
+                  <tr key={r._id}>
+                    <Td>{idx + 1}</Td>
+                    <Td>
+                      {r.image?.url ? (
+                        <img
+                          src={r.image.url}
+                          alt="event"
+                          style={{
+                            width: 56,
+                            height: 40,
+                            objectFit: "cover",
+                            borderRadius: 10,
+                            border: "1px solid #e5e7eb",
+                          }}
+                        />
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>—</span>
+                      )}
+                    </Td>
+                    <Td style={{ fontWeight: 900 }}>{r.name}</Td>
+                    <Td>
+                      {mmdd(r.start_month, r.start_day, r.end_month, r.end_day)}
+                    </Td>
+                    <Td>
+                      {r.discount_type === "percentage" ? (
+                        <>
+                          Giảm <b>{Number(r.discount_value || 0)}</b>%
+                        </>
+                      ) : (
+                        <>
+                          Giảm <b>{formatMoney(r.discount_value)}</b>
+                        </>
+                      )}
+                    </Td>
+                    <Td>
+                      {r.apply_to_all_tours ? (
+                        <span>Toàn bộ tour</span>
+                      ) : (
+                        <span>
+                          Đã chọn{" "}
+                          <b>
+                            {Array.isArray(r.tour_ids) ? r.tour_ids.length : 0}
+                          </b>{" "}
+                          tour
+                        </span>
+                      )}
+                    </Td>
+                    <Td>
+                      <span
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 999,
+                          fontWeight: 900,
+                          background: active
+                            ? "rgba(16,185,129,0.15)"
+                            : "rgba(239,68,68,0.15)",
+                        }}
                       >
-                        Xóa
-                      </button>
-                    </div>
-                  </Td>
-                </tr>
-              ))}
+                        {active ? "Đang hoạt động" : "Ngưng hoạt động"}
+                      </span>
+                    </Td>
+                    <Td>
+                      {r.createdAt
+                        ? new Date(r.createdAt).toLocaleDateString("vi-VN")
+                        : "—"}
+                    </Td>
+                    <Td>
+                      <div
+                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                      >
+                        {/* Toggle icon */}
+                        <button
+                          onClick={() => toggleStatus(r._id)}
+                          title={active ? "Dừng lại" : "Hoạt động"}
+                          style={{
+                            ...iconBtn,
+                            background: active
+                              ? "rgba(239,68,68,0.12)"
+                              : "rgba(34,197,94,0.12)",
+                            borderColor: active
+                              ? "rgba(239,68,68,0.35)"
+                              : "rgba(34,197,94,0.35)",
+                            color: active ? "#ef4444" : "#16a34a",
+                          }}
+                        >
+                          {active ? "⛔" : "✅"}
+                        </button>
 
-              {rows.length === 0 ? (
+                        <button onClick={() => openEdit(r)} style={btn}>
+                          Sửa
+                        </button>
+                        <button
+                          onClick={() => remove(r._id)}
+                          style={{ ...btn, borderColor: "#fecaca" }}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
+
+              {rows.length === 0 && (
                 <tr>
-                  <Td colSpan={8}>Chưa có event</Td>
+                  <Td colSpan={9}>Chưa có event</Td>
                 </tr>
-              ) : null}
+              )}
             </tbody>
           </table>
         </div>
@@ -569,62 +596,68 @@ export default function ManageEvents() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: 12,
             }}
           >
             <Input
-              label="ID (optional)"
-              value={form.id}
-              onChange={(e) => setForm((s) => ({ ...s, id: e.target.value }))}
-              placeholder="để trống sẽ tự tạo"
-              disabled={Boolean(editing)}
-            />
-            <Input
-              label="Subtitle"
-              value={form.subtitle}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, subtitle: e.target.value }))
-              }
-              placeholder="vd: ưu đãi cuối năm"
-            />
-            <Input
-              label="CTA Label"
-              value={form.ctaLabel}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, ctaLabel: e.target.value }))
-              }
-              placeholder="vd: đặt ngay"
-            />
-
-            <Input
-              label="Background URL"
-              value={form.backgroundUrl}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, backgroundUrl: e.target.value }))
-              }
-              placeholder="https://..."
+              label="Tên event"
+              value={form.name}
+              onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
+              placeholder="Ví dụ: Ưu đãi hè 2026"
               style={{ gridColumn: "1 / -1" }}
             />
 
             <Input
-              label="Start date"
-              value={form.startDate}
+              label="Mô tả"
+              value={form.description}
               onChange={(e) =>
-                setForm((s) => ({ ...s, startDate: e.target.value }))
+                setForm((s) => ({ ...s, description: e.target.value }))
               }
-              placeholder="YYYY-MM-DD"
+              placeholder="Mô tả ngắn..."
+              style={{ gridColumn: "1 / -1" }}
             />
+
+            <Select
+              label="Loại giảm"
+              value={form.discount_type}
+              onChange={(e) => {
+                const nextType = e.target.value;
+                setForm((s) => ({
+                  ...s,
+                  discount_type: nextType,
+                  discount_value: nextType === "percentage" ? 1 : 1000,
+                }));
+              }}
+            >
+              <option value="percentage">Giảm theo %</option>
+              <option value="fixed_amount">Giảm số tiền</option>
+            </Select>
+
             <Input
-              label="End date"
-              value={form.endDate}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, endDate: e.target.value }))
+              label={
+                form.discount_type === "percentage"
+                  ? "Giá trị (%)"
+                  : "Giá trị (VND)"
               }
-              placeholder="YYYY-MM-DD"
+              type="number"
+              min={form.discount_type === "percentage" ? 1 : 1000}
+              max={form.discount_type === "percentage" ? 99 : undefined}
+              step={form.discount_type === "percentage" ? 1 : 1000}
+              value={form.discount_value}
+              onChange={(e) => {
+                const raw = Number(e.target.value);
+                if (form.discount_type === "fixed_amount") {
+                  const normalized = Math.floor(raw / 1000) * 1000;
+                  setForm((s) => ({ ...s, discount_value: normalized }));
+                  return;
+                }
+                setForm((s) => ({ ...s, discount_value: raw }));
+              }}
             />
+
             <Input
-              label="Priority"
+              label="Độ ưu tiên"
               type="number"
               value={form.priority}
               onChange={(e) =>
@@ -633,406 +666,315 @@ export default function ManageEvents() {
             />
 
             <Select
-              label="Discount type"
-              value={form.discountType}
+              label="Trạng thái"
+              value={form.is_active ? "true" : "false"}
               onChange={(e) =>
-                setForm((s) => ({ ...s, discountType: e.target.value }))
+                setForm((s) => ({ ...s, is_active: e.target.value === "true" }))
               }
             >
-              <option value="PERCENT">PERCENT (%)</option>
-              <option value="FIXED">FIXED (VND)</option>
+              <option value="true">Đang hoạt động</option>
+              <option value="false">Ngưng hoạt động</option>
             </Select>
 
-            <Input
-              label={
-                form.discountType === "PERCENT"
-                  ? "Discount (%)"
-                  : "Discount (VND)"
-              }
-              type="number"
-              value={form.discountValue}
+            {/* yearly range */}
+            <Select
+              label="Tháng bắt đầu"
+              value={form.start_month}
               onChange={(e) =>
-                setForm((s) => ({ ...s, discountValue: e.target.value }))
+                setForm((s) => ({ ...s, start_month: Number(e.target.value) }))
               }
-            />
+            >
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  Tháng {m}
+                </option>
+              ))}
+            </Select>
 
             <Select
-              label="Status"
-              value={form.status}
+              label="Ngày bắt đầu"
+              value={form.start_day}
               onChange={(e) =>
-                setForm((s) => ({ ...s, status: e.target.value }))
+                setForm((s) => ({ ...s, start_day: Number(e.target.value) }))
               }
             >
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="INACTIVE">INACTIVE</option>
+              {days.map((d) => (
+                <option key={d} value={d}>
+                  Ngày {d}
+                </option>
+              ))}
             </Select>
-          </div>
 
-          {/* Product pickers */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {/* Hotels picker */}
-            <Box
-              title={`Chọn Hotels (đã chọn: ${selectedHotelIds.size})`}
-              subtitle="filter → tick chọn → lưu"
-              right={
-                <>
-                  <PillButton
-                    onClick={() =>
-                      setHFilter({
-                        q: "",
-                        location: "ALL",
-                        stars: "ALL",
-                        ratingMin: "",
-                      })
-                    }
-                  >
-                    reset filter
-                  </PillButton>
-                  <PillButton onClick={selectAllVisibleHotels} tone="primary">
-                    chọn tất cả (đang hiển thị)
-                  </PillButton>
-                  <PillButton onClick={clearAllVisibleHotels} tone="danger">
-                    xóa chọn (đang hiển thị)
-                  </PillButton>
-                </>
+            <Select
+              label="Tháng kết thúc"
+              value={form.end_month}
+              onChange={(e) =>
+                setForm((s) => ({ ...s, end_month: Number(e.target.value) }))
               }
             >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-                  gap: 10,
-                }}
-              >
-                <Input
-                  label="Search name"
-                  value={hFilter.q}
-                  onChange={(e) =>
-                    setHFilter((s) => ({ ...s, q: e.target.value }))
-                  }
-                  placeholder="gõ tên khách sạn..."
-                />
-                <Select
-                  label="Location"
-                  value={hFilter.location}
-                  onChange={(e) =>
-                    setHFilter((s) => ({ ...s, location: e.target.value }))
-                  }
-                >
-                  {locationOptions.map((x) => (
-                    <option key={x} value={x}>
-                      {x}
-                    </option>
-                  ))}
-                </Select>
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  Tháng {m}
+                </option>
+              ))}
+            </Select>
 
-                <Select
-                  label="Stars"
-                  value={hFilter.stars}
-                  onChange={(e) =>
-                    setHFilter((s) => ({ ...s, stars: e.target.value }))
-                  }
-                >
-                  <option value="ALL">ALL</option>
-                  {[5, 4, 3, 2, 1].map((n) => (
-                    <option key={n} value={String(n)}>
-                      {n} sao
-                    </option>
-                  ))}
-                </Select>
+            <Select
+              label="Ngày kết thúc"
+              value={form.end_day}
+              onChange={(e) =>
+                setForm((s) => ({ ...s, end_day: Number(e.target.value) }))
+              }
+            >
+              {days.map((d) => (
+                <option key={d} value={d}>
+                  Ngày {d}
+                </option>
+              ))}
+            </Select>
 
-                <Input
-                  label="Rating min"
-                  type="number"
-                  value={hFilter.ratingMin}
-                  onChange={(e) =>
-                    setHFilter((s) => ({ ...s, ratingMin: e.target.value }))
-                  }
-                  placeholder="vd: 8"
-                />
+            {/* image uploader */}
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                border: "1px dashed #e5e7eb",
+                borderRadius: 14,
+                padding: 12,
+                background: "#fff",
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onDropImage}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 900 }}>Ảnh event</div>
+                  <div style={{ color: "#6b7280", fontSize: 12, marginTop: 4 }}>
+                    Kéo-thả ảnh vào đây hoặc bấm “Chọn ảnh” (tối đa 5MB).
+                  </div>
+                </div>
+
+                <label
+                  style={{
+                    ...btn,
+                    padding: "8px 10px",
+                    background: uploadingImg ? "#f3f4f6" : "#fff",
+                    cursor: uploadingImg ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {uploadingImg ? "Đang tải..." : "Chọn ảnh"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingImg}
+                    style={{ display: "none" }}
+                    onChange={(e) => pickAndUploadImage(e.target.files?.[0])}
+                  />
+                </label>
               </div>
 
               <div
                 style={{
                   marginTop: 10,
-                  maxHeight: 240,
-                  overflow: "auto",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 12,
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
                 }}
               >
-                {filteredHotels.map((h) => {
-                  const checked = selectedHotelIds.has(h.id);
-                  return (
-                    <label
-                      key={h.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "start",
-                        gap: 10,
-                        padding: "10px 12px",
-                        borderBottom: "1px solid #f1f5f9",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          const next = new Set(selectedHotelIds);
-                          if (next.has(h.id)) next.delete(h.id);
-                          else next.add(h.id);
-                          setSelectedHotelIds(next);
-                        }}
-                        style={{ width: 18, height: 18, marginTop: 2 }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 900, fontSize: 13 }}>
-                          {h.title || h.name || h.id}
-                        </div>
-                        <div style={{ color: "#6b7280", fontSize: 11 }}>
-                          {h.location || "—"} •{" "}
-                          {h.stars ? `${h.stars} sao` : "—"} • rating{" "}
-                          {h.ratingScore ?? "—"}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-                {filteredHotels.length === 0 ? (
-                  <div style={{ padding: 12, color: "#6b7280" }}>
-                    không có hotel phù hợp
-                  </div>
-                ) : null}
-              </div>
-            </Box>
-
-            {/* Flights picker */}
-            <Box
-              title={`Chọn Flights (đã chọn: ${selectedFlightIds.size})`}
-              subtitle="filter → tick chọn → lưu"
-              right={
-                <>
-                  <PillButton
-                    onClick={() =>
-                      setFFilter({
-                        q: "",
-                        operatedBy: "ALL",
-                        priceMin: "",
-                        priceMax: "",
-                        durationMax: "",
-                        stopsMax: "ALL",
-                      })
-                    }
+                {form.image?.url || localPreview ? (
+                  <div
+                    style={{ display: "flex", gap: 10, alignItems: "center" }}
                   >
-                    reset filter
-                  </PillButton>
-                  <PillButton onClick={selectAllVisibleFlights} tone="primary">
-                    chọn tất cả (đang hiển thị)
-                  </PillButton>
-                  <PillButton onClick={clearAllVisibleFlights} tone="danger">
-                    xóa chọn (đang hiển thị)
-                  </PillButton>
-                </>
-              }
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-                  gap: 10,
-                }}
-              >
-                <Input
-                  label="Search"
-                  value={fFilter.q}
-                  onChange={(e) =>
-                    setFFilter((s) => ({ ...s, q: e.target.value }))
-                  }
-                  placeholder="gõ nhanh..."
-                />
-                <Select
-                  label="Hãng vận hành"
-                  value={fFilter.operatedBy}
-                  onChange={(e) =>
-                    setFFilter((s) => ({ ...s, operatedBy: e.target.value }))
-                  }
-                >
-                  {airlineOptions.map((x) => (
-                    <option key={x} value={x}>
-                      {x}
-                    </option>
-                  ))}
-                </Select>
-
-                <Input
-                  label="Price min"
-                  type="number"
-                  value={fFilter.priceMin}
-                  onChange={(e) =>
-                    setFFilter((s) => ({ ...s, priceMin: e.target.value }))
-                  }
-                />
-                <Input
-                  label="Price max"
-                  type="number"
-                  value={fFilter.priceMax}
-                  onChange={(e) =>
-                    setFFilter((s) => ({ ...s, priceMax: e.target.value }))
-                  }
-                />
-
-                <Input
-                  label="Duration max (hours)"
-                  type="number"
-                  value={fFilter.durationMax}
-                  onChange={(e) =>
-                    setFFilter((s) => ({ ...s, durationMax: e.target.value }))
-                  }
-                />
-
-                <Select
-                  label="Stops max"
-                  value={fFilter.stopsMax}
-                  onChange={(e) =>
-                    setFFilter((s) => ({ ...s, stopsMax: e.target.value }))
-                  }
-                >
-                  <option value="ALL">ALL</option>
-                  <option value="0">0</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                </Select>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 10,
-                  maxHeight: 240,
-                  overflow: "auto",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 12,
-                }}
-              >
-                {filteredFlights.map((f) => {
-                  const checked = selectedFlightIds.has(f.id);
-                  return (
-                    <label
-                      key={f.id}
+                    <img
+                      src={localPreview || form.image.url}
+                      alt="preview"
                       style={{
-                        display: "flex",
-                        alignItems: "start",
-                        gap: 10,
-                        padding: "10px 12px",
-                        borderBottom: "1px solid #f1f5f9",
-                        cursor: "pointer",
+                        width: 140,
+                        height: 90,
+                        objectFit: "cover",
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
                       }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((s) => ({
+                          ...s,
+                          image: { url: "", public_id: "" },
+                        }))
+                      }
+                      style={{ ...btn, borderColor: "#fecaca" }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          const next = new Set(selectedFlightIds);
-                          if (next.has(f.id)) next.delete(f.id);
-                          else next.add(f.id);
-                          setSelectedFlightIds(next);
-                        }}
-                        style={{ width: 18, height: 18, marginTop: 2 }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 900, fontSize: 13 }}>
-                          {f.operatedBy || "—"} • {f.id}
-                        </div>
-                        <div style={{ color: "#6b7280", fontSize: 11 }}>
-                          price {Number(f.price || 0).toLocaleString("vi-VN")} •
-                          duration {f.totalDurationHours ?? "—"}h • stops{" "}
-                          {f.stopsMax ?? "—"}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-                {filteredFlights.length === 0 ? (
-                  <div style={{ padding: 12, color: "#6b7280" }}>
-                    không có flight phù hợp
+                      Gỡ ảnh
+                    </button>
                   </div>
-                ) : null}
+                ) : (
+                  <div style={{ color: "#9ca3af" }}>Chưa có ảnh</div>
+                )}
               </div>
-            </Box>
+            </div>
+
+            {/* apply to tours */}
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={form.apply_to_all_tours}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setForm((s) => ({ ...s, apply_to_all_tours: checked }));
+                    if (checked) setSelectedTourIds(new Set());
+                  }}
+                  style={{ width: 18, height: 18 }}
+                />
+                <span style={{ fontWeight: 900 }}>Áp dụng cho tất cả tour</span>
+              </label>
+
+              {!form.apply_to_all_tours && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 14,
+                    padding: 12,
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 10 }}
+                  >
+                    <div style={{ fontWeight: 900, flex: 1 }}>
+                      Chọn tour (đã chọn: {selectedTourIds.size})
+                    </div>
+                    <button
+                      type="button"
+                      onClick={selectAllVisibleTours}
+                      style={btn}
+                    >
+                      Chọn tất cả (đang hiển thị)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAllVisibleTours}
+                      style={{ ...btn, borderColor: "#fecaca" }}
+                    >
+                      Bỏ chọn (đang hiển thị)
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 10 }}>
+                    <Input
+                      label="Tìm tour theo tên hoặc ID"
+                      value={tourQ}
+                      onChange={(e) => setTourQ(e.target.value)}
+                      placeholder="Ví dụ: Đà Lạt / Phú Quốc / 6957..."
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 10,
+                      maxHeight: 260,
+                      overflow: "auto",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 12,
+                    }}
+                  >
+                    {filteredTours.map((t) => {
+                      const id = String(t._id || t.id);
+                      const checked = selectedTourIds.has(id);
+                      const title = t.title || t.name || id;
+                      const price =
+                        t.price ??
+                        t.basePrice ??
+                        t.minPrice ??
+                        t.price_from ??
+                        null;
+
+                      return (
+                        <label
+                          key={id}
+                          style={{
+                            display: "flex",
+                            alignItems: "start",
+                            gap: 10,
+                            padding: "10px 12px",
+                            borderBottom: "1px solid #f1f5f9",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = new Set(selectedTourIds);
+                              if (next.has(id)) next.delete(id);
+                              else next.add(id);
+                              setSelectedTourIds(next);
+                            }}
+                            style={{ width: 18, height: 18, marginTop: 2 }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 900, fontSize: 13 }}>
+                              {title}
+                            </div>
+                            <div style={{ color: "#6b7280", fontSize: 11 }}>
+                              ID: {id}
+                              {price != null
+                                ? ` • Giá: ${formatMoney(price)}`
+                                : ""}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+
+                    {filteredTours.length === 0 && (
+                      <div style={{ padding: 12, color: "#6b7280" }}>
+                        Không có tour phù hợp
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* footer buttons */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <button
-              onClick={() => setOpen(false)}
-              style={{ ...btn, padding: "10px 14px" }}
-            >
+            <button onClick={() => setOpen(false)} style={btn}>
               Hủy
             </button>
             <button
-              onClick={saveEvent}
+              onClick={save}
               style={{
                 ...btn,
-                padding: "10px 14px",
                 background: "#0b5fff",
                 color: "#fff",
                 border: 0,
               }}
+              disabled={uploadingImg}
+              title={uploadingImg ? "Đang upload ảnh, vui lòng chờ" : ""}
             >
-              Lưu event
+              Lưu
             </button>
           </div>
+
+          {error && (
+            <div
+              style={{
+                background: "rgba(239,68,68,0.12)",
+                border: "1px solid rgba(239,68,68,0.25)",
+                padding: "10px 12px",
+                borderRadius: 12,
+                fontWeight: 800,
+                marginTop: 10,
+              }}
+            >
+              {error}
+            </div>
+          )}
         </div>
       </Modal>
     </div>
   );
 }
-
-function Th({ children }) {
-  return (
-    <th
-      style={{
-        textAlign: "left",
-        padding: "10px 10px",
-        fontSize: 12,
-        color: "#6b7280",
-        borderBottom: "1px solid #e5e7eb",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({ children, style, colSpan }) {
-  return (
-    <td
-      colSpan={colSpan}
-      style={{
-        padding: "10px 10px",
-        borderBottom: "1px solid #f1f5f9",
-        verticalAlign: "top",
-        fontSize: 13,
-        ...style,
-      }}
-    >
-      {children}
-    </td>
-  );
-}
-
-const btn = {
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  padding: "8px 10px",
-  cursor: "pointer",
-  background: "#fff",
-  fontWeight: 900,
-};
