@@ -5,6 +5,14 @@ const slugify = require('slugify');
 const productSchema = new mongoose.Schema(
   {
     // --- 1. THÔNG TIN CHUNG ---
+    product_code: {
+      type: String,
+      unique: true,      // Không trùng nhau
+      uppercase: true,   // Tự viết hoa (ví dụ: tour-01 -> TOUR-01)
+      trim: true,
+      index: true,        // Đánh index để tìm kiếm nhanh theo mã
+      required: true  // Tạm thời chưa để required để tránh lỗi dữ liệu cũ
+    },
     product_type: {
       type: String,
       default: 'tour', // Mặc định là tour
@@ -107,38 +115,38 @@ const productSchema = new mongoose.Schema(
           }
       ],
       
-      // g. Điều khoản (Giữ lại để tương thích ngược nếu cần, 
-      // nhưng nên ưu tiên dùng policy_notes cho chi tiết hơn)
-      includes: [String],
-      excludes: [String],
+      // // g. Điều khoản (Giữ lại để tương thích ngược nếu cần, 
+      // // nhưng nên ưu tiên dùng policy_notes cho chi tiết hơn)
+      // includes: [String],
+      // excludes: [String],
 
-      // h. Thông tin thêm về chuyến bay (nếu là tour bay)
-      is_flight_included: { type: Boolean, default: false },
-      flight_info: {
-          airline: String,
-          airline_logo: String,
-          depart_code: String,
-          return_code: String
-      }
+      // // h. Thông tin thêm về chuyến bay (nếu là tour bay)
+      // is_flight_included: { type: Boolean, default: false },
+      // flight_info: {
+      //     airline: String,
+      //     airline_logo: String,
+      //     depart_code: String,
+      //     return_code: String
+      // }
     },
 
     // --- CÁC FIELD CŨ (Giữ lại để tương thích hoặc mở rộng sau này, optional) ---
-    hotel_details: {
-      star_rating: Number,
-      address: String,
-      amenities: [String],
-      coordinates: {
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: { type: [Number], default: [0, 0] },
-      },
-    },
+    // hotel_details: {
+    //   star_rating: Number,
+    //   address: String,
+    //   amenities: [String],
+    //   coordinates: {
+    //     type: { type: String, enum: ['Point'], default: 'Point' },
+    //     coordinates: { type: [Number], default: [0, 0] },
+    //   },
+    // },
 
-    flight_details: {
-      airline: String,
-      flight_code_template: String,
-      origin_code: String,
-      destination_code: String,
-    },
+    // flight_details: {
+    //   airline: String,
+    //   flight_code_template: String,
+    //   origin_code: String,
+    //   destination_code: String,
+    // },
   },
   {
     timestamps: true,

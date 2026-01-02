@@ -23,6 +23,8 @@ import Register from "./pages/Register.jsx";
 import OtpVerify from "./pages/OtpVerify.jsx";
 import Profile from "./pages/Profile.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
+import PaymentPage from "./pages/PaymentPage";
+import BookingSuccess from "./pages/BookingSuccess";
 
 /**
  * Trang Home được bọc trong UserLayout,
@@ -44,6 +46,14 @@ const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
   );
 };
 
+const BookingSuccessPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+      <BookingSuccess />
+    </UserLayout>
+  );
+};
+
 const SearchPageWrapper = ({ activeCategoryIndex, onCategoryChange }) => {
   return (
     <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
@@ -51,6 +61,12 @@ const SearchPageWrapper = ({ activeCategoryIndex, onCategoryChange }) => {
     </UserLayout>
   );
 };
+
+const PaymentPageWrapper = ({ activeCategoryIndex, onCategoryChange }) => (
+  <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+    <PaymentPage />
+  </UserLayout>
+);
 
 const ForgotPasswordPage = () => {
   return <ForgotPassword />;
@@ -91,6 +107,14 @@ const OrderPage = ({ activeCategoryIndex, onCategoryChange }) => {
       onCategoryChange={onCategoryChange}
     >
       <Order />
+    </UserLayout>
+  );
+};
+
+const ProductDetailPage = ({ activeCategoryIndex, onCategoryChange }) => {
+  return (
+    <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+      <ProductDetail />
     </UserLayout>
   );
 };
@@ -229,6 +253,10 @@ const AppRouter = () => {
           }
         />
 
+
+
+
+
         {/* Trang xác nhận đặt phòng */}
         <Route
           path="/confirm-order"
@@ -238,6 +266,15 @@ const AppRouter = () => {
               onCategoryChange={setActiveCategoryIndex}
             />
           }
+        />
+        <Route
+          path="/payment"
+          element={<PaymentPageWrapper activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
+        />
+
+        <Route
+          path="/booking-success"
+          element={<BookingSuccessPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
         />
 
         {/* Login – KHÔNG dùng UserLayout */}
@@ -261,7 +298,10 @@ const AppRouter = () => {
           }
         />
 
-        <Route path="/product/:id" element={<ProductDetail />} />
+        <Route
+          path="/product/:id"
+          element={<ProductDetailPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
+        />
       </Routes>
     </BrowserRouter>
   );

@@ -28,43 +28,28 @@ const inventorySchema = new mongoose.Schema({
     date: { type: Date }, // Ngày khởi hành
     total_slots: { type: Number },
     booked_slots: { type: Number, default: 0 },
+
+    // 🔥 [MỚI] Thêm lịch vận chuyển cụ thể cho ngày này
+    transport_schedule: {
+      // Dùng chung cho cả Máy bay & Xe
+      departure_time: { type: String },     // Giờ đi (VD: "09:00")
+      arrival_time: { type: String },       // Giờ đến nơi (VD: "10:30")
+
+      // Chiều về (nếu có)
+      return_time: { type: String },        // Giờ về (VD: "15:00")
+      return_arrival_time: { type: String },// Giờ về đến nơi (VD: "17:00")
+
+      // Dành riêng cho MÁY BAY
+      airline: { type: String },            // VD: "Vietnam Airlines"
+      depart_code: { type: String },        // Mã chuyến đi: "VN123"
+      return_code: { type: String },        // Mã chuyến về: "VN124"
+
+      // Dành riêng cho XE / TÀU
+      pickup_location: { type: String }     // Điểm đón cụ thể: "Nhà hát lớn"
+    }
   },
 
-  // --- HOTEL (Sửa lại) ---
-  hotel_details: {
-    room_type_id: {
-      type: String,
-      // Chỉ bắt buộc NẾU là 'hotel'
-      required: function() { return this.product_type === 'hotel'; }
-    },
-    room_name: {
-      type: String,
-      // Chỉ bắt buộc NẾU là 'hotel'
-      required: function() { return this.product_type === 'hotel'; }
-    },
-    date: { type: Date },
-    total_allotment: { type: Number },
-    booked_allotment: { type: Number, default: 0 },
-  },
 
-  
-
-  // --- FLIGHT (Sửa lại tương tự) ---
-  flight_details: {
-    flight_code: { 
-      type: String,
-      required: function() { return this.product_type === 'flight'; }
-    },
-    departure_time_utc: { type: Date },
-    arrival_time_utc: { type: Date },
-    seat_class: { 
-      type: String, 
-      enum: ['economy', 'business', 'first'],
-      required: function() { return this.product_type === 'flight'; }
-    },
-    total_seats: { type: Number },
-    booked_seats: { type: Number, default: 0 },
-  },
 }, {
   timestamps: true,
   minimize: true,
@@ -77,7 +62,7 @@ inventorySchema.index({ product_id: 1 });
 
 // 2. Chỉ mục đa hình
 inventorySchema.index({ "tour_details.date": 1 }, { sparse: true });
-inventorySchema.index({ "hotel_details.date": 1 }, { sparse: true });
-inventorySchema.index({ "flight_details.departure_time_utc": 1 }, { sparse: true });
+// inventorySchema.index({ "hotel_details.date": 1 }, { sparse: true });
+// inventorySchema.index({ "flight_details.departure_time_utc": 1 }, { sparse: true });
 
 module.exports = mongoose.model('InventoryItem', inventorySchema);

@@ -7,18 +7,16 @@ const CATALOG_URL = process.env.CATALOG_SERVICE_URL;
 const INVENTORY_URL = process.env.INVENTORY_SERVICE_URL;
 const PAYMENT_URL = process.env.PAYMENT_SERVICE_URL;
 const API_KEY = process.env.INTERNAL_API_KEY;
+
 class BookingService {
 
   /**
-   * SỬA LẠI: Tạo đơn hàng, có xử lý Khuyến mãi
-   * @param {string} userId
-   * @param {Array} items - Các mục hàng
-   * @param {string} promotionCode - Mã giảm giá (tùy chọn)
-   * @param {string} userAuthToken - Token (để gọi service khác)
+   * Tạo đơn hàng mới (Cập nhật: Nhận passengers và contactInfo)
+   * @param {object} params - { userId, items, promotionCode, userAuthToken, passengers, contactInfo }
    */
-  async createBooking(userId, items, promotionCode, userAuthToken) {
+  async createBooking({ userId, items, promotionCode, userAuthToken, passengers, contactInfo }) {
     
-    // --- 1. Tính toán giá & Chuẩn bị Snapshot (Như cũ) ---
+    // --- 1. Tính toán giá & Chuẩn bị Snapshot ---
     let totalPrice = 0;
     let formattedItems = [];
     
@@ -38,7 +36,7 @@ class BookingService {
       });
     }
 
-    // --- 2. GỌI INVENTORY: Kiểm tra tồn kho (Như cũ) ---
+    // --- 2. GỌI INVENTORY: Kiểm tra tồn kho ---
     const checkStockRequest = {
       items: items.map(item => ({
         inventoryId: item.inventoryId,
@@ -55,18 +53,18 @@ class BookingService {
       throw new Error(`Inventory check failed: ${error.response?.data?.message || error.message}`);
     }
 
-    // --- 3. [MỚI] GỌI INVENTORY: Xử lý Khuyến mãi ---
+    // --- 3. GỌI INVENTORY: Xử lý Khuyến mãi (nếu có) ---
     let discountAmount = 0;
     let finalPrice = totalPrice;
     let promotionId = null;
 
     if (promotionCode) {
       try {
-        // Gọi API công khai của InventoryService
+        // Gọi API công khai của InventoryService để check mã
         const promoRes = await axios.get(`${INVENTORY_URL}/promotions/code/${promotionCode}`);
         const promotion = promoRes.data;
 
-        // (Logic kiểm tra rules đơn giản)
+        // Kiểm tra điều kiện tối thiểu
         if (promotion.rules && promotion.rules.min_spend > totalPrice) {
           throw new Error(`Min spend for code ${promotionCode} is ${promotion.rules.min_spend}`);
         }
@@ -91,28 +89,39 @@ class BookingService {
       }
     }
 
-    // --- 4. TẠO BOOKING (Trạng thái: 'pending') ---
+    // --- 4. TẠO BOOKING (Lưu vào DB) ---
     const booking = new Booking({
       user_id: userId,
       status: 'pending',
       items: formattedItems,
       pricing: {
         total_price_before_discount: totalPrice,
-        discount_amount: discountAmount, // [MỚI]
-        final_price: finalPrice,         // [MỚI]
+        discount_amount: discountAmount,
+        final_price: finalPrice,
       },
-      promotion_id: promotionId, // [MỚI]
+      promotion_id: promotionId,
+
+      // [MỚI] Lưu danh sách hành khách
+      passengers: passengers || [], 
+
+      // [MỚI] Lưu thông tin người liên hệ đầy đủ
+      customer_details: contactInfo ? {
+          fullName: contactInfo.fullName,
+          email: contactInfo.email,
+          phone: contactInfo.phone,
+          address: contactInfo.address,
+          note: contactInfo.note
+      } : {}
     });
     
     await booking.save();
 
-    // --- 5. TẠO THANH TOÁN (Giả lập) ---
-    // (Sau này sẽ gọi PaymentService với finalPrice)
-    
+    // --- 5. TRẢ VỀ KẾT QUẢ (Để Frontend chuyển hướng thanh toán) ---
     return {
       bookingId: booking._id,
       status: booking.status,
       finalPrice: booking.pricing.final_price,
+      // Trong thực tế, tại đây có thể trả về link thanh toán Payment Gateway
       paymentUrl: `http://payment-gateway.com/pay?bookingId=${booking._id}`,
     };
   }
@@ -121,7 +130,7 @@ class BookingService {
    * Lấy lịch sử đặt hàng của 1 user
    * @param {string} userId 
    */
-  async getBookingsByUserId(userId) { // <-- HÃY ĐẢM BẢO HÀM NÀY NẰM Ở ĐÂY
+  async getBookingsByUserId(userId) {
     return await Booking.find({ user_id: userId }).sort({ createdAt: -1 });
   }
 
@@ -145,13 +154,12 @@ class BookingService {
   }
 
   /**
-   * [SỬA LẠI] Xác nhận đơn hàng (Dùng cho Webhook)
+   * Xác nhận đơn hàng (Dùng cho Webhook thanh toán gọi vào)
    * @param {string} bookingId - ID đơn hàng
    * @param {object} paymentInfo - Thông tin thanh toán
    */
   async confirmBooking(bookingId, paymentInfo) {
     // 1. Tìm đơn hàng
-    // (Bỏ check user_id vì đây là Webhook)
     const booking = await Booking.findById(bookingId); 
 
     if (!booking) {
@@ -160,6 +168,8 @@ class BookingService {
     
     // 2. Kiểm tra trạng thái
     if (booking.status !== 'pending') {
+      // Nếu đã confirm rồi thì bỏ qua (tránh duplicate webhook)
+      if (booking.status === 'confirmed') return booking;
       throw new Error(`Booking is already ${booking.status}`);
     }
 
@@ -171,39 +181,37 @@ class BookingService {
       })),
     };
 
-    // 4. GỌI INVENTORY: Giữ chỗ (Dùng Internal API Key)
+    // 4. GỌI INVENTORY: Giữ chỗ (Dùng Internal API Key để xác thực Service-to-Service)
     try {
       await axios.post(
         `${INVENTORY_URL}/inventory/reserve`,
         reserveRequest,
-        // [MỚI] Gửi API Key nội bộ thay vì token user
-        { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+        { headers: { 'x-api-key': API_KEY } }
       );
     } catch (error) {
+      // Nếu giữ chỗ thất bại (hết hàng phút chót), đánh dấu đơn hàng lỗi
       booking.status = 'failed';
       await booking.save();
       throw new Error(`Inventory reservation failed: ${error.response?.data?.message || error.message}`);
     }
     
-    // 5. Cập nhật đơn hàng
+    // 5. Cập nhật đơn hàng thành công
     booking.status = 'confirmed';
     booking.payments.push({
       gateway: paymentInfo.gateway,
-      gateway_transaction_id: paymentInfo.transaction_id,
+      gateway_transaction_id: paymentInfo.gateway_transaction_id, // Sửa lại key cho khớp controller
       amount: booking.pricing.final_price,
       status: 'succeeded',
     });
 
     await booking.save();
     
-    // 6. GỌI NOTIFICATION SERVICE
-    console.log(`--- (Giả lập) Gửi email xác nhận cho đơn hàng ${booking._id} ---`);
-
+    console.log(`✅ Booking ${booking._id} confirmed successfully.`);
     return booking;
   }
 
   /**
-   * [SỬA LẠI] Hủy một đơn hàng (User tự hủy)
+   * Hủy một đơn hàng (User tự hủy)
    */
   async cancelBooking(bookingId, userId, userAuthToken) {
     const booking = await Booking.findOne({ _id: bookingId, user_id: userId });
@@ -224,8 +232,7 @@ class BookingService {
     // 2. Nếu là 'confirmed', phải NHẢ KHO và HOÀN TIỀN
     if (originalStatus === 'confirmed') {
       
-      // --- (Giữ nguyên) Gọi Inventory Service để Nhả Kho ---
-      // --- SỬA LẠI CHỖ NÀY ---
+      // --- Gọi Inventory Service để Nhả Kho (Release Stock) ---
       const releaseRequest = {
         items: booking.items.map(item => ({
           inventoryId: item.inventory_id.toString(),
@@ -236,24 +243,24 @@ class BookingService {
         await axios.post(
           `${INVENTORY_URL}/inventory/release`, 
           releaseRequest,
-          { headers: { 'Authorization': userAuthToken } }
+          { headers: { 'Authorization': userAuthToken } } // Dùng token user
         );
       } catch (error) {
-        throw new Error(`Stock release failed: ${error.message}`);
+        // Log lỗi nhưng không chặn luồng (để vẫn hoàn tiền nếu cần)
+        console.error(`Stock release failed: ${error.message}`);
       }
       
-      // --- [MỚI] GỌI PAYMENT SERVICE ĐỂ HOÀN TIỀN ---
+      // --- Gọi Payment Service để Hoàn Tiền (Refund) ---
       try {
         await axios.post(
           `${PAYMENT_URL}/payment/refund`,
-          { bookingId: booking._id }, // Gửi bookingId
-          { headers: { 'x-api-key': API_KEY } } // Dùng API Key
+          { bookingId: booking._id }, 
+          { headers: { 'x-api-key': API_KEY } } // Dùng API Key nội bộ
         );
       } catch (error) {
-        console.error(`FATAL ERROR: Refund failed for booking ${bookingId}`);
+        console.error(`Refund failed for booking ${bookingId}: ${error.message}`);
         throw new Error(`Refund failed: ${error.message}`);
       }
-      // --- KẾT THÚC PHẦN MỚI ---
       
       booking.status = 'cancelled';
       await booking.save();
@@ -262,7 +269,7 @@ class BookingService {
   }
 
   /**
-   * [SSỬA LẠI] Admin Hủy đơn
+   * Admin Hủy đơn (Logic tương tự User hủy nhưng dùng quyền Admin)
    */
   async adminCancelBooking(bookingId, adminAuthToken) {
     const booking = await Booking.findById(bookingId);
@@ -273,18 +280,14 @@ class BookingService {
       throw new Error('Booking is already cancelled');
     }
     
-    // 1. Hủy đơn 'pending'
     if (originalStatus === 'pending') {
       booking.status = 'cancelled';
       await booking.save();
       return booking;
     }
 
-    // 2. Hủy đơn 'confirmed' (Nhả kho + Hoàn tiền)
     if (originalStatus === 'confirmed') {
-      
-      // --- Nhả Kho (Dùng token Admin) ---
-      // --- SỬA LẠI CHỖ NÀY ---
+      // Nhả Kho
       const releaseRequest = {
         items: booking.items.map(item => ({
           inventoryId: item.inventory_id.toString(),
@@ -298,10 +301,10 @@ class BookingService {
           { headers: { 'Authorization': adminAuthToken } }
         );
       } catch (error) {
-        throw new Error(`Stock release failed: ${error.message}`);
+        console.error(`Stock release failed: ${error.message}`);
       }
       
-      // --- [MỚI] Hoàn Tiền (Dùng API Key) ---
+      // Hoàn Tiền
       try {
         await axios.post(
           `${PAYMENT_URL}/payment/refund`,
@@ -309,7 +312,6 @@ class BookingService {
           { headers: { 'x-api-key': API_KEY } }
         );
       } catch (error) {
-        console.error(`FATAL ERROR (Admin): Refund failed for booking ${bookingId}`);
         throw new Error(`Refund failed: ${error.message}`);
       }
       
@@ -331,7 +333,10 @@ class BookingService {
 
     const skip = (page - 1) * limit;
     const bookings = await Booking.find(filter)
-      .populate('user_id', 'fullName email') // Nối thông tin user
+      // Populate thông tin user (chỉ lấy tên và email)
+      // Lưu ý: User ID là ObjectId nên populate được nếu cấu hình User Service chung DB 
+      // (Trong Microservices thực thụ, không populate được qua service khác, nhưng ở đây ta giả định)
+      // .populate('user_id', 'fullName email') 
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -345,8 +350,6 @@ class BookingService {
       totalBookings
     };
   }
-
-
 }
 
 module.exports = new BookingService();

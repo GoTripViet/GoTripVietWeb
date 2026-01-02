@@ -33,47 +33,40 @@ const getTransportIcon = (type) => {
     return "bi-bus-front"; // Xe du lịch / Xe ghế ngồi / Limousine
 };
 
-// 4. Map Product từ API -> Props cho BigCard
+// src/utils/formatData.js
+
 export const mapProductToCard = (product) => {
-    if (!product) return null;
+  if (!product) return {};
 
-    const t = product.tour_details || {};
+  // 1. Lấy thông tin giá (ưu tiên lấy từ Inventory nếu có, không thì lấy base_price)
+  const price = product.base_price || 0;
+  
+  // 2. Lấy ngày khởi hành (lấy 3 ngày đầu tiên)
+  const departureDates = product.tour_details?.departure_times || [];
+
+  return {
+    id: product._id,
+    title: product.title,
+    imageUrl: product.images?.[0] || "https://placehold.co/400x300",
     
-    // a. Mã Tour
-    const tourCode = product._id ? `TOUR-${product._id.slice(-4).toUpperCase()}` : "TOUR-NEW";
+    // --- [SỬA TẠI ĐÂY] ---
+    // Nếu Backend có product_code thì dùng, nếu không thì lấy 6 ký tự cuối của ID làm mã tạm
+    tourCode: product.product_code || `TOUR-${product._id.slice(-6).toUpperCase()}`,
+    
+    startPoint: product.tour_details?.start_point || "Hồ Chí Minh",
+    duration: `${product.tour_details?.duration_days || 1} ngày`,
+    transport: product.tour_details?.transport_type || "Xe du lịch",
+    
+    // Map icon tương ứng
+    transportIcon: getTransportIcon(product.tour_details?.transport_type),
 
-    // b. Ngày khởi hành
-    const rawDates = t.departure_times || [];
-    const sortedDates = [...rawDates].sort((a, b) => new Date(a) - new Date(b));
-    const displayDates = sortedDates.slice(0, 3).map(d => formatShortDate(d));
-
-    // c. Ảnh
-    const firstImage = (product.images && product.images.length > 0) ? product.images[0] : "";
-    const validImage = (firstImage && firstImage.startsWith("http")) 
-        ? firstImage 
-        : "https://placehold.co/400x300?text=No+Image";
-
-    // d. Phương tiện (Lấy từ DB hoặc mặc định)
-    const transportName = t.transport_type || "Đi bộ";
-
-    return {
-        id: product._id,
-        title: product.title,
-        imageUrl: validImage,
-        price: product.base_price,
-        originalPrice: product.base_price * 1.15,
-
-        // --- CÁC TRƯỜNG MỚI ---
-        tourCode: tourCode,
-        startPoint: t.start_point || "Hồ Chí Minh",
-        duration: formatDuration(t.duration_days),
-        
-        transport: transportName,            // Tên phương tiện (để hiện chữ)
-        transportIcon: getTransportIcon(transportName), // Icon tương ứng (để hiện hình)
-        
-        departureDates: displayDates
-    };
+    departureDates: departureDates,
+    price: price,
+    originalPrice: price * 1.2, // Giả định giá gốc cao hơn 20% để hiện badge giảm giá
+  };
 };
+
+
 
 export const formatDateWithWeekday = (dateStr) => {
     if (!dateStr) return "";
