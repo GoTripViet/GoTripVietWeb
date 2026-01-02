@@ -75,15 +75,27 @@ const bookingSchema = new mongoose.Schema(
       ref: 'Promotion',
     },
 
+    // [MỚI] Danh sách hành khách chi tiết
+    passengers: [
+      {
+        type: { type: String, enum: ['adult', 'child', 'toddler', 'infant'], required: true }, // Người lớn, Trẻ em...
+        fullName: { type: String, required: true },
+        gender: { type: String, enum: ['Nam', 'Nữ', 'Khác'] },
+        dateOfBirth: { type: Date }, // Có thể null nếu không nhập
+      }
+    ],
+
     // --- NHÚNG (EMBED) ---
     items: [bookingItemSchema],
     payments: [paymentSchema],
     
-    // (Thông tin bổ sung của khách hàng)
+    // Thông tin người liên hệ (Người đặt) - Đã cập nhật đầy đủ
     customer_details: {
       fullName: String,
       email: String,
       phone: String,
+      address: String, // [MỚI] Thêm địa chỉ
+      note: String     // [MỚI] Thêm ghi chú
     }
   },
   { timestamps: true } // createdAt, updatedAt

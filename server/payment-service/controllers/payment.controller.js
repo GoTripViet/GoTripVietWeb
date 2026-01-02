@@ -18,7 +18,7 @@ class PaymentController {
 
       const result = await paymentService.createPaymentIntent(userId, bookingId, amount);
       res.status(200).json(result);
-      
+
     } catch (error) {
       res.status(500).json({ message: 'Failed to create payment intent', error: error.message });
     }
@@ -57,8 +57,8 @@ class PaymentController {
     try {
       await paymentService.handleStripeWebhook(event);
     } catch (error) {
-       console.error(`Webhook processing error: ${error.message}`);
-       return res.status(500).json({ message: 'Webhook processing error' });
+      console.error(`Webhook processing error: ${error.message}`);
+      return res.status(500).json({ message: 'Webhook processing error' });
     }
 
     // 3. Phản hồi 200 cho Stripe/Postman
@@ -72,7 +72,7 @@ class PaymentController {
       if (!bookingId) {
         return res.status(400).json({ message: 'bookingId is required' });
       }
-      
+
       const payment = await paymentService.refundPayment(bookingId);
       res.status(200).json(payment);
     } catch (error) {
@@ -81,7 +81,7 @@ class PaymentController {
   }
 
   // --- [MỚI] API ADMIN ---
-  
+
   // GET /payment/admin/all
   async adminGetAllPayments(req, res) {
     try {
@@ -102,6 +102,45 @@ class PaymentController {
     }
   }
 
+  createVNPayUrl(req, res) {
+    try {
+      // Lấy dữ liệu từ Frontend gửi lên
+      const { amount, bookingId, bankCode, language } = req.body;
+
+      if (!bookingId || !amount) {
+        return res.status(400).json({ message: 'Thiếu bookingId hoặc amount' });
+      }
+
+      // Gọi Service tạo URL
+      const paymentUrl = paymentService.createVNPayUrl(req, bookingId, amount, bankCode, language);
+
+      // --- KHÁC BIỆT SO VỚI CODE MẪU ---
+      // Code mẫu dùng: res.redirect(paymentUrl) -> Backend tự chuyển hướng
+      // Code mới dùng: res.status(200).json({ paymentUrl }) -> Trả link về cho React tự chuyển hướng
+      // Lý do: Để React kiểm soát được loading spinner và xử lý lỗi tốt hơn.
+
+      res.status(200).json({ paymentUrl });
+
+    } catch (error) {
+      console.error("Lỗi Controller VNPAY:", error);
+      res.status(500).json({ message: 'Lỗi tạo link VNPAY', error: error.message });
+    }
+  }
+
+  async vnpayReturn(req, res) {
+    try {
+        // req.query chứa toàn bộ tham số VNPAY trả về trên URL
+        const result = await paymentService.verifyVNPayReturn(req.query);
+        
+        if (result.status === 'success') {
+            res.status(200).json({ message: 'Thanh toán thành công', data: result });
+        } else {
+            res.status(400).json({ message: 'Thanh toán thất bại', data: result });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server', error: error.message });
+    }
+}
 }
 
 module.exports = new PaymentController();

@@ -41,4 +41,10 @@ router.get(
   paymentController.adminGetPaymentsForBooking
 );
 
+router.post(
+  '/create-vnpay-url',
+  // authMiddleware, // (Bật cái này nếu muốn bắt buộc đăng nhập mới được tạo link)
+  paymentController.createVNPayUrl
+);
+
 module.exports = router;

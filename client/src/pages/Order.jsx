@@ -1,672 +1,482 @@
+// src/pages/Order.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import BookingStepper from "../components/order/stepper";
-import EmailOtpModal from "../components/EmailOtpModal";
+import { useLocation, useNavigate } from "react-router-dom";
+import Container from "react-bootstrap/Container";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
+import Form from "react-bootstrap/Form";
+import Button from "react-bootstrap/Button";
+import Card from "react-bootstrap/Card";
+import "../styles/booking-process.css"; 
+import { formatCurrency } from "../utils/formatData";
+import inventoryApi from "../api/inventoryApi";
+import bookingApi from "../api/bookingApi";
 
-const OTP_LENGTH = 6;
-const DEMO_OTP = "123456";
-
-const Order = () => {
-  const navigate = useNavigate();
-  const [showOtp, setShowOtp] = useState(false);
-  const [email, setEmail] = useState("");
-  const [country, setCountry] = useState("VN");
-  const [countries, setCountries] = useState([]);
-  const [countriesLoading, setCountriesLoading] = useState(false);
-
-  const [provinces, setProvinces] = useState([]);
-  const [provincesLoading, setProvincesLoading] = useState(false);
-  const [provinceCode, setProvinceCode] = useState("");
-
-  const [cityProvince, setCityProvince] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-
-  const [countriesError, setCountriesError] = useState(null);
-  const [provincesError, setProvincesError] = useState(null);
-
-  const [reloadCountriesKey, setReloadCountriesKey] = useState(0);
-  const [reloadProvincesKey, setReloadProvincesKey] = useState(0);
-
-  const retryLoadCountries = () => setReloadCountriesKey((k) => k + 1);
-  const retryLoadProvinces = () => setReloadProvincesKey((k) => k + 1);
-
-  // load countries
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const run = async () => {
-      setCountriesLoading(true);
-      setCountriesError(null);
-
-      try {
-        const res = await fetch(
-          "https://restcountries.com/v3.1/all?fields=cca2,name",
-          { signal: controller.signal }
-        );
-
-        if (!res.ok) {
-          throw new Error(`countries http ${res.status}`);
-        }
-
-        const data = await res.json();
-
-        const list = (Array.isArray(data) ? data : [])
-          .map((c) => ({
-            code: c?.cca2,
-            name: c?.name?.common,
-          }))
-          .filter((x) => x.code && x.name)
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-        setCountries(list);
-      } catch (err) {
-        // nếu component unmount / effect đổi -> abort thì bỏ qua
-        if (controller.signal.aborted) return;
-        console.error(err);
-        // lỗi thật
-        setCountries([]);
-        setCountriesError(
-          "Không tải được danh sách quốc gia. Bạn thử lại giúp mình nhé."
-        );
-        // (giữ countries = [] để UI fallback VN/US/FR vẫn chạy)
-      } finally {
-        if (!controller.signal.aborted) setCountriesLoading(false);
-      }
-    };
-
-    run();
-    return () => controller.abort();
-  }, [reloadCountriesKey]);
-
-  // load provinces when VN
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const run = async () => {
-      setProvincesError(null);
-
-      if (country !== "VN") {
-        setProvinces([]);
-        setProvinceCode("");
-        return;
-      }
-
-      setProvincesLoading(true);
-
-      try {
-        const res = await fetch(
-          "https://provinces.open-api.vn/api/v1/?depth=1",
-          { signal: controller.signal }
-        );
-
-        if (!res.ok) {
-          throw new Error(`provinces http ${res.status}`);
-        }
-
-        const data = await res.json();
-
-        const list = (Array.isArray(data) ? data : [])
-          .map((p) => ({ code: p?.code, name: p?.name }))
-          .filter((x) => x.code && x.name);
-
-        setProvinces(list);
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        console.error(err);
-        setProvinces([]);
-        setProvinceCode("");
-        setProvincesError(
-          "Không tải được danh sách tỉnh/thành. Bạn bấm thử lại giúp mình nhé."
-        );
-      } finally {
-        if (!controller.signal.aborted) setProvincesLoading(false);
-      }
-    };
-
-    run();
-    return () => controller.abort();
-  }, [country, reloadProvincesKey]);
-
-  // optional: try to auto-fill city by postal code (non-VN)
-  const handlePostalBlur = async () => {
-    const c = (country || "").toLowerCase();
-    if (!postalCode || !c || c === "vn") return;
-
-    try {
-      const res = await fetch(
-        `https://api.zippopotam.us/${c}/${encodeURIComponent(postalCode)}`
-      );
-      if (!res.ok) return;
-
-      const data = await res.json();
-      const place = data?.places?.[0];
-      const placeName = place?.["place name"] || "";
-
-      if (placeName && !cityProvince) setCityProvince(placeName);
-    } catch (err) {
-      // có thể bị CORS tuỳ môi trường -> nếu vậy thì proxy qua backend
-      console.error("auto-fill city by postal code failed", err);
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setShowOtp(true);
-  };
-
-  const handleChangeEmail = (value) => {
-    setEmail(value);
-  };
-
-  return (
-    <div className="bg-light min-vh-100 d-flex flex-column">
-      {/* Bước đặt phòng */}
-      <BookingStepper currentStep={2} />
-
-      {/* Nội dung chính */}
-      <div className="container my-4 flex-grow-1">
-        <div className="row g-4">
-          {/* Cột trái: tóm tắt đặt phòng */}
-          <div className="col-lg-4">
-            {/* Chi tiết đặt phòng */}
-            <div className="card mb-3">
-              <div className="card-body">
-                <h6 className="card-title mb-3">Chi tiết đặt phòng</h6>
-
-                <div className="d-flex justify-content-between small mb-2">
-                  <div>
-                    <div className="text-muted">Nhận phòng</div>
-                    <div className="fw-semibold">Thứ 2, 17 Thg 11, 2025</div>
-                    <div className="text-muted">Từ 14:00</div>
-                  </div>
-                  <div className="text-end">
-                    <div className="text-muted">Trả phòng</div>
-                    <div className="fw-semibold">Thứ 3, 18 Thg 11, 2025</div>
-                    <div className="text-muted">Đến 12:00</div>
-                  </div>
-                </div>
-
-                <hr />
-
-                <div className="small">
-                  <div className="fw-semibold mb-1">
-                    1 đêm, 1 phòng cho 2 người lớn
-                  </div>
-                  <div className="text-muted">1 phòng giường đôi</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Tóm tắt giá */}
-            <div className="card mb-3">
-              <div className="card-body">
-                <h6 className="card-title mb-3">Tóm tắt giá</h6>
-                <div className="d-flex justify-content-between align-items-end mb-2">
-                  <div className="small text-muted">Tổng cộng</div>
-                  <div className="h4 mb-0">$177.20</div>
-                </div>
-                <div className="small text-muted">
-                  Đã bao gồm thuế và phí. Bạn sẽ thanh toán bằng đơn vị tiền tệ
-                  của chỗ nghỉ.
-                </div>
-              </div>
-            </div>
-
-            {/* Lịch thanh toán */}
-            <div className="card mb-3">
-              <div className="card-body small">
-                <h6 className="card-title mb-3">Lịch thanh toán</h6>
-                <p className="mb-1">
-                  Sau khi đặt, bạn sẽ bị trừ trước 50% tổng giá.
-                </p>
-                <p className="mb-0 text-muted">
-                  Phần còn lại sẽ thanh toán trực tiếp tại chỗ nghỉ.
-                </p>
-              </div>
-            </div>
-
-            {/* Chính sách huỷ */}
-            <div className="card mb-3">
-              <div className="card-body small">
-                <h6 className="card-title mb-3">Hủy phòng sẽ tốn bao nhiêu?</h6>
-                <p className="mb-0 text-muted">
-                  Miễn phí huỷ đến 23:59, 15 Thg 11 2025. Sau thời gian đó, nếu
-                  huỷ bạn sẽ phải trả 50% tổng giá.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Cột phải: form thông tin */}
-          <div className="col-lg-8">
-            <form onSubmit={handleSubmit}>
-              {/* Nhập thông tin của bạn */}
-              <div className="card mb-3">
-                <div className="card-body">
-                  <h5 className="card-title mb-3">Nhập thông tin của bạn</h5>
-                  <p className="small text-muted mb-3">
-                    Gần xong rồi! Hãy điền những thông tin bắt buộc bên dưới.
-                  </p>
-
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label small">
-                        Tên <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Tên"
-                        required
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label small">
-                        Họ <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Họ"
-                        required
-                      />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label small">
-                        Địa chỉ email <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        placeholder="ban@example.com"
-                        required
-                        value={email}
-                        onChange={(e) => handleChangeEmail(e.target.value)}
-                      />
-                      <div className="form-text small">
-                        Email xác nhận đặt phòng sẽ được gửi đến địa chỉ này.
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label small">Số điện thoại</label>
-                      <input
-                        type="tel"
-                        className="form-control"
-                        placeholder="+84..."
-                      />
-                    </div>
-
-                    <div className="col-12">
-                      <label className="form-label small">
-                        Địa chỉ <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Số nhà, tên đường"
-                        required
-                      />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label small">
-                        Thành phố / Tỉnh <span className="text-danger">*</span>
-                      </label>
-
-                      {country === "VN" ? (
-                        <select
-                          className="form-select"
-                          value={provinceCode}
-                          onChange={(e) => {
-                            const code = e.target.value;
-                            setProvinceCode(code);
-                            const selected = provinces.find(
-                              (p) => String(p.code) === String(code)
-                            );
-                            setCityProvince(selected?.name || "");
-                          }}
-                          required
-                          disabled={provincesLoading}
-                        >
-                          <option value="" disabled>
-                            {provincesLoading
-                              ? "Đang tải..."
-                              : "Chọn tỉnh/thành"}
-                          </option>
-                          {provinces.map((p) => (
-                            <option key={p.code} value={p.code}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          className="form-control"
-                          required
-                          value={cityProvince}
-                          onChange={(e) => setCityProvince(e.target.value)}
-                          placeholder="Ví dụ: Paris"
-                        />
-                      )}
-                      {provincesError && (
-                        <div className="form-text text-danger d-flex align-items-center justify-content-between">
-                          <span>{provincesError}</span>
-                          <button
-                            type="button"
-                            className="btn btn-link p-0 ms-2"
-                            onClick={retryLoadProvinces}
-                          >
-                            Thử lại
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label small">Mã bưu chính</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={postalCode}
-                        onChange={(e) => setPostalCode(e.target.value)}
-                        onBlur={handlePostalBlur}
-                        placeholder="Ví dụ: 90210"
-                      />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label small">
-                        Quốc gia / Khu vực{" "}
-                        <span className="text-danger">*</span>
-                      </label>
-
-                      <select
-                        className="form-select"
-                        value={country}
-                        onChange={(e) => {
-                          setCountry(e.target.value);
-                          setCityProvince("");
-                          setPostalCode("");
-                        }}
-                        required
-                      >
-                        <option value="" disabled>
-                          {countriesLoading ? "Đang tải..." : "Chọn quốc gia"}
-                        </option>
-
-                        {/* fallback nhanh nếu chưa load kịp */}
-                        {countries.length === 0 ? (
-                          <>
-                            <option value="VN">Việt Nam</option>
-                            <option value="US">Hoa Kỳ</option>
-                            <option value="FR">Pháp</option>
-                          </>
-                        ) : (
-                          countries.map((c) => (
-                            <option key={c.code} value={c.code}>
-                              {c.name}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                      {countriesError && (
-                        <div className="form-text text-danger d-flex align-items-center justify-content-between">
-                          <span>{countriesError}</span>
-                          <button
-                            type="button"
-                            className="btn btn-link p-0 ms-2"
-                            onClick={retryLoadCountries}
-                          >
-                            Thử lại
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="col-12">
-                      <label className="form-label small">
-                        Bạn đặt phòng cho ai?
-                      </label>
-                      <div className="form-check">
-                        <input
-                          className="form-check-input"
-                          type="radio"
-                          name="bookingFor"
-                          id="bookingForMe"
-                          defaultChecked
-                        />
-                        <label
-                          className="form-check-label small"
-                          htmlFor="bookingForMe"
-                        >
-                          Tôi là khách chính
-                        </label>
-                      </div>
-                      <div className="form-check">
-                        <input
-                          className="form-check-input"
-                          type="radio"
-                          name="bookingFor"
-                          id="bookingForSomeone"
-                        />
-                        <label
-                          className="form-check-label small"
-                          htmlFor="bookingForSomeone"
-                        >
-                          Tôi đặt giúp người khác
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="col-12">
-                      <label className="form-label small">
-                        Mục đích chuyến đi?
-                      </label>
-                      <div className="form-check">
-                        <input
-                          className="form-check-input"
-                          type="radio"
-                          name="bookingReason"
-                          id="bookingLeisure"
-                          defaultChecked
-                        />
-                        <label
-                          className="form-check-label small"
-                          htmlFor="bookingLeisure"
-                        >
-                          Du lịch / nghỉ dưỡng
-                        </label>
-                      </div>
-                      <div className="form-check">
-                        <input
-                          className="form-check-input"
-                          type="radio"
-                          name="bookingReason"
-                          id="bookingBusiness"
-                        />
-                        <label
-                          className="form-check-label small"
-                          htmlFor="bookingBusiness"
-                        >
-                          Công tác
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Thông tin cần biết */}
-              <div className="card mb-3">
-                <div className="card-body">
-                  <h6 className="card-title mb-2">Thông tin cần biết</h6>
-                  <p className="small mb-0 text-muted">
-                    Bạn đang đặt phòng giường đôi không hoàn tiền, có tầm nhìn
-                    ra biển. Hãy kiểm tra kỹ ngày tháng và thông tin trước khi
-                    hoàn tất đặt phòng.
-                  </p>
-                </div>
-              </div>
-
-              {/* Chi tiết phòng */}
-              <div className="card mb-3">
-                <div className="card-body">
-                  <h6 className="card-title mb-2">Phòng giường đôi</h6>
-                  <ul className="small mb-0 ps-3">
-                    <li>Có phục vụ bữa sáng (tùy chọn)</li>
-                    <li>1 giường đôi</li>
-                    <li>Diện tích phòng: 18 m²</li>
-                    <li>Tầm nhìn thành phố / biển</li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Thêm dịch vụ cho kỳ nghỉ */}
-              <div className="card mb-3">
-                <div className="card-body">
-                  <div className="d-flex align-items-center justify-content-between mb-2">
-                    <h6 className="card-title mb-0">Thêm vào kỳ nghỉ</h6>
-                    <span className="badge bg-success bg-opacity-10 text-success border border-success small">
-                      Tùy chọn
-                    </span>
-                  </div>
-
-                  <div className="small">
-                    <div className="form-check border rounded-3 p-3 mb-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="airportTransfer"
-                      />
-                      <label
-                        className="form-check-label d-block"
-                        htmlFor="airportTransfer"
-                      >
-                        <div className="fw-semibold">
-                          Sắp xếp đón tại sân bay
-                        </div>
-                        <div className="text-muted">
-                          Chúng tôi sẽ giúp bạn gửi yêu cầu dịch vụ đưa đón sân
-                          bay đến chỗ nghỉ.
-                        </div>
-                      </label>
-                    </div>
-
-                    <div className="form-check border rounded-3 p-3 mb-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="lateCheckin"
-                      />
-                      <label
-                        className="form-check-label d-block"
-                        htmlFor="lateCheckin"
-                      >
-                        <div className="fw-semibold">Nhận phòng trễ</div>
-                        <div className="text-muted">
-                          Thông báo cho chỗ nghỉ nếu bạn đến sau 22:00.
-                        </div>
-                      </label>
-                    </div>
-
-                    <div className="form-check border rounded-3 p-3">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="parking"
-                      />
-                      <label
-                        className="form-check-label d-block"
-                        htmlFor="parking"
-                      >
-                        <div className="fw-semibold">Chỗ đậu xe</div>
-                        <div className="text-muted">
-                          Giữ chỗ đậu xe tại chỗ nghỉ (nếu còn chỗ trống).
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Yêu cầu đặc biệt */}
-              <div className="card mb-3">
-                <div className="card-body">
-                  <h6 className="card-title mb-2">Yêu cầu đặc biệt</h6>
-                  <p className="small text-muted">
-                    Chỗ nghỉ sẽ cố gắng đáp ứng các yêu cầu của bạn nhưng không
-                    thể đảm bảo 100%.
-                  </p>
-                  <textarea
-                    className="form-control"
-                    rows={3}
-                    placeholder="Viết yêu cầu của bạn bằng tiếng Việt hoặc tiếng Anh (không bắt buộc)"
-                  />
-                </div>
-              </div>
-
-              {/* Giờ đến */}
-              <div className="card mb-4">
-                <div className="card-body">
-                  <h6 className="card-title mb-2">Giờ đến của bạn</h6>
-                  <p className="small text-muted mb-2">
-                    Phòng của bạn sẽ sẵn sàng nhận từ 14:00.
-                  </p>
-
-                  <div className="row g-2">
-                    <div className="col-md-6">
-                      <label className="form-label small">
-                        Thời gian dự kiến đến (không bắt buộc)
-                      </label>
-                      <select className="form-select" defaultValue="">
-                        <option value="">Chưa biết</option>
-                        <option value="14:00">14:00</option>
-                        <option value="15:00">15:00</option>
-                        <option value="16:00">16:00</option>
-                        <option value="18:00">18:00</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Thanh dưới cùng */}
-              <div className="border-top bg-white py-3 position-sticky bottom-0">
-                <div className="d-flex justify-content-between align-items-center">
-                  <div className="small text-muted">
-                    Chúng tôi đảm bảo giá tốt
-                  </div>
-                  <div className="d-flex gap-2">
-                    <button type="submit" className="btn btn-primary px-4">
-                      Tiếp tục: Thông tin cuối cùng
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </form>
-          </div>
+// Component con: Thanh tiến trình
+const BookingStepper = ({ step }) => (
+    <div className="booking-stepper">
+        <div className="step-connector"></div>
+        <div className={`step-item ${step >= 1 ? "active" : ""}`}>
+            <div className="step-icon"><i className="bi bi-person-lines-fill"></i></div>
+            <span>NHẬP THÔNG TIN</span>
         </div>
-      </div>
-
-      {/* Popup OTP */}
-      {showOtp && (
-        <EmailOtpModal
-          key="email-otp"
-          email={email}
-          otpLength={6}
-          demoOtp="123456"
-          onClose={() => setShowOtp(false)}
-          onVerified={() => {
-            setShowOtp(false);
-            navigate("/confirm-order");
-          }}
-        />
-      )}
+        <div className={`step-item ${step >= 2 ? "active" : ""}`}>
+            <div className="step-icon"><i className="bi bi-credit-card"></i></div>
+            <span>THANH TOÁN</span>
+        </div>
+        <div className={`step-item ${step >= 3 ? "active" : ""}`}>
+            <div className="step-icon"><i className="bi bi-check-lg"></i></div>
+            <span>HOÀN TẤT</span>
+        </div>
     </div>
-  );
-};
+);
 
-export default Order;
+export default function Order() {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // 1. NHẬN DỮ LIỆU TỪ TRANG TRƯỚC
+    const productData = location.state?.product;
+
+    // --- STATE KIỂM TRA ĐĂNG NHẬP ---
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    // --- KIỂM TRA AN TOÀN ---
+    useEffect(() => {
+        if (!productData) {
+            alert("Không tìm thấy thông tin chuyến đi. Vui lòng chọn tour lại!");
+            navigate("/"); 
+        }
+
+        const token = localStorage.getItem("token"); 
+        setIsLoggedIn(!!token); 
+
+    }, [productData, navigate]);
+
+    if (!productData) return null;
+
+    const { transportInfo } = productData;
+
+    // --- STATES ---
+    const initialCounts = productData.bookingInfo ? {
+        adult: productData.bookingInfo.adults || 1,
+        child: productData.bookingInfo.children || 0,
+        toddler: 0,
+        infant: 0
+    } : { adult: 1, child: 0, toddler: 0, infant: 0 };
+
+    const [counts, setCounts] = useState(initialCounts);
+
+    const [contactInfo, setContactInfo] = useState({
+        fullName: "", phone: "", email: "", address: "", note: ""
+    });
+
+    const [passengers, setPassengers] = useState([]);
+    const [useSingleRoom, setUseSingleRoom] = useState(false);
+    const SINGLE_ROOM_PRICE = 1400000; 
+
+    // States cho Mã giảm giá
+    const [promoCode, setPromoCode] = useState("");
+    const [appliedPromo, setAppliedPromo] = useState(null);
+    const [promoError, setPromoError] = useState("");
+
+    // --- EFFECT: CẬP NHẬT DANH SÁCH KHÁCH ---
+    useEffect(() => {
+        let newPassengers = [];
+        for (let i = 0; i < counts.adult; i++) newPassengers.push({ type: 'adult', label: 'Người lớn', index: i, gender: 'Nam' });
+        for (let i = 0; i < counts.child; i++) newPassengers.push({ type: 'child', label: 'Trẻ em', index: i, gender: 'Nam' });
+        for (let i = 0; i < counts.toddler; i++) newPassengers.push({ type: 'toddler', label: 'Trẻ nhỏ', index: i, gender: 'Nam' });
+        for (let i = 0; i < counts.infant; i++) newPassengers.push({ type: 'infant', label: 'Em bé', index: i, gender: 'Nam' });
+
+        setPassengers(prev => {
+            return newPassengers.map((p, idx) => {
+                if (prev[idx] && prev[idx].type === p.type) {
+                    return { ...p, ...prev[idx], index: idx };
+                }
+                return p;
+            });
+        });
+    }, [counts]);
+
+    const handlePassengerChange = (index, field, value) => {
+        setPassengers(prev => {
+            const updated = [...prev];
+            if (!updated[index]) return prev;
+            updated[index] = { ...updated[index], [field]: value };
+            return updated;
+        });
+    };
+
+    // --- TÍNH TOÁN GIÁ ---
+    const calculateTotal = () => {
+        let total = 0;
+        const basePrice = productData.basePrice || 0;
+
+        total += counts.adult * basePrice;
+        total += counts.child * (basePrice * 0.8);
+        total += counts.toddler * (basePrice * 0.5);
+        total += counts.infant * (basePrice * 0.1);
+
+        if (useSingleRoom) total += SINGLE_ROOM_PRICE;
+
+        const subTotalBeforeDiscount = total;
+
+        let promoDiscount = 0;
+        if (appliedPromo) {
+            if (appliedPromo.type === 'percentage') {
+                promoDiscount = subTotalBeforeDiscount * (appliedPromo.value / 100);
+            } else if (appliedPromo.type === 'fixed_amount') {
+                promoDiscount = appliedPromo.value;
+            }
+            if (promoDiscount > subTotalBeforeDiscount) {
+                promoDiscount = subTotalBeforeDiscount;
+            }
+        }
+
+        const final = total - promoDiscount;
+        return {
+            subTotal: total,
+            promoDiscount,
+            final: final > 0 ? final : 0
+        };
+    };
+
+    const { subTotal, promoDiscount, final } = calculateTotal();
+
+    // --- XỬ LÝ SỰ KIỆN ---
+    const handleCountChange = (type, delta) => {
+        setCounts(prev => {
+            const newVal = prev[type] + delta;
+            if (newVal < 0) return prev;
+            if (type === 'adult' && newVal < 1) return prev;
+            return { ...prev, [type]: newVal };
+        });
+    };
+
+    const handleApplyPromo = async () => {
+        if (!promoCode) return;
+        setPromoError("");
+        try {
+            const res = await inventoryApi.checkPromotion(promoCode);
+            const promo = res.data || res;
+
+            if (promo.rules && promo.rules.min_spend > subTotal) {
+                setPromoError(`Đơn hàng phải từ ${formatCurrency(promo.rules.min_spend)} mới được dùng mã này.`);
+                setAppliedPromo(null);
+                return;
+            }
+            setAppliedPromo(promo);
+            alert("Áp dụng mã giảm giá thành công!");
+        } catch (error) {
+            console.error(error);
+            setAppliedPromo(null);
+            setPromoError("Mã giảm giá không hợp lệ hoặc đã hết hạn.");
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (!contactInfo.fullName || !contactInfo.phone || !contactInfo.email) {
+            alert("Vui lòng điền đầy đủ thông tin liên hệ.");
+            return;
+        }
+        for (const p of passengers) {
+            if (!p.fullName) {
+                alert(`Vui lòng nhập tên cho hành khách: ${p.label} ${p.index + 1}`);
+                return;
+            }
+        }
+
+        try {
+            const departDate = transportInfo?.details?.depart?.date 
+                               || productData.bookingInfo?.date 
+                               || "Chưa xác định";
+
+            const payload = {
+                items: [{
+                    productId: productData.id,
+                    inventoryId: productData.bookingInfo?.inventoryId,
+                    productType: 'tour',
+                    quantity: counts.adult + counts.child + counts.toddler + counts.infant,
+                    unitPrice: productData.basePrice,
+                    productTitle: productData.title,
+                    image: productData.image,
+                    detailsText: `Ngày đi: ${departDate}`
+                }],
+                promotionCode: appliedPromo ? appliedPromo.code : null,
+                passengers: passengers,
+                contactInfo: contactInfo
+            };
+
+            const res = await bookingApi.createBooking(payload);
+            const bookingId = res.data?.bookingId || res.bookingId;
+
+            if (bookingId) {
+                navigate("/payment", { state: { bookingId: bookingId } });
+            } else {
+                throw new Error("Không nhận được Booking ID.");
+            }
+        } catch (error) {
+            console.error("Lỗi đặt tour:", error);
+            const msg = error.response?.data?.message || error.message;
+            alert("Lỗi đặt tour: " + msg);
+        }
+    };
+
+    // --- HÀM RENDER THÔNG TIN VẬN CHUYỂN ---
+    const renderTransportInfo = () => {
+        if (!transportInfo || transportInfo.type === 'other') {
+            return (
+                <div className="p-3 border-bottom bg-light bg-opacity-50 text-muted small fst-italic">
+                    <i className="bi bi-info-circle me-1"></i> 
+                    Phương tiện: {transportInfo?.details?.vehicle || "Theo lịch trình tour"}
+                </div>
+            );
+        }
+
+        const details = transportInfo.details || {};
+        const depart = details.depart || {};
+        const isFlight = transportInfo.type === 'flight';
+
+        return (
+            <div className="p-3 border-bottom bg-light bg-opacity-50">
+                <div className="fw-bold small mb-2 text-primary">
+                    {isFlight ? <><i className="bi bi-airplane me-1"></i> THÔNG TIN CHUYẾN BAY</> 
+                             : <><i className="bi bi-bus-front me-1"></i> THÔNG TIN DI CHUYỂN</>}
+                </div>
+                
+                <div className="mb-2 fw-bold text-dark">
+                    {isFlight ? details.airline : details.vehicle}
+                </div>
+
+                <div className="mb-3">
+                    <div className="d-flex justify-content-between small text-muted mb-1">
+                        <span>Khởi hành - {depart.date}</span>
+                    </div>
+                    <div className="d-flex justify-content-between fw-bold small">
+                        <span>{depart.time}</span>
+                        <span>{isFlight ? depart.code : (depart.location || "Điểm hẹn")}</span>
+                    </div>
+                </div>
+
+                {isFlight && details.return && (
+                    <div>
+                        <div className="d-flex justify-content-between small text-muted mb-1">
+                            <span>Chiều về - {details.return.date}</span>
+                        </div>
+                        <div className="d-flex justify-content-between fw-bold small">
+                            <span>{details.return.time}</span>
+                            <span>{details.return.code}</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <Container className="my-5">
+            <BookingStepper step={1} />
+
+            <Row className="g-4">
+                {/* Cột Trái: Form */}
+                <Col lg={8}>
+                    {/* 1. LIÊN LẠC */}
+                    <h5 className="fw-bold mb-3 text-uppercase">Thông tin liên lạc</h5>
+                    <div className="bg-light p-3 rounded mb-4 border">
+                        {!isLoggedIn && (
+                            <div className="bg-white p-2 mb-3 rounded border border-info text-primary d-flex align-items-center gap-2">
+                                <i className="bi bi-person-circle fs-5"></i>
+                                <span><strong>Đăng nhập</strong> để nhận ưu đãi và quản lý đơn hàng!</span>
+                            </div>
+                        )}
+                        
+                        <Row className="g-3">
+                            <Col md={6}>
+                                <Form.Group>
+                                    <Form.Label className="fw-bold small">Họ tên <span className="text-danger">*</span></Form.Label>
+                                    <Form.Control type="text" placeholder="Nhập họ tên liên hệ" value={contactInfo.fullName} onChange={e => setContactInfo({ ...contactInfo, fullName: e.target.value })} />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group>
+                                    <Form.Label className="fw-bold small">Điện thoại <span className="text-danger">*</span></Form.Label>
+                                    <Form.Control type="text" placeholder="Nhập số điện thoại" value={contactInfo.phone} onChange={e => setContactInfo({ ...contactInfo, phone: e.target.value })} />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group>
+                                    <Form.Label className="fw-bold small">Email <span className="text-danger">*</span></Form.Label>
+                                    <Form.Control type="email" placeholder="Nhập email" value={contactInfo.email} onChange={e => setContactInfo({ ...contactInfo, email: e.target.value })} />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group>
+                                    <Form.Label className="fw-bold small">Địa chỉ</Form.Label>
+                                    <Form.Control type="text" placeholder="Nhập địa chỉ" value={contactInfo.address} onChange={e => setContactInfo({ ...contactInfo, address: e.target.value })} />
+                                </Form.Group>
+                            </Col>
+                        </Row>
+                    </div>
+
+                    {/* 2. SỐ LƯỢNG */}
+                    <h5 className="fw-bold mb-3 text-uppercase">Hành khách</h5>
+                    <Row className="g-3 mb-4">
+                        {[
+                            { key: 'adult', label: 'Người lớn', sub: 'Từ 12 tuổi lên', min: 1 },
+                            { key: 'child', label: 'Trẻ em', sub: 'Từ 5 - 11 tuổi', min: 0 },
+                            { key: 'toddler', label: 'Trẻ nhỏ', sub: 'Từ 2 - 4 tuổi', min: 0 },
+                            { key: 'infant', label: 'Em bé', sub: 'Dưới 2 tuổi', min: 0 },
+                        ].map((item) => (
+                            <Col md={6} key={item.key}>
+                                <div className="qty-box bg-white h-100 p-3 border rounded d-flex justify-content-between align-items-center shadow-sm">
+                                    <div>
+                                        <div className="fw-bold">{item.label}</div>
+                                        <div className="small text-muted">{item.sub}</div>
+                                    </div>
+                                    <div className="d-flex align-items-center gap-3">
+                                        <Button variant="outline-secondary" size="sm" onClick={() => handleCountChange(item.key, -1)} disabled={counts[item.key] <= item.min}>-</Button>
+                                        <span className="fw-bold fs-5">{counts[item.key]}</span>
+                                        <Button variant="outline-primary" size="sm" onClick={() => handleCountChange(item.key, 1)}>+</Button>
+                                    </div>
+                                </div>
+                            </Col>
+                        ))}
+                    </Row>
+
+                    {/* 3. CHI TIẾT KHÁCH */}
+                    <h5 className="fw-bold mb-3 text-uppercase">Thông tin hành khách</h5>
+                    <div className="bg-white border rounded p-3 mb-4">
+                        {passengers.map((p, idx) => (
+                            <div key={idx} className={`mb-3 ${idx < passengers.length - 1 ? "border-bottom pb-3" : ""}`}>
+                                <div className="d-flex align-items-center gap-2 mb-2">
+                                    <i className="bi bi-person-fill text-muted"></i>
+                                    <span className="fw-bold">{p.label} {p.index + 1}</span>
+                                </div>
+                                <Row className="g-2">
+                                    <Col md={4}>
+                                        <Form.Control size="sm" placeholder="Họ tên *" required value={p.fullName || ''} onChange={(e) => handlePassengerChange(idx, 'fullName', e.target.value)} />
+                                    </Col>
+                                    <Col md={3}>
+                                        <Form.Select size="sm" value={p.gender || 'Nam'} onChange={(e) => handlePassengerChange(idx, 'gender', e.target.value)}>
+                                            <option value="Nam">Nam</option>
+                                            <option value="Nữ">Nữ</option>
+                                            <option value="Khác">Khác</option>
+                                        </Form.Select>
+                                    </Col>
+                                    <Col md={3}>
+                                        <Form.Control size="sm" type="date" placeholder="Ngày sinh *" value={p.dateOfBirth || ''} onChange={(e) => handlePassengerChange(idx, 'dateOfBirth', e.target.value)} />
+                                    </Col>
+                                    {/* {p.type === 'adult' && p.index === 0 && (
+                                        <Col md={2} className="d-flex align-items-center justify-content-end">
+                                            <Form.Check type="switch" id="single-room" label="Phòng đơn" className="small" checked={useSingleRoom} onChange={(e) => setUseSingleRoom(e.target.checked)} />
+                                        </Col>
+                                    )} */}
+                                </Row>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* 4. GHI CHÚ */}
+                    <h5 className="fw-bold mb-3 text-uppercase">Ghi chú</h5>
+                    <div className="bg-white border rounded p-3 mb-4">
+                        <Form.Control as="textarea" rows={3} placeholder="Nội dung lời nhắn..." value={contactInfo.note} onChange={(e) => setContactInfo({ ...contactInfo, note: e.target.value })} />
+                    </div>
+                </Col>
+
+                {/* Cột Phải: Tóm tắt */}
+                <Col lg={4}>
+                    <div className="summary-card bg-white overflow-hidden shadow rounded border">
+                        <div className="p-3 border-bottom">
+                            <h6 className="fw-bold mb-2">TÓM TẮT CHUYẾN ĐI</h6>
+                            <div className="d-flex gap-2">
+                                <img src={productData.image} className="rounded" style={{ width: 80, height: 60, objectFit: 'cover' }} alt="Tour" />
+                                <div>
+                                    <div className="fw-bold small text-truncate-2-lines">{productData.title}</div>
+                                    <div className="small text-muted">Mã: {productData.code}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {renderTransportInfo()}
+
+                        <div className="p-3">
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                <span className="fw-bold">TẠM TÍNH</span>
+                                <span className="fw-bold text-danger fs-5">{formatCurrency(subTotal)}</span>
+                            </div>
+
+                            {/* --- [ĐÃ SỬA] HIỂN THỊ ĐỦ CÁC LOẠI KHÁCH --- */}
+                            
+                            <div className="small mb-1 d-flex justify-content-between">
+                                <span>Người lớn</span>
+                                <span>{counts.adult} x {formatCurrency(productData.basePrice)}</span>
+                            </div>
+
+                            {counts.child > 0 && (
+                                <div className="small mb-1 d-flex justify-content-between">
+                                    <span>Trẻ em (5-11t)</span>
+                                    <span>{counts.child} x {formatCurrency(productData.basePrice * 0.8)}</span>
+                                </div>
+                            )}
+
+                            {/* 🔥 MỚI THÊM: Trẻ nhỏ */}
+                            {counts.toddler > 0 && (
+                                <div className="small mb-1 d-flex justify-content-between">
+                                    <span>Trẻ nhỏ (2-4t)</span>
+                                    <span>{counts.toddler} x {formatCurrency(productData.basePrice * 0.5)}</span>
+                                </div>
+                            )}
+
+                            {/* 🔥 MỚI THÊM: Em bé */}
+                            {counts.infant > 0 && (
+                                <div className="small mb-1 d-flex justify-content-between">
+                                    <span>Em bé (&lt;2t)</span>
+                                    <span>{counts.infant} x {formatCurrency(productData.basePrice * 0.1)}</span>
+                                </div>
+                            )}
+
+                            {/* {useSingleRoom && (
+                                <div className="small mb-1 d-flex justify-content-between">
+                                    <span>Phụ thu phòng đơn</span>
+                                    <span>{formatCurrency(SINGLE_ROOM_PRICE)}</span>
+                                </div>
+                            )} */}
+
+                            {/* Mã giảm giá */}
+                            <hr className="my-2" />
+                            <div className="mt-3 bg-light p-3 rounded border border-dashed">
+                                <div className="fw-bold small text-primary mb-2"><i className="bi bi-tag-fill"></i> MÃ GIẢM GIÁ</div>
+                                <div className="input-group mb-2">
+                                    <Form.Control type="text" placeholder="Nhập mã" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} disabled={!!appliedPromo} size="sm" />
+                                    {appliedPromo ? (
+                                        <Button variant="outline-danger" size="sm" onClick={() => { setAppliedPromo(null); setPromoCode(""); }}>Xóa</Button>
+                                    ) : (
+                                        <Button variant="primary" size="sm" onClick={handleApplyPromo}>Áp dụng</Button>
+                                    )}
+                                </div>
+                                {promoError && <div className="text-danger small fst-italic">{promoError}</div>}
+                                {appliedPromo && (
+                                    <div className="d-flex justify-content-between text-success small fw-bold">
+                                        <span><i className="bi bi-check-circle"></i> {appliedPromo.code}</span>
+                                        <span>-{formatCurrency(promoDiscount)}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <hr />
+
+                            <div className="d-flex justify-content-between align-items-center mb-3">
+                                <span className="fw-bold fs-5">TỔNG CỘNG</span>
+                                <span className="fw-bold text-danger fs-4">{formatCurrency(final)}</span>
+                            </div>
+
+                            <Button variant="danger" size="lg" className="w-100 fw-bold shadow hover-scale" onClick={handleSubmit}>
+                                TIẾP TỤC THANH TOÁN
+                            </Button>
+                        </div>
+                    </div>
+                </Col>
+            </Row>
+        </Container>
+    );
+}
