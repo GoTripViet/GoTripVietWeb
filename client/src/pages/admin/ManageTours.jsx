@@ -193,6 +193,74 @@ export default function ManageTours() {
     nav(`/admin/manage/tours/${id}?mode=edit`); // edit mode
   };
 
+  const createTour = async () => {
+    try {
+      const now = new Date();
+      const stamp =
+        `${now.getFullYear()}${String(now.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}${String(now.getDate()).padStart(2, "0")}-` +
+        `${String(now.getHours()).padStart(2, "0")}${String(
+          now.getMinutes()
+        ).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+      const payload = {
+        product_type: "tour",
+        title: `Tour mới ${stamp}`,
+        description_short: "",
+        description_long: "",
+        images: [],
+        tags: [],
+        base_price: 0,
+        sustainability_score: 0,
+        is_active: false,
+        location_ids: [],
+        category_ids: [],
+        tour_details: {
+          duration_days: 1,
+          includes: [],
+          excludes: [],
+          itinerary: [],
+        },
+      };
+
+      const res = await catalogApi.create(payload);
+      const created = res?.product ?? res?.data?.product ?? res;
+      const newId = created?._id || created?.id;
+
+      if (!newId) throw new Error("Không lấy được id tour mới từ server.");
+
+      // mở luôn trang chỉnh sửa
+      nav(`/admin/manage/tours/${newId}?mode=edit`);
+    } catch (e) {
+      console.error(e);
+      alert(
+        e?.response?.data?.message || e?.message || "Tạo tour mới thất bại."
+      );
+    }
+  };
+
+  const deleteTour = async (tour) => {
+    const id = tour?.id || tour?._id;
+    if (!id) return;
+
+    const ok = window.confirm(
+      `Bạn có chắc muốn xóa tour:\n\n${
+        tour?.title || "(Chưa có tiêu đề)"
+      }\n\nHành động này sẽ xóa luôn ảnh trên Cloudinary.`
+    );
+    if (!ok) return;
+
+    try {
+      await catalogApi.remove(id);
+      await loadTours();
+      alert("Đã xóa tour.");
+    } catch (e) {
+      console.error(e);
+      alert(e?.response?.data?.message || e?.message || "Xóa tour thất bại.");
+    }
+  };
+
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -212,6 +280,14 @@ export default function ManageTours() {
             disabled={loading}
           >
             {loading ? "Đang tải..." : "↻ Tải lại"}
+          </button>
+          <button
+            type="button"
+            onClick={createTour}
+            style={styles.btn}
+            disabled={loading}
+          >
+            + Tạo tour mới
           </button>
         </div>
       </div>
@@ -316,6 +392,13 @@ export default function ManageTours() {
                   onClick={() => openEdit(tour)}
                 >
                   Chỉnh sửa
+                </button>
+                <button
+                  type="button"
+                  style={{ ...styles.smallBtn, ...styles.danger }}
+                  onClick={() => deleteTour(tour)}
+                >
+                  Xóa
                 </button>
               </div>
             </div>

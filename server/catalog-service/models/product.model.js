@@ -155,8 +155,10 @@ const productSchema = new mongoose.Schema(
 );
 
 // Middleware xử lý Slug
+// Middleware xử lý Slug
 productSchema.pre("save", function (next) {
-  if (this.isModified("title")) {
+  // Nếu slug đã được set từ service (unique) thì đừng ghi đè nữa
+  if (this.isModified("title") && !this.isModified("slug") && !this.slug) {
     const title = this.title.replace(/Đ/g, "D").replace(/đ/g, "d");
     this.slug = slugify(title, { lower: true, strict: true });
   }

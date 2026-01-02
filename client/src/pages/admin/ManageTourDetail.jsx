@@ -346,7 +346,18 @@ export default function ManageTourDetail() {
     setLoading(true);
     setErr("");
     try {
-      const res = await catalogApi.getById(id);
+      let res;
+      try {
+        // thử public trước (tour active thì ok)
+        res = await catalogApi.getById(id);
+      } catch (e) {
+        // nếu public 404 (tour inactive) thì dùng admin
+        if (e?.response?.status === 404) {
+          res = await catalogApi.getByIdAdmin(id);
+        } else {
+          throw e;
+        }
+      }
       const t = normalizeOneResponse(res);
 
       // normalize images về object array

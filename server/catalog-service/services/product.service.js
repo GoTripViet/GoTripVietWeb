@@ -21,12 +21,28 @@ function normalizeImages(images) {
   return [];
 }
 
+async function makeUniqueSlug(Model, base, excludeId = null) {
+  let slug = base;
+  let i = 1;
+
+  // nếu update thì excludeId để không tự trùng với chính nó
+  const existsQuery = (s) =>
+    excludeId ? { slug: s, _id: { $ne: excludeId } } : { slug: s };
+
+  while (await Model.exists(existsQuery(slug))) {
+    i += 1;
+    slug = `${base}-${i}`;
+  }
+  return slug;
+}
+
 class ProductService {
   /**
    * Tạo một sản phẩm mới (Mặc định là Tour)
    * @param {object} productData - Dữ liệu từ controller
    * @param {string} partnerId - ID của đối tác (từ token)
    */
+
   async createProduct(productData, partnerId) {
     // Gắn partner_id (người sở hữu) từ token vào
     productData.partner_id = partnerId;
@@ -50,6 +66,12 @@ class ProductService {
       productData.flight_details = flight_details;
     } else {
       // product_type = 'car' hoặc khác
+    }
+    // Tự tạo slug unique nếu chưa có
+    if (!productData.slug && productData.title) {
+      const title = productData.title.replace(/Đ/g, "D").replace(/đ/g, "d");
+      const base = slugify(title, { lower: true, strict: true });
+      productData.slug = await makeUniqueSlug(Product, base);
     }
 
     const product = new Product(productData);
@@ -253,7 +275,8 @@ class ProductService {
     // Nếu muốn chắc chắn xử lý tiếng Việt Đ -> D ở đây:
     if (updateData.title) {
       const title = updateData.title.replace(/Đ/g, "D").replace(/đ/g, "d");
-      product.slug = slugify(title, { lower: true, strict: true });
+      const base = slugify(title, { lower: true, strict: true });
+      product.slug = await makeUniqueSlug(Product, base, product._id);
     }
 
     await product.save();
@@ -263,17 +286,11 @@ class ProductService {
   /**
    * Xóa 1 sản phẩm (Soft delete)
    */
-  async deleteProduct(productId, partnerId) {
-    const product = await Product.findById(productId);
+  async deleteProduct(id) {
+    const product = await Product.findById(id);
+    if (!product) throw new Error("Product not found");
 
-    if (!product) {
-      throw new Error("Product not found");
-    }
-
-    if (product.partner_id && product.partner_id.toString() !== partnerId) {
-      // throw new Error('Forbidden');
-    }
-    // Xoá hình ảnh trên Cloudinary
+    // ✅ xóa toàn bộ ảnh trên cloudinary
     const publicIds = normalizeImages(product.images)
       .map((x) => x.public_id)
       .filter(Boolean);
@@ -287,11 +304,24 @@ class ProductService {
       )
     );
 
-    // dọn images để khỏi giữ link cũ
-    product.images = [];
-    product.is_active = false;
-    await product.save();
-    return { message: "Product deactivated successfully" };
+    // bạn có thể "xóa hẳn" hoặc "deactivate"
+    // Option 1: xóa hẳn DB:
+    await Product.findByIdAndDelete(id);
+
+    return { message: "Product deleted successfully" };
+  }
+
+  async getProductByIdOrSlugAdmin(idOrSlug) {
+    const isObjectId = mongoose.Types.ObjectId.isValid(idOrSlug);
+    let product = isObjectId
+      ? await Product.findById(idOrSlug)
+      : await Product.findOne({ slug: idOrSlug });
+
+    if (!product) throw new Error("Product not found");
+
+    await product.populate("location_ids", "name slug country");
+    await product.populate("category_ids", "name slug");
+    return product;
   }
 }
 
