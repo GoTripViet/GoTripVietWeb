@@ -1,6 +1,16 @@
 // services/category.service.js
-const Category = require('../models/category.model');
-const mongoose = require('mongoose');
+const Category = require("../models/category.model");
+const cloudinary = require("../config/cloudinary");
+const mongoose = require("mongoose");
+
+async function normalizeImage(img) {
+  if (!img) return { url: "", public_id: "" };
+  if (typeof img === "string") return { url: img, public_id: "" }; // tương thích dữ liệu cũ
+  return {
+    url: img.url || "",
+    public_id: img.public_id || "",
+  };
+}
 
 class CategoryService {
   async createCategory(data) {
@@ -15,13 +25,13 @@ class CategoryService {
    */
   async getAllCategories(query) {
     let filter = {};
-    if (query.parent === 'null') {
+    if (query.parent === "null") {
       filter.parent = null; // Lấy các hạng mục gốc
     } else if (query.parent) {
       filter.parent = query.parent; // Lấy con của 1 hạng mục
     }
     // Nếu không có query, lấy tất cả
-    return await Category.find(filter).populate('parent', 'name slug'); // Nối thông tin cha
+    return await Category.find(filter).populate("parent", "name slug"); // Nối thông tin cha
   }
 
   async getCategoryByIdOrSlug(identifier) {
@@ -35,26 +45,60 @@ class CategoryService {
     }
 
     if (!category) {
-      throw new Error('Category not found');
+      throw new Error("Category not found");
     }
-    return await category.populate('parent', 'name slug');
+    return await category.populate("parent", "name slug");
   }
 
   async updateCategory(id, updateData) {
-    const category = await Category.findByIdAndUpdate(id, updateData, { new: true });
-    if (!category) {
-      throw new Error('Category not found');
+    const current = await Category.findById(id);
+    if (!current) throw new Error("Category not found");
+
+    const oldImg = await normalizeImage(current.image);
+    const newImg = updateData.hasOwnProperty("image")
+      ? await normalizeImage(updateData.image)
+      : null;
+
+    // Nếu client gửi image (có nghĩa muốn thay/xóa)
+    if (newImg) {
+      // xóa ảnh cũ trên cloudinary nếu:
+      // - ảnh cũ có public_id
+      // - và (ảnh mới không có public_id) hoặc (public_id mới khác)
+      if (
+        oldImg.public_id &&
+        (!newImg.public_id || newImg.public_id !== oldImg.public_id)
+      ) {
+        await cloudinary.uploader.destroy(oldImg.public_id, {
+          resource_type: "image",
+          invalidate: true,
+        });
+      }
+      // đảm bảo lưu đúng format object
+      updateData.image = newImg;
     }
-    return category;
+
+    const updated = await Category.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    return updated;
   }
 
   async deleteCategory(id) {
-    const category = await Category.findByIdAndDelete(id);
-    if (!category) {
-      throw new Error('Category not found');
+    const cat = await Category.findByIdAndDelete(id);
+    if (!cat) throw new Error("Category not found");
+
+    const img = await normalizeImage(cat.image);
+
+    if (img.public_id) {
+      await cloudinary.uploader.destroy(img.public_id, {
+        resource_type: "image",
+        invalidate: true,
+      });
     }
-    // (Logic nâng cao: Bạn có thể cần xử lý xóa/di chuyển các hạng mục con)
-    return { message: 'Category deleted' };
+
+    return { message: "Category deleted" };
   }
 }
 

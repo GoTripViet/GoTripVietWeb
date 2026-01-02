@@ -11,11 +11,21 @@ function normalizeList(res) {
   return [];
 }
 
+function normalizeImage(img) {
+  if (!img) return { url: "", public_id: "" };
+  if (typeof img === "string") return { url: img, public_id: "" }; // dữ liệu cũ
+  return {
+    url: img?.url || "",
+    public_id: img?.public_id || "",
+  };
+}
+
 // Map API -> row UI
 function toRow(x) {
   const parentObj =
     typeof x?.parent === "object" && x?.parent !== null ? x.parent : null;
 
+  const image = normalizeImage(x?.image);
   return {
     ...x,
     id: x?.id || x?._id,
@@ -24,7 +34,8 @@ function toRow(x) {
     parentName: parentObj?.name || "",
     // slug do backend auto, UI chỉ hiển thị
     slug: x?.slug || "",
-    image: x?.image || "",
+    image,
+    imageUrl: image.url,
   };
 }
 
@@ -34,7 +45,7 @@ function toPayload(row) {
     name: row?.name?.trim(),
     parent: row?.parentId || null,
     description: row?.description || "",
-    image: row?.image || "",
+    image: row?.image || { url: "", public_id: "" }, // ✅ gửi object
   };
 }
 
@@ -207,8 +218,9 @@ export default function ManageCategory() {
     name: "",
     parentId: "",
     description: "",
-    image: "",
+    image: { url: "", public_id: "" },
   });
+
   /// Cloudinary
   const [uploadingImg, setUploadingImg] = useState(false);
   const [localPreview, setLocalPreview] = useState("");
@@ -249,7 +261,12 @@ export default function ManageCategory() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", parentId: "", description: "", image: "" });
+    setForm({
+      name: "",
+      parentId: "",
+      description: "",
+      image: { url: "", public_id: "" },
+    });
     setLocalPreview("");
     setEditOpen(true);
   };
@@ -260,7 +277,7 @@ export default function ManageCategory() {
       name: row?.name || "",
       parentId: row?.parentId || "",
       description: row?.description || "",
-      image: row?.image || "",
+      image: row?.image || { url: "", public_id: "" }, // row.image đã normalize ở toRow
     });
     setLocalPreview("");
     setEditOpen(true);
@@ -336,10 +353,12 @@ export default function ManageCategory() {
       fd.append("file", file);
 
       const res = await categoryApi.uploadCategoryImage(fd);
+      // axiosClient unwrap => res = { url, public_id }
       const url = res?.url;
+      const public_id = res?.public_id || "";
       if (!url) throw new Error("Server không trả về url");
 
-      setForm((s) => ({ ...s, image: url }));
+      setForm((s) => ({ ...s, image: { url, public_id } }));
     } catch (e) {
       console.error(e);
       alert(e?.response?.data?.message || e?.message || "Upload ảnh thất bại");
@@ -469,14 +488,13 @@ export default function ManageCategory() {
             <div>
               <div style={styles.label}>Ảnh</div>
               <div style={styles.value}>
-                {detailRow?.image ? (
+                {detailRow?.image?.url ? (
                   <div style={{ display: "grid", gap: 8 }}>
                     <div>
-                      <code>{detailRow.image}</code>
+                      <code>{detailRow.image.url}</code>
                     </div>
-                    {/* preview nếu là URL/đường dẫn */}
                     <img
-                      src={detailRow.image}
+                      src={detailRow.image.url}
                       alt="category"
                       style={{
                         width: "100%",
@@ -572,17 +590,6 @@ export default function ManageCategory() {
 
           <div>
             <div style={styles.label}>Ảnh</div>
-
-            {/* 1) input URL vẫn giữ */}
-            <input
-              style={styles.input}
-              value={form.image}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, image: e.target.value }))
-              }
-              placeholder="https://... hoặc image.jpg"
-            />
-
             {/* 2) khu vực kéo/thả */}
             <div
               onDragOver={(e) => e.preventDefault()}
@@ -630,9 +637,9 @@ export default function ManageCategory() {
               </div>
 
               {/* 3) preview */}
-              {(localPreview || form.image) && (
+              {(localPreview || form.image?.url) && (
                 <img
-                  src={localPreview || form.image}
+                  src={localPreview || form.image.url}
                   alt="preview"
                   style={{
                     width: "100%",
@@ -645,6 +652,23 @@ export default function ManageCategory() {
                   onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               )}
+              {form.image?.url ? (
+                <button
+                  type="button"
+                  style={styles.dangerBtn}
+                  onClick={() => {
+                    // chỉ xóa trong form; bấm Lưu => backend sẽ destroy ảnh cũ theo public_id
+                    setForm((s) => ({
+                      ...s,
+                      image: { url: "", public_id: "" },
+                    }));
+                    setLocalPreview("");
+                  }}
+                  disabled={uploadingImg}
+                >
+                  Xóa ảnh
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
