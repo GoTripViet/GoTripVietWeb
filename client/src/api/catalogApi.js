@@ -5,6 +5,14 @@ const catalogApi = {
   // --- SẢN PHẨM ---
   getAll: (params) => axiosClient.get("/products", { params }),
   getById: (id) => axiosClient.get(`/products/${id}`),
+  create: (payload) => axiosClient.post("/products", payload),
+  update: (id, payload) => axiosClient.put(`/products/${id}`, payload),
+  remove: (id) => axiosClient.delete(`/products/${id}`),
+  uploadTourImage(formData) {
+    return axiosClient.post("/uploads/tour-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
 
   // --- ĐỊA ĐIỂM ---
   getAllLocations: () => axiosClient.get("/locations"),

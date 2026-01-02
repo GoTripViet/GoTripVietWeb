@@ -93,7 +93,12 @@ const styles = {
 function pickFirstImage(images) {
   if (!images) return "";
   if (typeof images === "string") return images.split(",")[0]?.trim() || "";
-  if (Array.isArray(images)) return images[0] || "";
+  if (Array.isArray(images)) {
+    const first = images[0];
+    if (!first) return "";
+    if (typeof first === "string") return first;
+    return first?.url || "";
+  }
   return "";
 }
 

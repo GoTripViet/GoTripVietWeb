@@ -1,10 +1,27 @@
 // services/product.service.js
-const Product = require('../models/product.model');
-const mongoose = require('mongoose');
-const slugify = require('slugify'); // Cần import thêm nếu dùng trong update
+const Product = require("../models/product.model");
+const cloudinary = require("../config/cloudinary");
+const mongoose = require("mongoose");
+const slugify = require("slugify"); // Cần import thêm nếu dùng trong update
+
+function normalizeImages(images) {
+  if (!images) return [];
+  if (typeof images === "string") {
+    return images
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((url) => ({ url, public_id: "" }));
+  }
+  if (Array.isArray(images)) {
+    return images
+      .map((x) => (typeof x === "string" ? { url: x, public_id: "" } : x))
+      .filter((x) => x?.url);
+  }
+  return [];
+}
 
 class ProductService {
-
   /**
    * Tạo một sản phẩm mới (Mặc định là Tour)
    * @param {object} productData - Dữ liệu từ controller
@@ -15,18 +32,19 @@ class ProductService {
     productData.partner_id = partnerId;
 
     // Xử lý dữ liệu đa hình (Dù tập trung vào tour, vẫn giữ logic này để mở rộng)
-    const { product_type, tour_details, hotel_details, flight_details } = productData;
+    const { product_type, tour_details, hotel_details, flight_details } =
+      productData;
 
-    if (!product_type || product_type === 'tour') {
+    if (!product_type || product_type === "tour") {
       productData.hotel_details = undefined;
       productData.flight_details = undefined;
       // tour_details sẽ chứa cả thông tin vận chuyển/lưu trú như Model mới quy định
-      productData.tour_details = tour_details; 
-    } else if (product_type === 'hotel') {
+      productData.tour_details = tour_details;
+    } else if (product_type === "hotel") {
       productData.tour_details = undefined;
       productData.flight_details = undefined;
       productData.hotel_details = hotel_details;
-    } else if (product_type === 'flight') {
+    } else if (product_type === "flight") {
       productData.tour_details = undefined;
       productData.hotel_details = undefined;
       productData.flight_details = flight_details;
@@ -43,22 +61,22 @@ class ProductService {
    * Lấy danh sách sản phẩm (Filter Tour, Khách sạn, Phương tiện, Ngày đi...)
    */
   async getProducts(queryParams) {
-    const { 
-        page = 1, 
-        limit = 10, 
-        product_type, 
-        location_id, 
-        category_id, 
-        tags, 
-        keyword,      
-        min_price,    
-        max_price,    
-        
-        // --- CÁC PARAM MỚI ---
-        start_point, // Điểm đi
-        date,        // Ngày đi (YYYY-MM-DD)
-        transport,   // Phương tiện (Máy bay, Xe...)
-        star_rating  // Hạng sao khách sạn (3, 4, 5)
+    const {
+      page = 1,
+      limit = 10,
+      product_type,
+      location_id,
+      category_id,
+      tags,
+      keyword,
+      min_price,
+      max_price,
+
+      // --- CÁC PARAM MỚI ---
+      start_point, // Điểm đi
+      date, // Ngày đi (YYYY-MM-DD)
+      transport, // Phương tiện (Máy bay, Xe...)
+      star_rating, // Hạng sao khách sạn (3, 4, 5)
     } = queryParams;
 
     // Mặc định lọc sản phẩm đang active
@@ -66,26 +84,26 @@ class ProductService {
 
     // --- CÁC BỘ LỌC CƠ BẢN ---
     if (product_type) filter.product_type = product_type;
-    
+
     // Nếu location_id gửi lên
     if (location_id) filter.location_ids = { $in: [location_id] };
-    
+
     // Nếu category_id gửi lên
     if (category_id) filter.category_ids = { $in: [category_id] };
-    
-    if (tags) filter.tags = { $in: tags.split(',') };
+
+    if (tags) filter.tags = { $in: tags.split(",") };
 
     // --- CÁC BỘ LỌC NÂNG CAO ---
 
     // 1. Lọc theo từ khóa (Tìm trong Title, Slug, hoặc StartPoint của tour)
     if (keyword) {
-      const regex = new RegExp(keyword, 'i'); 
+      const regex = new RegExp(keyword, "i");
       filter.$or = [
         { title: { $regex: regex } },
         { slug: { $regex: regex } },
         { description_short: { $regex: regex } },
         // Tìm cả trong điểm khởi hành nếu khách gõ tên tỉnh vào ô tìm kiếm
-        { 'tour_details.start_point': { $regex: regex } }
+        { "tour_details.start_point": { $regex: regex } },
       ];
     }
 
@@ -97,46 +115,48 @@ class ProductService {
     }
 
     // 3. Lọc theo Điểm đón (Start Point)
-    if (start_point && start_point !== 'Tất cả') {
-        filter['tour_details.start_point'] = { $regex: new RegExp(start_point, 'i') };
+    if (start_point && start_point !== "Tất cả") {
+      filter["tour_details.start_point"] = {
+        $regex: new RegExp(start_point, "i"),
+      };
     }
 
     // 4. Lọc theo Ngày xuất phát (Tìm trong mảng departure_times)
     // Logic: Tour có ít nhất 1 ngày khởi hành nằm trong ngày khách chọn
     if (date) {
-        const searchDate = new Date(date);
-        
-        if (!isNaN(searchDate.getTime())) {
-            const startOfDay = new Date(searchDate);
-            startOfDay.setHours(0, 0, 0, 0);
+      const searchDate = new Date(date);
 
-            const endOfDay = new Date(searchDate);
-            endOfDay.setHours(23, 59, 59, 999);
+      if (!isNaN(searchDate.getTime())) {
+        const startOfDay = new Date(searchDate);
+        startOfDay.setHours(0, 0, 0, 0);
 
-            filter['tour_details.departure_times'] = {
-                $gte: startOfDay,
-                $lte: endOfDay
-            };
-        }
+        const endOfDay = new Date(searchDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        filter["tour_details.departure_times"] = {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        };
+      }
     }
 
     // 5. [MỚI] Lọc theo Phương tiện (Transport)
     // VD: Khách chọn "Máy bay" -> Lọc tour_details.transport_type
-    if (transport && transport !== 'Tất cả') {
-        filter['tour_details.transport_type'] = transport;
+    if (transport && transport !== "Tất cả") {
+      filter["tour_details.transport_type"] = transport;
     }
 
     // 6. [MỚI] Lọc theo Hạng sao Khách sạn (Hotel Rating)
     // VD: Khách chọn 4 sao -> Tìm tour có hotel_rating >= 4
     if (star_rating) {
-        filter['tour_details.hotel_rating'] = { $gte: parseInt(star_rating) };
+      filter["tour_details.hotel_rating"] = { $gte: parseInt(star_rating) };
     }
 
     // --- PHÂN TRANG & QUERY ---
     const skip = (page - 1) * limit;
 
     const products = await Product.find(filter)
-      .populate('location_ids', 'name slug')
+      .populate("location_ids", "name slug")
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 }); // Mới nhất lên đầu
@@ -165,13 +185,13 @@ class ProductService {
     }
 
     if (!product || !product.is_active) {
-      throw new Error('Product not found or is inactive');
+      throw new Error("Product not found or is inactive");
     }
 
     // Nối thêm thông tin địa điểm và danh mục
-    await product.populate('location_ids', 'name slug country');
-    await product.populate('category_ids', 'name slug');
-    
+    await product.populate("location_ids", "name slug country");
+    await product.populate("category_ids", "name slug");
+
     return product;
   }
 
@@ -182,7 +202,7 @@ class ProductService {
     const product = await Product.findById(productId);
 
     if (!product) {
-      throw new Error('Product not found');
+      throw new Error("Product not found");
     }
 
     // Check quyền sở hữu
@@ -192,9 +212,37 @@ class ProductService {
     }
 
     // Bảo vệ các trường quan trọng
-    delete updateData.product_type; 
-    delete updateData.partner_id; 
-    delete updateData.slug; 
+    delete updateData.product_type;
+    delete updateData.partner_id;
+    delete updateData.slug;
+
+    // Xử lý cập nhật hình ảnh (Xoá hình ảnh cũ nếu bị xoá trong updateData)
+    if (Object.prototype.hasOwnProperty.call(updateData, "images")) {
+      const oldPublicIds = normalizeImages(product.images)
+        .map((x) => x.public_id)
+        .filter(Boolean);
+
+      const newImgs = normalizeImages(updateData.images);
+      const newPublicIds = newImgs.map((x) => x.public_id).filter(Boolean);
+
+      const removed = oldPublicIds.filter((pid) => !newPublicIds.includes(pid));
+
+      await Promise.all(
+        removed.map((pid) =>
+          cloudinary.uploader.destroy(pid, {
+            resource_type: "image",
+            invalidate: true,
+          })
+        )
+      );
+
+      // đảm bảo lưu đúng format
+      updateData.images = newImgs;
+    }
+
+    Object.keys(updateData).forEach((k) => {
+      if (updateData[k] === undefined) delete updateData[k];
+    });
 
     // Cập nhật dữ liệu
     Object.assign(product, updateData);
@@ -204,8 +252,8 @@ class ProductService {
     // Ở đây ta gọi .save() ở dưới nên OK.
     // Nếu muốn chắc chắn xử lý tiếng Việt Đ -> D ở đây:
     if (updateData.title) {
-         const title = updateData.title.replace(/Đ/g, 'D').replace(/đ/g, 'd');
-         product.slug = slugify(title, { lower: true, strict: true });
+      const title = updateData.title.replace(/Đ/g, "D").replace(/đ/g, "d");
+      product.slug = slugify(title, { lower: true, strict: true });
     }
 
     await product.save();
@@ -219,17 +267,31 @@ class ProductService {
     const product = await Product.findById(productId);
 
     if (!product) {
-      throw new Error('Product not found');
+      throw new Error("Product not found");
     }
 
     if (product.partner_id && product.partner_id.toString() !== partnerId) {
-       // throw new Error('Forbidden');
+      // throw new Error('Forbidden');
     }
+    // Xoá hình ảnh trên Cloudinary
+    const publicIds = normalizeImages(product.images)
+      .map((x) => x.public_id)
+      .filter(Boolean);
 
+    await Promise.all(
+      publicIds.map((pid) =>
+        cloudinary.uploader.destroy(pid, {
+          resource_type: "image",
+          invalidate: true,
+        })
+      )
+    );
+
+    // dọn images để khỏi giữ link cũ
+    product.images = [];
     product.is_active = false;
     await product.save();
-
-    return { message: 'Product deactivated successfully' };
+    return { message: "Product deactivated successfully" };
   }
 }
 
