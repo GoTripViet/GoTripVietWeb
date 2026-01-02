@@ -11,10 +11,15 @@ const locationApi = {
     return axiosClient.post("/locations", payload);
   },
   update(id, payload) {
-    return axiosClient.patch(`/locations/${id}`, payload);
+    return axiosClient.put(`/locations/${id}`, payload);
   },
   remove(id) {
     return axiosClient.delete(`/locations/${id}`);
+  },
+  uploadLocationImage(formData) {
+    return axiosClient.post("/uploads/location-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
   },
 };
 
