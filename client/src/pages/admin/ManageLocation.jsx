@@ -16,7 +16,11 @@ function toRow(x) {
   const lng = coords?.[0] ?? 0;
   const lat = coords?.[1] ?? 0;
 
-  const images = Array.isArray(x?.images) ? x.images : [];
+  const imagesRaw = Array.isArray(x?.images) ? x.images : [];
+  const images = imagesRaw
+    .map((img) => (typeof img === "string" ? { url: img, public_id: "" } : img))
+    .filter((img) => img?.url);
+
   const tags = Array.isArray(x?.tags) ? x.tags : [];
 
   return {
@@ -24,7 +28,6 @@ function toRow(x) {
     id: x?.id || x?._id,
     images,
     tags,
-    images_csv: images.join(", "),
     tags_csv: tags.join(", "),
     lng,
     lat,
@@ -32,14 +35,6 @@ function toRow(x) {
 }
 
 function toPayload(form) {
-  const images =
-    typeof form?.images_csv === "string"
-      ? form.images_csv
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-
   const tags =
     typeof form?.tags_csv === "string"
       ? form.tags_csv
@@ -51,11 +46,21 @@ function toPayload(form) {
   const lng = Number(form?.lng ?? 0);
   const lat = Number(form?.lat ?? 0);
 
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    throw new Error("Tọa độ không hợp lệ.");
+  }
+  if (lng < -180 || lng > 180) {
+    throw new Error("Kinh độ phải nằm trong khoảng -180 đến 180.");
+  }
+  if (lat < -90 || lat > 90) {
+    throw new Error("Vĩ độ phải nằm trong khoảng -90 đến 90.");
+  }
+
   return {
     name: form?.name?.trim(),
     country: form?.country?.trim() || "",
     description: form?.description || "",
-    images,
+    images: Array.isArray(form.images) ? form.images : [],
     tags,
     coordinates: { type: "Point", coordinates: [lng, lat] },
   };
@@ -221,7 +226,7 @@ export default function ManageLocation() {
     country: "",
     description: "",
     tags_csv: "",
-    images_csv: "",
+    images: [],
     lng: 0,
     lat: 0,
   });
@@ -261,7 +266,7 @@ export default function ManageLocation() {
       country: "",
       description: "",
       tags_csv: "",
-      images_csv: "",
+      images: [],
       lng: 0,
       lat: 0,
     });
@@ -276,7 +281,7 @@ export default function ManageLocation() {
       country: row?.country || "",
       description: row?.description || "",
       tags_csv: row?.tags_csv || "",
-      images_csv: row?.images_csv || "",
+      images: Array.isArray(row?.images) ? row.images : [],
       lng: row?.lng ?? 0,
       lat: row?.lat ?? 0,
     });
@@ -315,14 +320,6 @@ export default function ManageLocation() {
     }
   };
 
-  const appendImageUrlToForm = (url) => {
-    setForm((s) => {
-      const current = (s.images_csv || "").trim();
-      const next = current ? `${current}, ${url}` : url;
-      return { ...s, images_csv: next };
-    });
-  };
-
   const pickAndUploadOne = async (file) => {
     if (!file) return;
     if (!file.type?.startsWith("image/")) return alert("Chỉ nhận file ảnh.");
@@ -338,9 +335,12 @@ export default function ManageLocation() {
       // axiosClient unwrap => res = {url,...}
       const res = await locationApi.uploadLocationImage(fd);
       const url = res?.url;
+      const public_id = res?.public_id || "";
       if (!url) throw new Error("Server không trả về liên kết ảnh");
-
-      appendImageUrlToForm(url);
+      setForm((s) => ({
+        ...s,
+        images: [...(s.images || []), { url, public_id }],
+      }));
     } catch (e) {
       console.error(e);
       alert(e?.response?.data?.message || e?.message || "Upload ảnh thất bại");
@@ -363,13 +363,10 @@ export default function ManageLocation() {
   };
 
   const imagesPreview = useMemo(() => {
-    return typeof form.images_csv === "string"
-      ? form.images_csv
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
+    return Array.isArray(form.images)
+      ? form.images.map((img) => img?.url).filter(Boolean)
       : [];
-  }, [form.images_csv]);
+  }, [form.images]);
 
   return (
     <div style={styles.page}>
@@ -513,15 +510,6 @@ export default function ManageLocation() {
 
           <div>
             <div style={styles.label}>Ảnh</div>
-            <textarea
-              style={styles.textarea}
-              value={form.images_csv}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, images_csv: e.target.value }))
-              }
-              placeholder="Dán các liên kết ảnh, ngăn cách bằng dấu phẩy"
-            />
-
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDropImage}
@@ -565,7 +553,8 @@ export default function ManageLocation() {
                 </span>
               </div>
 
-              {(localPreview || imagesPreview.length > 0) && (
+              {(localPreview ||
+                (Array.isArray(form.images) && form.images.length > 0)) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {localPreview ? (
                     <img
@@ -583,21 +572,55 @@ export default function ManageLocation() {
                     />
                   ) : null}
 
-                  {imagesPreview.map((u) => (
-                    <img
-                      key={u}
-                      src={u}
-                      alt="location"
-                      style={{
-                        width: 120,
-                        height: 90,
-                        objectFit: "cover",
-                        borderRadius: 12,
-                        border: "1px solid #e5e7eb",
-                        background: "#fff",
-                      }}
-                      onError={(e) => (e.currentTarget.style.display = "none")}
-                    />
+                  {(form.images || []).map((img) => (
+                    <div
+                      key={img.public_id || img.url}
+                      style={{ position: "relative" }}
+                    >
+                      <img
+                        src={img.url}
+                        alt="location"
+                        style={{
+                          width: 120,
+                          height: 90,
+                          objectFit: "cover",
+                          borderRadius: 12,
+                          border: "1px solid #e5e7eb",
+                          background: "#fff",
+                          display: "block",
+                        }}
+                        onError={(e) =>
+                          (e.currentTarget.style.display = "none")
+                        }
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((s) => ({
+                            ...s,
+                            images: (s.images || []).filter(
+                              (x) =>
+                                (x.public_id || x.url) !==
+                                (img.public_id || img.url)
+                            ),
+                          }))
+                        }
+                        style={{
+                          position: "absolute",
+                          top: 6,
+                          right: 6,
+                          border: "1px solid #fecaca",
+                          background: "#fff",
+                          color: "#b91c1c",
+                          borderRadius: 10,
+                          padding: "4px 8px",
+                          cursor: "pointer",
+                          fontWeight: 900,
+                        }}
+                      >
+                        Xóa
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
