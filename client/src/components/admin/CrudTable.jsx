@@ -88,7 +88,7 @@ export default function CrudTable({
     });
 
     if (editing?.id) onUpdate(editing.id, obj);
-    else onAdd({ ...obj, [statusKey]: "ACTIVE" });
+    else onAdd({ ...obj, [statusKey]: obj[statusKey] || "ACTIVE" });
 
     setOpen(false);
   };
@@ -222,36 +222,52 @@ export default function CrudTable({
           onSubmit={submit}
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
         >
-          {schema.map((f) => (
-            <label
-              key={f.key}
-              style={{ display: "flex", flexDirection: "column", gap: 6 }}
-            >
-              <span style={{ fontWeight: 800, fontSize: 13 }}>{f.label}</span>
-              {f.type === "textarea" ? (
-                <textarea
-                  name={f.key}
-                  defaultValue={editing?.[f.key] ?? ""}
-                  rows={3}
-                  style={input}
-                />
-              ) : f.type === "boolean" ? (
-                <input
-                  type="checkbox"
-                  name={f.key}
-                  defaultChecked={Boolean(editing?.[f.key])}
-                  style={{ width: 18, height: 18 }}
-                />
-              ) : (
-                <input
-                  name={f.key}
-                  type={f.type === "number" ? "number" : "text"}
-                  defaultValue={editing?.[f.key] ?? ""}
-                  style={input}
-                />
-              )}
-            </label>
-          ))}
+          {schema
+            .filter((f) => !f.hideOnForm)
+            .map((f) => (
+              <label
+                key={f.key}
+                style={{ display: "flex", flexDirection: "column", gap: 6 }}
+              >
+                <span style={{ fontWeight: 800, fontSize: 13 }}>{f.label}</span>
+                {f.type === "textarea" ? (
+                  <textarea
+                    name={f.key}
+                    defaultValue={editing?.[f.key] ?? ""}
+                    rows={3}
+                    style={input}
+                  />
+                ) : f.type === "boolean" ? (
+                  <input
+                    type="checkbox"
+                    name={f.key}
+                    defaultChecked={Boolean(editing?.[f.key])}
+                    style={{ width: 18, height: 18 }}
+                  />
+                ) : f.type === "select" ? (
+                  <select
+                    name={f.key}
+                    defaultValue={
+                      editing?.[f.key] ?? f.options?.[0]?.value ?? ""
+                    }
+                    style={input}
+                  >
+                    {(f.options || []).map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    name={f.key}
+                    type={f.type === "number" ? "number" : "text"}
+                    defaultValue={editing?.[f.key] ?? ""}
+                    style={input}
+                  />
+                )}
+              </label>
+            ))}
 
           <div
             style={{

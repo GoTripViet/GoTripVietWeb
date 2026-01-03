@@ -1,31 +1,41 @@
 // middleware/auth.middleware.js
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
+const User = require("../models/user.model");
 
 const authMiddleware = (req, res, next) => {
   try {
-    // 1. Lấy token từ header (API Gateway sẽ chuyển tiếp header này)
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Lấy phần 'Bearer <token>'
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
 
     if (token == null) {
-      return res.status(401).json({ message: 'Unauthorized: No token provided' });
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: No token provided" });
     }
 
-    // 2. Xác thực token
-    // (Phải dùng đúng JWT_SECRET trong file .env)
-    jwt.verify(token, process.env.JWT_SECRET, (err, userPayload) => {
+    jwt.verify(token, process.env.JWT_SECRET, async (err, userPayload) => {
       if (err) {
-        return res.status(403).json({ message: 'Forbidden: Invalid token' });
+        return res.status(403).json({ message: "Forbidden: Invalid token" });
       }
 
-      // 3. Nếu token hợp lệ, gắn payload (chứa id, email, roles) vào request
+      // Check status từ DB
+      const u = await User.findById(userPayload.id).select("status");
+      if (!u)
+        return res
+          .status(401)
+          .json({ message: "Unauthorized: User not found" });
+
+      if (u.status && u.status !== "ACTIVE") {
+        return res
+          .status(403)
+          .json({ message: "Forbidden: Account is not active" });
+      }
+
       req.user = userPayload;
-      
-      // 4. Cho phép request đi tiếp
       next();
     });
   } catch (error) {
-    res.status(401).json({ message: 'Unauthorized' });
+    res.status(401).json({ message: "Unauthorized" });
   }
 };
 
