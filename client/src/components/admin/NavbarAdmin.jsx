@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { getAdminMe } from "../../data/adminStore";
+import authApi from "../../api/authApi";
 import logoOutlineBesideUrl from "../../assets/logos/logo_outline_beside.png";
 
 const linkStyle = ({ isActive }) => ({
@@ -13,16 +13,77 @@ const linkStyle = ({ isActive }) => ({
   fontWeight: isActive ? 700 : 600,
 });
 
+function getInitials(name = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "A";
+  const a = parts[0][0] || "";
+  const b = parts.length > 1 ? parts[parts.length - 1][0] || "" : "";
+  return (a + b).toUpperCase();
+}
+
 export default function NavbarAdmin() {
   const nav = useNavigate();
-  const me = useMemo(() => getAdminMe(), []);
+  const [me, setMe] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const profile = await authApi.getProfile(); // GET /users/me
+        if (alive) setMe(profile);
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          nav("/login");
+          return;
+        }
+        console.error("Load admin profile failed:", err);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [nav]);
 
   const onLogout = () => {
-    // nếu bạn có auth token thì clear ở đây
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     nav("/login");
   };
 
   const onOpenProfile = () => nav("/admin/profile");
+
+  const avatarNode = me?.avatar ? (
+    <img
+      src={me.avatar}
+      alt="admin"
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        objectFit: "cover",
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        display: "grid",
+        placeItems: "center",
+        background: "#e5e7eb",
+        fontWeight: 900,
+      }}
+      title={me?.fullName || "Admin"}
+    >
+      {getInitials(me?.fullName || me?.email || "Admin")}
+    </div>
+  );
 
   return (
     <aside
@@ -45,7 +106,6 @@ export default function NavbarAdmin() {
           gap: 10,
         }}
       >
-        {/* Logo */}
         <div
           style={{
             padding: "8px 6px",
@@ -181,19 +241,14 @@ export default function NavbarAdmin() {
           }}
           title="Xem hồ sơ admin"
         >
-          <img
-            src={me?.avatar}
-            alt="admin"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              objectFit: "cover",
-            }}
-          />
+          {avatarNode}
           <div style={{ lineHeight: 1.2 }}>
-            <div style={{ fontWeight: 800, fontSize: 14 }}>{me?.fullName}</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>{me?.email}</div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>
+              {me?.fullName || "Admin"}
+            </div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {me?.email || ""}
+            </div>
           </div>
         </button>
 
