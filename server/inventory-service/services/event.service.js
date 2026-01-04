@@ -58,6 +58,22 @@ async function ensureUniqueSlug(baseSlug, excludeId = null) {
   }
 }
 
+// Kiểm tra event active dựa trên ngày hiện tại
+function isInYearlyRange(now, sm, sd, em, ed) {
+  const m = now.getMonth() + 1; // 1-12
+  const d = now.getDate(); // 1-31
+
+  const cur = m * 100 + d;
+  const start = Number(sm) * 100 + Number(sd);
+  const end = Number(em) * 100 + Number(ed);
+
+  // range không băng qua năm (vd 3/10 -> 8/20)
+  if (start <= end) return cur >= start && cur <= end;
+
+  // range băng qua năm (vd 11/15 -> 2/10)
+  return cur >= start || cur <= end;
+}
+
 module.exports = {
   async getAll() {
     // Admin thấy hết (kể cả ngưng)
@@ -149,5 +165,34 @@ module.exports = {
     ev.is_active = !ev.is_active;
     await ev.save();
     return ev;
+  },
+
+  // Lấy danh sách sự kiện active cho public
+  async getActivePublic() {
+    const now = new Date();
+
+    // Lấy tất cả event đang bật
+    const rows = await Event.find({ is_active: true })
+      .sort({ priority: -1, createdAt: -1 })
+      .lean();
+
+    // Lọc theo "đang hiệu lực" dựa trên tháng/ngày
+    const activeNow = rows.filter((ev) => {
+      // Nếu event yearly thì check theo start/end month/day
+      if (ev.is_yearly) {
+        return isInYearlyRange(
+          now,
+          ev.start_month,
+          ev.start_day,
+          ev.end_month,
+          ev.end_day
+        );
+      }
+      // Nếu sau này bạn có event không-yearly mà chưa có date range cụ thể,
+      // tạm coi như active khi is_active=true
+      return true;
+    });
+
+    return activeNow;
   },
 };

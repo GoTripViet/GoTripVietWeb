@@ -12,6 +12,9 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+// PUBLIC: active events (không cần auth)
+router.get("/active", eventController.getActivePublic);
+
 // Admin list + CRUD
 router.get("/", authMiddleware, checkRole(["admin"]), eventController.getAll);
 router.get(

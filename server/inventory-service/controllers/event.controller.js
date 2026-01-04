@@ -74,6 +74,16 @@ module.exports = {
     }
   },
 
+  // Lấy danh sách sự kiện active cho public
+  async getActivePublic(req, res) {
+    try {
+      const rows = await eventService.getActivePublic();
+      res.json(rows);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
+    }
+  },
+
   // Upload ảnh giống ManageLocation: nhận multipart field "file" và trả {url, public_id}
   async uploadImage(req, res) {
     try {

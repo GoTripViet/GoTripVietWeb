@@ -15,6 +15,7 @@ import Event from "../components/Event.jsx";
 import SmallCard from "../components/home/SmallCard.jsx";
 import BigCard from "../components/home/BigCard.jsx";
 import BannerMobile from "../components/BannerMobile.jsx";
+import AiChatWidget from "../components/ai/AiChatWidget.jsx";
 
 // Dữ liệu giả
 import { events, cities } from "../data/HomeData.jsx";
@@ -271,6 +272,7 @@ export default function Home() {
           title="Tải ứng dụng ngay"
         />
       </div>
+      <AiChatWidget />
     </>
   );
 }
