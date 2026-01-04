@@ -15,6 +15,15 @@ const upload = multer({
 // PUBLIC: active events (không cần auth)
 router.get("/active", eventController.getActivePublic);
 
+// PUBLIC: events in a month (không cần auth)
+router.get("/public/month", eventController.getPublicEventsInMonth);
+
+// PUBLIC: event detail (by id or slug)
+router.get("/public/:idOrSlug", eventController.getPublicByIdOrSlug);
+
+// PUBLIC: tours applied to event
+router.get("/public/:idOrSlug/tours", eventController.getPublicTours);
+
 // Admin list + CRUD
 router.get("/", authMiddleware, checkRole(["admin"]), eventController.getAll);
 router.get(
