@@ -77,9 +77,9 @@ export const mapProductToCard = (product) => {
     // Map icon tương ứng
     transportIcon: getTransportIcon(product.tour_details?.transport_type),
 
-    departureDates: Array.isArray(product?.tour_details?.departure_times)
-      ? product.tour_details.departure_times
-      : [],
+    departureDates: product.departure_dates
+      ? product.departure_dates
+      : (Array.isArray(product?.tour_details?.departure_times) ? product.tour_details.departure_times : []),
     price: product?.base_price || 0,
     originalPrice: (product?.base_price || 0) * 1.2,
   };

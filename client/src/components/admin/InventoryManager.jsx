@@ -1,36 +1,39 @@
 import React, { useEffect, useState } from "react";
 import inventoryApi from "../../api/inventoryApi";
+import "../../styles/admin/InventoryManager.css" // [QUAN TRỌNG] Import file CSS
 
 export default function InventoryManager({ tourId, basePrice }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  // --- FORM STATE ---
-  const [date, setDate] = useState("");
-  const [slots, setSlots] = useState(20);
-  const [price, setPrice] = useState(basePrice || 0); // Backend yêu cầu Price
-  const [departTime, setDepartTime] = useState("08:00"); // Giờ đi
-  
+  const [showModal, setShowModal] = useState(false);
   const [adding, setAdding] = useState(false);
+
+  // --- STATE FORM ---
+  const [form, setForm] = useState({
+    date: "",
+    price: basePrice || 0,
+    slots: 20,
+    // Transport Schedule
+    departure_time: "08:00",
+    arrival_time: "",
+    return_time: "",
+    return_arrival_time: "",
+    airline: "",
+    depart_code: "",
+    return_code: "",
+    pickup_location: ""
+  });
 
   // --- LOAD DATA ---
   const loadInventory = async () => {
     setLoading(true);
     try {
       const res = await inventoryApi.getByProductId(tourId);
-      // Backend trả về mảng trực tiếp hoặc { data: [...] }
       const list = Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []);
-      
-      // Sắp xếp ngày tăng dần
-      list.sort((a, b) => {
-        const dateA = a.tour_details?.date ? new Date(a.tour_details.date) : new Date();
-        const dateB = b.tour_details?.date ? new Date(b.tour_details.date) : new Date();
-        return dateA - dateB;
-      });
-      
+      list.sort((a, b) => new Date(a.tour_details?.date) - new Date(b.tour_details?.date));
       setItems(list);
     } catch (e) {
-      console.error("Lỗi load inventory:", e);
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -39,54 +42,58 @@ export default function InventoryManager({ tourId, basePrice }) {
   useEffect(() => {
     if (tourId) {
       loadInventory();
-      // Reset giá về giá gốc của tour khi load
-      if(basePrice) setPrice(basePrice);
+      if (basePrice) setForm(prev => ({ ...prev, price: basePrice }));
     }
   }, [tourId, basePrice]);
 
-  // --- SUBMIT HANDLE ---
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  // --- SUBMIT ---
   const handleAdd = async () => {
-    // Validate cơ bản
-    if (!date) return alert("Vui lòng chọn ngày khởi hành!");
-    if (slots <= 0) return alert("Số chỗ phải > 0");
-    if (price < 0) return alert("Giá không hợp lệ");
+    if (!form.date) return alert("Vui lòng chọn ngày khởi hành!");
+    if (form.slots <= 0) return alert("Số chỗ phải > 0");
 
     setAdding(true);
     try {
-      // [QUAN TRỌNG] Cấu trúc Payload khớp với Inventory Service
       const payload = {
         product_id: tourId,
         product_type: 'tour',
-        price: Number(price), // Backend Model yêu cầu field này ở root
+        price: Number(form.price),
         is_active: true,
-        
-        // Chi tiết Tour nằm trong object tour_details
         tour_details: {
-          date: date, // YYYY-MM-DD
-          total_slots: Number(slots),
+          date: form.date,
+          total_slots: Number(form.slots),
           transport_schedule: {
-            departure_time: departTime // Giờ đi
+            departure_time: form.departure_time,
+            arrival_time: form.arrival_time,
+            return_time: form.return_time,
+            return_arrival_time: form.return_arrival_time,
+            airline: form.airline,
+            depart_code: form.depart_code,
+            return_code: form.return_code,
+            pickup_location: form.pickup_location
           }
         }
       };
 
       await inventoryApi.create(payload);
-      
       alert("Thêm lịch thành công!");
-      // Reset form nhưng giữ lại giá & giờ cho tiện nhập tiếp
-      setDate(""); 
-      loadInventory(); 
+      setShowModal(false);
+      loadInventory();
+      // Reset ngày, giữ lại giờ & giá
+      setForm(prev => ({ ...prev, date: "" })); 
     } catch (e) {
-      console.error(e);
-      const msg = e.response?.data?.message || e.message;
-      alert("Lỗi thêm lịch: " + msg);
+      alert("Lỗi: " + (e.response?.data?.message || e.message));
     } finally {
       setAdding(false);
     }
   };
 
   const handleRemove = async (id) => {
-    if (!window.confirm("Bạn chắc chắn muốn xóa ngày này?")) return;
+    if (!window.confirm("Xóa lịch này?")) return;
     try {
       await inventoryApi.remove(id);
       loadInventory();
@@ -95,113 +102,137 @@ export default function InventoryManager({ tourId, basePrice }) {
     }
   };
 
-  // --- STYLES ---
-  const s = {
-    card: { marginTop: 20, border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden", background: "#fff" },
-    head: { padding: "12px 20px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb", fontWeight: "800", color: "#111827", fontSize: 15 },
-    body: { padding: 20 },
-    
-    // Form Styles
-    formRow: { display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", paddingBottom: 20, borderBottom: "1px solid #f3f4f6", marginBottom: 20 },
-    field: { display: "flex", flexDirection: "column", gap: 6 },
-    label: { fontSize: 12, fontWeight: 700, color: "#4b5563" },
-    input: { padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 8, outline: "none", fontSize: 14, minWidth: 100 },
-    btn: { padding: "9px 16px", background: "#0b5fff", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "700", fontSize: 14, height: 38 },
-    
-    // List Styles
-    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 },
-    item: (full) => ({
-      border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, position: "relative",
-      background: full ? "#fef2f2" : "#fff",
-      boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
-    }),
-    date: { fontWeight: "800", fontSize: 14, color: "#111827", marginBottom: 4 },
-    info: { fontSize: 12, color: "#6b7280", marginBottom: 2 },
-    status: (full) => ({ fontSize: 12, fontWeight: "700", color: full ? "#dc2626" : "#059669", marginTop: 6 }),
-    price: { fontWeight: "700", color: "#0b5fff" },
-    delBtn: { position: "absolute", top: 8, right: 8, cursor: "pointer", color: "#9ca3af", fontSize: 16, lineHeight: 0.5 }
-  };
-
   return (
-    <div style={s.card}>
-      <div style={s.head}>📅 Quản lý Lịch Khởi Hành & Tồn Kho</div>
-      
-      <div style={s.body}>
-        {/* Form thêm mới */}
-        <div style={s.formRow}>
-          <div style={s.field}>
-            <label style={s.label}>Ngày khởi hành <span style={{color:'red'}}>*</span></label>
-            <input type="date" style={s.input} value={date} onChange={e => setDate(e.target.value)} />
-          </div>
-          
-          <div style={s.field}>
-            <label style={s.label}>Giá vé ngày này</label>
-            <input type="number" style={{...s.input, width: 120}} value={price} onChange={e => setPrice(e.target.value)} />
-          </div>
-
-          <div style={s.field}>
-            <label style={s.label}>Số chỗ mở bán</label>
-            <input type="number" style={{...s.input, width: 80}} value={slots} onChange={e => setSlots(e.target.value)} />
-          </div>
-
-          <div style={s.field}>
-            <label style={s.label}>Giờ đi</label>
-            <input type="time" style={s.input} value={departTime} onChange={e => setDepartTime(e.target.value)} />
-          </div>
-
-          <button style={s.btn} onClick={handleAdd} disabled={adding}>
-            {adding ? "Đang xử lý..." : "+ Thêm Lịch"}
-          </button>
-        </div>
-
-        {/* Danh sách Inventory */}
-        {loading && <div style={{color:'#6b7280', fontSize: 13}}>Đang tải dữ liệu...</div>}
-        {!loading && items.length === 0 && <div style={{color:'#9ca3af', fontSize: 13, fontStyle:'italic'}}>Chưa có lịch nào được tạo.</div>}
-
-        <div style={s.grid}>
-          {items.map(item => {
-            // Mapping dữ liệu từ Backend
-            const details = item.tour_details || {};
-            const total = details.total_slots || 0;
-            const booked = details.booked_slots || 0;
-            const avail = total - booked;
-            const isFull = avail <= 0;
-            const itemPrice = item.price || 0;
-            const time = details.transport_schedule?.departure_time || "—";
-
-            return (
-              <div key={item._id} style={s.item(isFull)}>
-                <div style={s.date}>
-                  {details.date ? new Date(details.date).toLocaleDateString('vi-VN') : "Lỗi ngày"}
-                </div>
-                
-                <div style={s.info}>Giờ đi: <b>{time}</b></div>
-                <div style={s.info}>Giá: <span style={s.price}>{itemPrice.toLocaleString()}₫</span></div>
-                
-                <div style={{marginTop: 6, borderTop:'1px dashed #e5e7eb', paddingTop: 6}}>
-                   <div style={s.info}>Tổng chỗ: <b>{total}</b></div>
-                   <div style={s.info}>Đã đặt: <b>{booked}</b></div>
-                </div>
-
-                <div style={s.status(isFull)}>
-                  {isFull ? "HẾT CHỖ" : `✅ Còn ${avail} chỗ`}
-                </div>
-
-                {/* Chỉ cho xóa nếu chưa có ai đặt */}
-                {booked === 0 && (
-                  <div 
-                    style={s.delBtn} 
-                    onClick={() => handleRemove(item._id)}
-                    title="Xóa lịch này"
-                  >
-                    &times;
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+    <div className="im-container">
+      <div className="im-header">
+        <span className="im-title">📅 Lịch Khởi Hành & Tồn Kho</span>
+        <button className="im-add-btn" onClick={() => setShowModal(true)}>+ Thêm Lịch Mới</button>
       </div>
+
+      <div className="im-grid">
+        {loading && <div className="im-loading">Đang tải...</div>}
+        {!loading && items.length === 0 && <div className="im-empty">Chưa có lịch nào được tạo.</div>}
+        
+        {items.map(item => {
+          const td = item.tour_details || {};
+          const ts = td.transport_schedule || {};
+          const avail = (td.total_slots || 0) - (td.booked_slots || 0);
+          const isFull = avail <= 0;
+
+          return (
+            <div key={item._id} className={`im-item ${isFull ? 'full' : ''}`}>
+              <div className="im-date">
+                {new Date(td.date).toLocaleDateString('vi-VN')}
+              </div>
+              
+              <div className="im-row">
+                <span className="im-label">Giá vé:</span> 
+                <span className="im-val">{item.price?.toLocaleString()}₫</span>
+              </div>
+              <div className="im-row">
+                <span className="im-label">Tổng chỗ:</span> 
+                <span className="im-val">{td.total_slots}</span>
+              </div>
+              <div className="im-row">
+                <span className="im-label">Đã đặt:</span> 
+                <span className="im-val">{td.booked_slots}</span>
+              </div>
+              
+              {/* Thông tin vận chuyển */}
+              <div className="im-transport-info">
+                <div>🛫 Đi: {ts.departure_time} {ts.depart_code ? `(${ts.depart_code})` : ''}</div>
+                {(ts.return_time || ts.return_code) && (
+                  <div>🛬 Về: {ts.return_time || '---'} {ts.return_code ? `(${ts.return_code})` : ''}</div>
+                )}
+                {ts.airline && <div>✈️ {ts.airline}</div>}
+                {ts.pickup_location && <div>📍 Đón: {ts.pickup_location}</div>}
+              </div>
+
+              <div className={`im-status ${isFull ? 'full' : ''}`}>
+                {isFull ? "HẾT CHỖ" : `✅ Còn ${avail} chỗ`}
+              </div>
+
+              {td.booked_slots === 0 && (
+                <div className="im-del-btn" onClick={() => handleRemove(item._id)} title="Xóa lịch">
+                  ✕
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* --- MODAL --- */}
+      {showModal && (
+        <div className="im-overlay">
+          <div className="im-modal">
+            <div className="im-modal-title">Thêm Lịch Khởi Hành Mới</div>
+            
+            <div className="im-section-header">1. Thông tin cơ bản</div>
+            <div className="im-grid-2">
+              <div className="im-field">
+                <label>Ngày khởi hành <span style={{color:'red'}}>*</span></label>
+                <input type="date" className="im-input" name="date" value={form.date} onChange={handleChange} />
+              </div>
+              <div className="im-field">
+                <label>Giá vé (VND) <span style={{color:'red'}}>*</span></label>
+                <input type="number" className="im-input" name="price" value={form.price} onChange={handleChange} />
+              </div>
+              <div className="im-field">
+                <label>Số chỗ mở bán</label>
+                <input type="number" className="im-input" name="slots" value={form.slots} onChange={handleChange} />
+              </div>
+              <div className="im-field">
+                 <label>Điểm đón (Xe/Tàu)</label>
+                 <input className="im-input" name="pickup_location" value={form.pickup_location} onChange={handleChange} placeholder="VD: Nhà hát lớn" />
+              </div>
+            </div>
+
+            <div className="im-section-header">2. Chi tiết chuyến đi</div>
+            <div className="im-grid-2">
+              <div className="im-field">
+                <label>Giờ đi (Departure)</label>
+                <input type="time" className="im-input" name="departure_time" value={form.departure_time} onChange={handleChange} />
+              </div>
+              <div className="im-field">
+                <label>Giờ đến (Arrival)</label>
+                <input type="time" className="im-input" name="arrival_time" value={form.arrival_time} onChange={handleChange} />
+              </div>
+              <div className="im-field">
+                <label>Hãng bay (Nếu có)</label>
+                <input className="im-input" name="airline" value={form.airline} onChange={handleChange} placeholder="VD: Vietnam Airlines" />
+              </div>
+              <div className="im-field">
+                <label>Mã chuyến bay đi</label>
+                <input className="im-input" name="depart_code" value={form.depart_code} onChange={handleChange} placeholder="VD: VN123" />
+              </div>
+            </div>
+
+            <div className="im-section-header">3. Chi tiết chuyến về (Nếu có)</div>
+            <div className="im-grid-2">
+               <div className="im-field">
+                <label>Giờ về (Return)</label>
+                <input type="time" className="im-input" name="return_time" value={form.return_time} onChange={handleChange} />
+              </div>
+              <div className="im-field">
+                <label>Giờ về đến nơi</label>
+                <input type="time" className="im-input" name="return_arrival_time" value={form.return_arrival_time} onChange={handleChange} />
+              </div>
+              <div className="im-field">
+                <label>Mã chuyến bay về</label>
+                <input className="im-input" name="return_code" value={form.return_code} onChange={handleChange} placeholder="VD: VN124" />
+              </div>
+            </div>
+
+            <div className="im-footer">
+              <button className="im-btn im-btn-secondary" onClick={() => setShowModal(false)}>Hủy bỏ</button>
+              <button className="im-btn im-btn-primary" onClick={handleAdd} disabled={adding}>
+                {adding ? "Đang tạo..." : "Xác nhận thêm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

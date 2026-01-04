@@ -4,7 +4,7 @@ import Container from "react-bootstrap/Container";
 import "../styles/home.css";
 import { cld } from "../utils/cld.js";
 import catalogApi from "../api/catalogApi";
-import inventoryApi from "../api/inventoryApi";
+import inventoryApi from "../api/inventoryApi"; // [QUAN TRỌNG] Import API Inventory
 
 // Import hàm xử lý dữ liệu mới
 import { mapProductToCard } from "../utils/formatData";
@@ -18,7 +18,7 @@ import BigCard from "../components/home/BigCard.jsx";
 import BannerMobile from "../components/BannerMobile.jsx";
 import AiChatWidget from "../components/ai/AiChatWidget.jsx";
 
-// Dữ liệu giả
+// Dữ liệu giả (fallback)
 import { events, cities } from "../data/HomeData.jsx";
 
 export default function Home() {
@@ -31,10 +31,10 @@ export default function Home() {
   // States
   const [realLocations, setRealLocations] = useState([]);
   const [realTours, setRealTours] = useState([]);
-  // [KHÔI PHỤC] State lưu danh mục phân tầng
   const [categorySections, setCategorySections] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Sự kiện nổi bật trên cùng
+  
+  // Sự kiện
   const [realEvents, setRealEvents] = useState([]);
   const [heroEvent, setHeroEvent] = useState(null);
 
@@ -61,6 +61,7 @@ export default function Home() {
         const now = new Date();
         const curYear = now.getFullYear();
         const curMonth = now.getMonth() + 1;
+
         // a. Gọi API cơ bản
         const [locationsRes, toursRes, rootCatsRes, eventsRes] =
           await Promise.all([
@@ -74,11 +75,12 @@ export default function Home() {
         let locList = Array.isArray(locationsRes?.data || locationsRes)
           ? locationsRes?.data || locationsRes
           : [];
+          
         setRealLocations(
           locList.map((loc) => {
-            const img = loc?.images?.[0]?.url; // cloudinary url
+            const img = loc?.images?.[0]?.url; 
             return {
-              id: loc._id,
+              id: loc._id || loc.id,
               title: loc.name,
               subTitle: "Điểm đến hot",
               imageUrl:
@@ -89,27 +91,64 @@ export default function Home() {
           })
         );
 
-        // c. Xử lý TOUR (Dùng mapProductToCard)
-        const tourListRaw = Array.isArray(
+        // ===============================================
+        // c. [XỬ LÝ QUAN TRỌNG] TOUR + INVENTORY
+        // ===============================================
+        let tourListRaw = Array.isArray(
           toursRes?.products || toursRes?.data?.products
         )
           ? toursRes?.products || toursRes?.data?.products
           : [];
-        setRealTours(tourListRaw.map((p) => mapProductToCard(p)));
 
-        // d. [KHÔI PHỤC] Xử lý CATEGORY SECTIONS (Đệ quy lấy con)
+        // Gọi Inventory cho từng tour để lấy danh sách ngày khởi hành
+        const toursWithInventory = await Promise.all(
+          tourListRaw.map(async (product) => {
+            try {
+              const productId = product._id || product.id;
+              
+              // Gọi API lấy lịch
+              // Lưu ý: Dùng getByProductId hoặc getInventoryByProductId tùy file api của bạn
+              const invRes = await inventoryApi.getByProductId(productId);
+              
+              const invList = Array.isArray(invRes.data) 
+                ? invRes.data 
+                : (Array.isArray(invRes) ? invRes : []);
+
+              // Lọc ngày hợp lệ: Active + Tương lai + Còn chỗ
+              const futureDates = invList
+                .filter(item => {
+                  const d = new Date(item.tour_details?.date);
+                  const avail = (item.tour_details?.total_slots || 0) - (item.tour_details?.booked_slots || 0);
+                  return item.is_active && d >= new Date() && avail > 0;
+                })
+                .map(item => item.tour_details.date)
+                .sort((a, b) => new Date(a) - new Date(b));
+
+              // Gắn vào field mới
+              return { ...product, departure_dates: futureDates };
+            } catch (err) {
+              // Nếu lỗi lấy lịch, trả về mảng rỗng (hiện Liên hệ)
+              return { ...product, departure_dates: [] };
+            }
+          })
+        );
+
+        setRealTours(toursWithInventory.map((p) => mapProductToCard(p)));
+        // ===============================================
+
+
+        // d. Xử lý CATEGORY SECTIONS
         const rootCats = Array.isArray(rootCatsRes.data)
           ? rootCatsRes.data
           : Array.isArray(rootCatsRes)
           ? rootCatsRes
           : [];
 
-        // Load danh mục con cho từng danh mục cha
         const sectionsData = await Promise.all(
           rootCats.map(async (parentCat) => {
             try {
               const childrenRes = await catalogApi.getAllCategories({
-                parent: parentCat._id,
+                parent: parentCat._id || parentCat.id,
               });
               const childrenList = Array.isArray(childrenRes.data)
                 ? childrenRes.data
@@ -117,22 +156,20 @@ export default function Home() {
                 ? childrenRes
                 : [];
 
-              if (childrenList.length === 0) return null; // Bỏ qua nếu không có con
+              if (childrenList.length === 0) return null;
 
               const formattedChildren = childrenList.map((child) => {
-                const raw = child?.image?.url ?? child?.image; // hỗ trợ cả object & string (phòng khi backend trả khác)
-
-                const base =
-                  import.meta.env.VITE_API_URL || "http://localhost:3000";
+                const raw = child?.image?.url ?? child?.image;
+                const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
                 const img =
                   typeof raw === "string" && raw
                     ? raw.startsWith("http")
                       ? raw
-                      : `${base}${raw.startsWith("/") ? "" : "/"}${raw}` // nếu backend trả "/uploads/..."
+                      : `${base}${raw.startsWith("/") ? "" : "/"}${raw}`
                     : "";
 
                 return {
-                  id: child._id,
+                  id: child._id || child.id,
                   title: child.name,
                   subTitle: "Khám phá ngay",
                   imageUrl:
@@ -144,7 +181,7 @@ export default function Home() {
               });
 
               return {
-                parentId: parentCat._id,
+                parentId: parentCat._id || parentCat.id,
                 parentTitle: parentCat.name,
                 children: formattedChildren,
               };
@@ -154,20 +191,18 @@ export default function Home() {
           })
         );
 
-        // e. Xử lý EVENTS từ inventory-service
+        // e. Xử lý EVENTS
         const eventsList = Array.isArray(eventsRes?.data) ? eventsRes.data : [];
-
         const formattedEvents = eventsList.map((ev) => ({
-          backgroundUrl:
-            ev?.image?.url || "https://placehold.co/1200x450?text=Event",
+          backgroundUrl: ev?.image?.url || "https://placehold.co/1200x450?text=Event",
           alt: ev?.name || "Event",
           href: `/event/${ev?.slug || ev?._id}`,
         }));
 
         setRealEvents(formattedEvents);
         setHeroEvent(formattedEvents[0] || null);
-
         setCategorySections(sectionsData.filter((section) => section));
+
       } catch (error) {
         console.error("Lỗi tải dữ liệu Home:", error);
       } finally {
@@ -216,7 +251,7 @@ export default function Home() {
             })
           }
           alt={heroEvent?.alt || "Event"}
-          href={heroEvent?.href || "/events"} // fallback nếu chưa có event
+          href={heroEvent?.href || "/events"}
         />
       </Container>
 
@@ -249,8 +284,7 @@ export default function Home() {
         />
       </Container>
 
-      {/* --- [KHÔI PHỤC] PHẦN 4: DANH MỤC TOUR (Category Sections) --- */}
-      {/* Hiển thị các slider theo danh mục cha (VD: Miền Bắc, Miền Trung...) */}
+      {/* --- PHẦN 4: DANH MỤC TOUR --- */}
       {categorySections.map((section) => (
         <Container className="my-5" key={section.parentId}>
           <Slider
