@@ -178,6 +178,7 @@ class ProductService {
     const skip = (page - 1) * limit;
 
     const products = await Product.find(filter)
+      .select("+images")
       .populate("location_ids", "name slug")
       .skip(skip)
       .limit(parseInt(limit))

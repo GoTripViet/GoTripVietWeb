@@ -67,14 +67,18 @@ export default function Home() {
           ? locationsRes?.data || locationsRes
           : [];
         setRealLocations(
-          locList.map((loc) => ({
-            id: loc._id,
-            title: loc.name,
-            subTitle: "Điểm đến hot",
-            imageUrl: loc.image?.startsWith("http")
-              ? loc.image
-              : "https://placehold.co/200x200?text=Location",
-          }))
+          locList.map((loc) => {
+            const img = loc?.images?.[0]?.url; // cloudinary url
+            return {
+              id: loc._id,
+              title: loc.name,
+              subTitle: "Điểm đến hot",
+              imageUrl:
+                typeof img === "string" && img.startsWith("http")
+                  ? img
+                  : "https://placehold.co/200x200?text=Location",
+            };
+          })
         );
 
         // c. Xử lý TOUR (Dùng mapProductToCard)
@@ -107,16 +111,29 @@ export default function Home() {
 
               if (childrenList.length === 0) return null; // Bỏ qua nếu không có con
 
-              const formattedChildren = childrenList.map((child) => ({
-                id: child._id,
-                title: child.name,
-                subTitle: "Khám phá ngay",
-                imageUrl: child.image?.startsWith("http")
-                  ? child.image
-                  : `https://placehold.co/300x300/e0f7fa/006064?text=${encodeURIComponent(
+              const formattedChildren = childrenList.map((child) => {
+                const raw = child?.image?.url ?? child?.image; // hỗ trợ cả object & string (phòng khi backend trả khác)
+
+                const base =
+                  import.meta.env.VITE_API_URL || "http://localhost:3000";
+                const img =
+                  typeof raw === "string" && raw
+                    ? raw.startsWith("http")
+                      ? raw
+                      : `${base}${raw.startsWith("/") ? "" : "/"}${raw}` // nếu backend trả "/uploads/..."
+                    : "";
+
+                return {
+                  id: child._id,
+                  title: child.name,
+                  subTitle: "Khám phá ngay",
+                  imageUrl:
+                    img ||
+                    `https://placehold.co/300x300/e0f7fa/006064?text=${encodeURIComponent(
                       child.name
                     )}`,
-              }));
+                };
+              });
 
               return {
                 parentId: parentCat._id,
@@ -130,7 +147,7 @@ export default function Home() {
         );
         setCategorySections(sectionsData.filter((section) => section));
       } catch (error) {
-        console.error("❌ Lỗi tải dữ liệu Home:", error);
+        console.error("Lỗi tải dữ liệu Home:", error);
       } finally {
         setLoading(false);
       }
