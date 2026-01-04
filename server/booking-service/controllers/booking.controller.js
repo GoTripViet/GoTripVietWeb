@@ -8,7 +8,7 @@ class BookingController {
     try {
       const userId = req.user.id;
 
-      // [SỬA 1] Lấy đầy đủ dữ liệu từ Frontend gửi lên
+      // Lấy đầy đủ dữ liệu từ Frontend gửi lên
       const { items, promotionCode, passengers, contactInfo } = req.body;
 
       const userAuthToken = req.headers['authorization'];
@@ -17,7 +17,7 @@ class BookingController {
         return res.status(400).json({ message: '"items" array is required' });
       }
 
-      // [SỬA 2] Truyền tất cả vào Service dưới dạng MỘT OBJECT (để khớp với booking.service.js)
+      // Truyền tất cả vào Service dưới dạng MỘT OBJECT
       const result = await bookingService.createBooking({
         userId,
         items,
@@ -30,7 +30,7 @@ class BookingController {
       res.status(201).json(result);
 
     } catch (error) {
-      console.error("Create Booking Error:", error.message); // Log để debug dễ hơn
+      console.error("Create Booking Error:", error.message);
       res.status(400).json({ message: error.message });
     }
   }
@@ -65,21 +65,28 @@ class BookingController {
     }
   }
 
-  // POST /bookings/webhook/payment
-  async webhookHandlePayment(req, res) {
+  // [HÀM MỚI] POST /bookings/internal/confirm-payment
+  // Thay thế cho webhookHandlePayment cũ
+  async confirmPaymentInternal(req, res) {
     try {
+      // Nhận dữ liệu từ Payment Service gửi sang
       const { bookingId, paymentInfo } = req.body;
 
-      if (!bookingId || !paymentInfo) {
-        return res.status(400).json({ message: 'bookingId and paymentInfo are required' });
+      if (!bookingId) {
+        return res.status(400).json({ message: 'Missing bookingId' });
       }
 
-      await bookingService.confirmBooking(bookingId, paymentInfo);
-      res.status(200).json({ received: true });
+      console.log(`⚡ Booking Service nhận lệnh confirm cho đơn: ${bookingId}`);
+
+      // Gọi Service để update DB
+      const updatedBooking = await bookingService.confirmBooking(bookingId, paymentInfo);
+      
+      // Trả về kết quả ngay lập tức (để Payment Service lấy data trả về cho FE)
+      res.status(200).json(updatedBooking);
 
     } catch (error) {
-      console.error('--- WEBHOOK FAILED ---', error.message);
-      res.status(500).json({ received: false, message: error.message });
+      console.error('Lỗi Confirm Payment:', error.message);
+      res.status(500).json({ message: error.message });
     }
   }
 

@@ -13,6 +13,7 @@ import UserLayout from "./layouts/UserLayout.jsx";
 import AdminLayout from "./layouts/AdminLayout.jsx";
 import SearchPage from "./pages/SearchPage.jsx";
 // Pages
+import OrderDetail from "./pages/OrderDetail.jsx";
 import ProductDetail from "./pages/ProductDetail.jsx";
 import Home from "./pages/Home.jsx";
 import ListingHotel from "./pages/ListingHotel.jsx";
@@ -263,6 +264,8 @@ const OtpVerifyPage = () => {
   );
 };
 
+
+
 const ScrollToTop = () => {
   const { pathname, search } = useLocation();
 
@@ -294,6 +297,12 @@ const RequireAdmin = ({ children }) => {
 
   return children;
 };
+
+const OrderDetailPage = ({ activeCategoryIndex, onCategoryChange }) => (
+  <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+    <OrderDetail />
+  </UserLayout>
+);
 
 /**
  * Component Router chính – dùng trong main.jsx
@@ -430,6 +439,11 @@ const AppRouter = () => {
               onCategoryChange={setActiveCategoryIndex}
             />
           }
+        />
+
+        <Route
+          path="/order-detail/:id" // [THÊM] Route mới có tham số id
+          element={<OrderDetailPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
         />
 
         {/* Login – KHÔNG dùng UserLayout */}

@@ -129,18 +129,50 @@ class PaymentController {
 
   async vnpayReturn(req, res) {
     try {
-        // req.query chứa toàn bộ tham số VNPAY trả về trên URL
-        const result = await paymentService.verifyVNPayReturn(req.query);
-        
-        if (result.status === 'success') {
-            res.status(200).json({ message: 'Thanh toán thành công', data: result });
-        } else {
-            res.status(400).json({ message: 'Thanh toán thất bại', data: result });
-        }
+      // req.query chứa toàn bộ tham số VNPAY trả về trên URL
+      const result = await paymentService.verifyVNPayReturn(req.query);
+
+      // [SỬA ĐỔI] Trả về trực tiếp result, KHÔNG bọc trong object khác
+      if (result.status === 'success') {
+        // Frontend sẽ nhận được: { status: 'success', data: { ...booking } }
+        res.status(200).json(result);
+      } else {
+        res.status(400).json(result);
+      }
     } catch (error) {
-        res.status(500).json({ message: 'Lỗi server', error: error.message });
+      res.status(500).json({ status: 'error', message: 'Lỗi server', error: error.message });
     }
-}
+  }
+
+  // POST /payment/refund
+  async refundPayment(req, res) {
+    try {
+      const { bookingId } = req.body;
+      if (!bookingId) {
+        return res.status(400).json({ message: 'bookingId is required' });
+      }
+
+      const payment = await paymentService.refundPayment(bookingId);
+      res.status(200).json(payment);
+    } catch (error) {
+      // [THÊM DÒNG NÀY ĐỂ SOI LỖI]
+      console.error("❌ CHI TIẾT LỖI REFUND:", error);
+
+      res.status(500).json({ message: 'Refund failed', error: error.message });
+    }
+  }
+
+  // --- API ADMIN ---
+
+  // GET /payment/admin/all
+  async adminGetAllPayments(req, res) {
+    try {
+      const result = await paymentService.getAllPayments(req.query);
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
 }
 
 module.exports = new PaymentController();

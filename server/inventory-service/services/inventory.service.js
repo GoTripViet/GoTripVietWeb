@@ -84,17 +84,17 @@ class InventoryService {
     if (updateData.tour_details) delete updateData.tour_details.booked_slots;
     if (updateData.hotel_details) delete updateData.hotel_details.booked_allotment;
     if (updateData.flight_details) delete updateData.flight_details.booked_seats;
-    
+
     // (Bỏ qua `product_id` và `product_type` vì không được sửa)
     delete updateData.product_id;
     delete updateData.product_type;
 
     const item = await InventoryItem.findByIdAndUpdate(
-      inventoryId, 
-      { $set: updateData }, 
+      inventoryId,
+      { $set: updateData },
       { new: true }
     );
-    
+
     if (!item) {
       throw new Error('Inventory item not found');
     }
@@ -112,7 +112,7 @@ class InventoryService {
       { is_active: false },
       { new: true }
     );
-    
+
     if (!item) {
       throw new Error('Inventory item not found');
     }
@@ -168,15 +168,13 @@ class InventoryService {
    * @param {Array} items - Mảng [{ inventoryId, quantity }]
    */
   async reserveStock(items) {
-    const session = await mongoose.startSession();
-    session.startTransaction(); // Bắt đầu giao dịch
-
+    // Không dùng session nữa
     try {
       for (const item of items) {
         const { inventoryId, quantity } = item;
-        
-        // 1. Tìm mục tồn kho (phải dùng .session())
-        const invItem = await InventoryItem.findById(inventoryId).session(session);
+
+        // 1. Tìm mục tồn kho
+        const invItem = await InventoryItem.findById(inventoryId);
         if (!invItem) {
           throw new Error(`Inventory item ${inventoryId} not found`);
         }
@@ -184,7 +182,7 @@ class InventoryService {
         let updateField;
         let availableStock;
 
-        // 2. Xác định trường cần cập nhật và kiểm tra tồn kho lần cuối
+        // 2. Kiểm tra tồn kho lần cuối
         if (invItem.product_type === 'tour') {
           updateField = 'tour_details.booked_slots';
           availableStock = invItem.tour_details.total_slots - invItem.tour_details.booked_slots;
@@ -200,46 +198,37 @@ class InventoryService {
           throw new Error(`Not enough stock for ${invItem._id} during reservation`);
         }
 
-        // 3. Cập nhật (dùng $inc)
+        // 3. Cập nhật (dùng $inc để đảm bảo tính nguyên tử)
         await InventoryItem.updateOne(
           { _id: inventoryId },
-          { $inc: { [updateField]: quantity } }, // Dùng $inc để tăng
-          { session }
+          { $inc: { [updateField]: quantity } }
         );
       }
 
-      // 4. Nếu tất cả thành công, commit giao dịch
-      await session.commitTransaction();
       return { success: true };
 
     } catch (error) {
-      // 5. Nếu có 1 lỗi, hủy bỏ tất cả (rollback)
-      await session.abortTransaction();
-      throw error; // Ném lỗi ra
-    } finally {
-      session.endSession(); // Luôn đóng session
+      // Vì không có transaction, nếu lỗi ở giữa chừng thì dữ liệu có thể bị lệch (chấp nhận vì là môi trường học tập)
+      console.error("Reserve Stock Error:", error);
+      throw error;
     }
   }
 
   /**
-   * [Nội bộ] Nhả chỗ (Giảm số lượng đã đặt) - Dùng TRANSACTION
-   * @param {Array} items - Mảng [{ inventoryId, quantity }]
+   * [SỬA ĐỔI] Nhả chỗ - BỎ TRANSACTION
    */
   async releaseStock(items) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
       for (const item of items) {
         const { inventoryId, quantity } = item;
-        
-        const invItem = await InventoryItem.findById(inventoryId).session(session);
+
+        const invItem = await InventoryItem.findById(inventoryId);
         if (!invItem) {
-          throw new Error(`Inventory item ${inventoryId} not found`);
+          console.warn(`Inventory item ${inventoryId} not found during release`);
+          continue;
         }
 
         let updateField;
-
         if (invItem.product_type === 'tour') {
           updateField = 'tour_details.booked_slots';
         } else if (invItem.product_type === 'hotel') {
@@ -248,25 +237,19 @@ class InventoryService {
           updateField = 'flight_details.booked_seats';
         }
 
-        // Cập nhật (dùng $inc với số âm để giảm)
         await InventoryItem.updateOne(
           { _id: inventoryId },
-          { $inc: { [updateField]: -quantity } }, // Giảm số lượng
-          { session }
+          { $inc: { [updateField]: -quantity } }
         );
       }
 
-      await session.commitTransaction();
       return { success: true };
 
     } catch (error) {
-      await session.abortTransaction();
+      console.error("Release Stock Error:", error);
       throw error;
-    } finally {
-      session.endSession();
     }
   }
-
 
 }
 

@@ -9,8 +9,8 @@ import Button from "react-bootstrap/Button";
 import Spinner from "react-bootstrap/Spinner";
 import Accordion from "react-bootstrap/Accordion";
 import Badge from "react-bootstrap/Badge";
-import Form from "react-bootstrap/Form"; 
-import "../styles/booking-process.css"; 
+import Form from "react-bootstrap/Form";
+import "../styles/booking-process.css";
 import { formatCurrency } from "../utils/formatData";
 import bookingApi from "../api/bookingApi";
 import paymentApi from "../api/paymentApi"; // [QUAN TRỌNG] Import API mới
@@ -37,23 +37,23 @@ const BookingStepper = ({ step }) => (
 export default function PaymentPage() {
     const location = useLocation();
     const navigate = useNavigate();
-    
+
     // Lấy bookingId từ state truyền qua
-    const initialBookingId = location.state?.bookingId; 
-    
+    const initialBookingId = location.state?.bookingId;
+
     const [booking, setBooking] = useState(null);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
-    
+
     // State lưu phương thức thanh toán (Mặc định chọn VNPAY)
     const [paymentMethod, setPaymentMethod] = useState("vnpay");
 
     // 1. Tải thông tin Booking từ Backend khi vào trang
     useEffect(() => {
         if (!initialBookingId) {
-             alert("Không tìm thấy mã đơn hàng!");
-             navigate("/"); // Quay về trang chủ nếu không có ID
-             return; 
+            alert("Không tìm thấy mã đơn hàng!");
+            navigate("/"); // Quay về trang chủ nếu không có ID
+            return;
         }
 
         const fetchBooking = async () => {
@@ -73,60 +73,51 @@ export default function PaymentPage() {
     }, [initialBookingId, navigate]);
 
     // 2. Xử lý khi bấm nút Thanh Toán (LOGIC VNPAY MỚI)
+    // Trong file PaymentPage.jsx (hoặc nơi bạn xử lý nút Thanh toán)
+
     const handlePayment = async () => {
-        if (!booking) return;
-        setProcessing(true);
-
         try {
-            // --- TRƯỜNG HỢP 1: VNPAY / ATM ---
-            if (paymentMethod === 'vnpay' || paymentMethod === 'atm') {
-                
-                // Logic chọn loại thanh toán trên trang VNPAY:
-                // bankCode: '' (Rỗng) -> Ra trang chọn chung (Quét QR + Thẻ)
-                // bankCode: 'VNBANK' -> Ra thẳng trang nhập thẻ ATM nội địa
-                const bankCodeParam = paymentMethod === 'atm' ? 'VNBANK' : ''; 
+            setLoading(true);
 
-                // Gọi API Backend để tạo link thanh toán
-                const res = await paymentApi.createVNPayUrl({
+            // Kiểm tra xem user chọn cổng nào
+            if (paymentMethod === 'vnpay') {
+                // 1. Gọi API tạo link
+                const response = await paymentApi.createVNPayUrl({
+                    amount: booking.totalPrice, // Hoặc số tiền cần thanh toán
                     bookingId: booking._id,
-                    amount: booking.pricing.final_price,
-                    bankCode: bankCodeParam,
+                    bankCode: '', // Để rỗng nếu muốn chọn bank tại VNPAY
                     language: 'vn'
                 });
-                
-                // Lấy URL từ kết quả trả về
-                const paymentUrl = res.paymentUrl || (res.data && res.data.paymentUrl);
-                
-                if (paymentUrl) {
-                    // Chuyển hướng người dùng sang trang thanh toán VNPAY
-                    window.location.href = paymentUrl;
-                } else {
-                    alert("Không nhận được đường dẫn thanh toán. Vui lòng thử lại.");
-                    setProcessing(false);
-                }
-            } 
-            // --- TRƯỜNG HỢP 2: CHUYỂN KHOẢN (THỦ CÔNG) ---
-            else if (paymentMethod === 'transfer') {
-                // Ở đây bạn có thể hiển thị modal thông tin chuyển khoản hoặc chuyển sang trang hướng dẫn
-                alert("Tính năng thanh toán chuyển khoản đang được cập nhật. Vui lòng chọn VNPAY để thanh toán ngay.");
-                setProcessing(false);
-            }
 
+                // [QUAN TRỌNG] Backend trả về { paymentUrl: '...' }
+                // Frontend cần tự chuyển hướng trình duyệt sang link đó
+                if (response.paymentUrl) {
+                    window.location.href = response.paymentUrl;
+                } else if (response.data && response.data.paymentUrl) {
+                    // Dự phòng trường hợp axios trả về cấu trúc khác
+                    window.location.href = response.data.paymentUrl;
+                } else {
+                    alert("Lỗi: Không lấy được link thanh toán");
+                }
+
+            } else if (paymentMethod === 'stripe') {
+                // [XÓA HOẶC COMMENT] Vì Backend đã bỏ Stripe
+                alert("Phương thức này tạm thời bảo trì.");
+            }
         } catch (error) {
-            console.error("Payment Error:", error);
-            // Hiển thị lỗi chi tiết từ Backend nếu có
-            const msg = error.response?.data?.message || error.message;
-            alert("Lỗi tạo thanh toán: " + msg);
-            setProcessing(false);
+            console.error("Lỗi thanh toán:", error);
+            alert("Có lỗi xảy ra khi khởi tạo thanh toán.");
+        } finally {
+            setLoading(false);
         }
     };
 
-    if (loading) return <div className="text-center py-5" style={{minHeight: '60vh'}}><Spinner animation="border" variant="primary"/><p className="mt-2">Đang tải thông tin đơn hàng...</p></div>;
+    if (loading) return <div className="text-center py-5" style={{ minHeight: '60vh' }}><Spinner animation="border" variant="primary" /><p className="mt-2">Đang tải thông tin đơn hàng...</p></div>;
     if (!booking) return <div className="text-center py-5">Đơn hàng không tồn tại.</div>;
 
     // Helper: Tính hạn thanh toán (Ví dụ: +24h từ lúc tạo)
     const paymentDeadline = new Date(new Date(booking.createdAt).getTime() + 24 * 60 * 60 * 1000);
-    
+
     // Lấy thông tin snapshot (dữ liệu tour lưu cứng lúc đặt) để hiển thị
     const mainItem = booking.items?.[0] || {};
     // Ưu tiên lấy từ snapshot, nếu không có thì lấy trực tiếp từ item
@@ -200,13 +191,13 @@ export default function PaymentPage() {
                                 <span className="fw-bold">Số tiền phải thanh toán:</span>
                                 <span className="fw-bold text-danger fs-4">{formatCurrency(booking.pricing.final_price)}</span>
                             </div>
-                            
+
                             <div className="alert alert-warning border-0 d-flex align-items-center gap-3 small mb-0 mt-3 rounded-3">
                                 <i className="bi bi-clock-history fs-3"></i>
                                 <div>
-                                    <strong>Thời hạn giữ chỗ: </strong> 
+                                    <strong>Thời hạn giữ chỗ: </strong>
                                     <span className="text-danger fw-bold">{paymentDeadline.toLocaleString('vi-VN')}</span>
-                                    <br/>
+                                    <br />
                                     <i>(Vui lòng thanh toán trước thời hạn để đảm bảo chỗ của bạn)</i>
                                 </div>
                             </div>
@@ -256,53 +247,53 @@ export default function PaymentPage() {
 
                 {/* === CỘT PHẢI: PHIẾU XÁC NHẬN & THANH TOÁN === */}
                 <Col lg={4}>
-                    <Card className="shadow border-0 rounded-3 overflow-hidden sticky-top" style={{top: '20px'}}>
-                         <Card.Header className="bg-white py-3 fw-bold text-primary text-uppercase border-bottom">
+                    <Card className="shadow border-0 rounded-3 overflow-hidden sticky-top" style={{ top: '20px' }}>
+                        <Card.Header className="bg-white py-3 fw-bold text-primary text-uppercase border-bottom">
                             Thông tin dịch vụ
                         </Card.Header>
                         <Card.Body>
                             {/* Ảnh & Tên Tour */}
                             <div className="d-flex gap-3 mb-3">
-                                <img 
-                                    src={tourImage} 
-                                    alt="Tour" 
-                                    className="rounded" 
-                                    style={{width: '90px', height: '65px', objectFit: 'cover'}} 
+                                <img
+                                    src={tourImage}
+                                    alt="Tour"
+                                    className="rounded"
+                                    style={{ width: '90px', height: '65px', objectFit: 'cover' }}
                                 />
                                 <div>
                                     <div className="fw-bold small text-truncate-3-lines mb-1">{tourTitle}</div>
                                 </div>
                             </div>
-                            
+
                             {/* Thông tin mô tả (Ngày đi...) */}
                             <div className="bg-light p-3 rounded mb-3 border border-dashed">
                                 <div className="fw-bold small mb-2 text-dark"><i className="bi bi-calendar-check me-1"></i> CHI TIẾT:</div>
-                                <div className="small text-secondary fw-bold" style={{whiteSpace: 'pre-line'}}>
+                                <div className="small text-secondary fw-bold" style={{ whiteSpace: 'pre-line' }}>
                                     {tourDetails || "Chưa có thông tin chi tiết."}
                                 </div>
                             </div>
 
-                            <hr className="my-3"/>
+                            <hr className="my-3" />
 
                             {/* [MỚI] CHỌN PHƯƠNG THỨC THANH TOÁN */}
                             <h6 className="fw-bold mb-3">Chọn phương thức thanh toán:</h6>
                             <Form>
                                 {/* 1. VNPAY QR / Ví */}
                                 <div className={`payment-option mb-2 border rounded p-2 d-flex align-items-center cursor-pointer ${paymentMethod === 'vnpay' ? 'border-primary bg-primary bg-opacity-10' : ''}`}
-                                     onClick={() => setPaymentMethod('vnpay')}>
-                                    <Form.Check 
-                                        type="radio" 
-                                        name="paymentMethod" 
-                                        id="vnpay" 
-                                        label="VNPAY-QR / Ví VNPAY" 
+                                    onClick={() => setPaymentMethod('vnpay')}>
+                                    <Form.Check
+                                        type="radio"
+                                        name="paymentMethod"
+                                        id="vnpay"
+                                        label="VNPAY-QR / Ví VNPAY"
                                         className="fw-bold small flex-grow-1"
                                         checked={paymentMethod === 'vnpay'}
                                         onChange={() => setPaymentMethod('vnpay')}
                                     />
-                                    <img src="https://vnpay.vn/s1/statics.vnpay.vn/2023/6/0oxhzjmxbksr1686814746087.png" alt="VNPay" style={{height: '24px'}} />
+                                    <img src="https://vnpay.vn/s1/statics.vnpay.vn/2023/6/0oxhzjmxbksr1686814746087.png" alt="VNPay" style={{ height: '24px' }} />
                                 </div>
 
-                                {/* 2. THẺ ATM NỘI ĐỊA */}
+                                {/* 2. THẺ ATM NỘI ĐỊA
                                 <div className={`payment-option mb-2 border rounded p-2 d-flex align-items-center cursor-pointer ${paymentMethod === 'atm' ? 'border-primary bg-primary bg-opacity-10' : ''}`}
                                      onClick={() => setPaymentMethod('atm')}>
                                     <Form.Check 
@@ -318,7 +309,7 @@ export default function PaymentPage() {
                                 </div>
 
                                 {/* 3. CHUYỂN KHOẢN */}
-                                <div className={`payment-option mb-3 border rounded p-2 d-flex align-items-center cursor-pointer ${paymentMethod === 'transfer' ? 'border-primary bg-primary bg-opacity-10' : ''}`}
+                                {/* <div className={`payment-option mb-3 border rounded p-2 d-flex align-items-center cursor-pointer ${paymentMethod === 'transfer' ? 'border-primary bg-primary bg-opacity-10' : ''}`}
                                      onClick={() => setPaymentMethod('transfer')}>
                                     <Form.Check 
                                         type="radio" 
@@ -330,24 +321,24 @@ export default function PaymentPage() {
                                         onChange={() => setPaymentMethod('transfer')}
                                     />
                                     <i className="bi bi-bank fs-4 text-success"></i>
-                                </div>
+                                </div>  */}
                             </Form>
 
-                            <Button 
-                                variant="danger" 
-                                size="lg" 
+                            <Button
+                                variant="danger"
+                                size="lg"
                                 className="w-100 fw-bold text-uppercase py-3 shadow hover-scale"
                                 onClick={handlePayment}
                                 disabled={processing}
                             >
                                 {processing ? (
                                     <>
-                                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2"/>
+                                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2" />
                                         Đang kết nối VNPAY...
                                     </>
                                 ) : 'Thanh toán ngay'}
                             </Button>
-                            
+
                             <div className="text-center mt-3">
                                 <small className="text-muted"><i className="bi bi-shield-lock-fill text-success"></i> Thông tin được bảo mật tuyệt đối</small>
                             </div>

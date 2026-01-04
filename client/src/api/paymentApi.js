@@ -26,10 +26,14 @@ const paymentApi = {
      * Tạo URL thanh toán VNPAY
      * @param {object} data - { amount, bookingId, bankCode, language }
      */
-    createVNPayUrl: (data) => {
-        return paymentClient.post("/payment/create-vnpay-url", data);
-    },
+  createVNPayUrl: (data) => {
+    return paymentClient.post("/payment/create-vnpay-url", data);
+  },
 
+  verifyVNPay: (params) => {
+    return paymentClient.get("/payment/vnpay-return", { params });
+  }
+  ,
   // Hàm xác nhận thanh toán (nếu dùng thẻ test nội bộ)
   processMockPayment: (bookingId) => {
     // Giả sử ta gọi endpoint này để báo Payment Service là "Đã trả tiền xong"
@@ -38,7 +42,7 @@ const paymentApi = {
 
   
 
-  
+
 
 };
 
