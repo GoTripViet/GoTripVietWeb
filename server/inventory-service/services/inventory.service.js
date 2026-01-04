@@ -21,11 +21,16 @@ class InventoryService {
 
     if (product_type === 'tour') {
       if (!data.tour_details) throw new Error('tour_details is required for tour');
+      
+      // [CẬP NHẬT] Map đầy đủ trường transport_schedule từ request vào DB
       inventoryData.tour_details = {
         date: new Date(data.tour_details.date),
         total_slots: data.tour_details.total_slots,
         booked_slots: 0,
+        // Dữ liệu vận chuyển (Giờ đi, giờ về, mã chuyến bay...)
+        transport_schedule: data.tour_details.transport_schedule || {} 
       };
+
     } else if (product_type === 'hotel') {
       if (!data.hotel_details) throw new Error('hotel_details is required for hotel');
       inventoryData.hotel_details = {
@@ -65,7 +70,7 @@ class InventoryService {
       is_active: true,
     };
 
-    // (Logic nâng cao): Thêm filter theo ngày (ví dụ: ?startDate=...&endDate=...)
+    // (Logic nâng cao): Thêm filter theo ngày nếu cần
     // if (queryParams.startDate && queryParams.endDate) {
     //   filter["tour_details.date"] = { $gte: new Date(queryParams.startDate), $lte: new Date(queryParams.endDate) };
     // }
@@ -164,11 +169,10 @@ class InventoryService {
   }
 
   /**
-   * [Nội bộ] Giữ chỗ (Tăng số lượng đã đặt) - Dùng TRANSACTION
+   * [Nội bộ] Giữ chỗ (Tăng số lượng đã đặt)
    * @param {Array} items - Mảng [{ inventoryId, quantity }]
    */
   async reserveStock(items) {
-    // Không dùng session nữa
     try {
       for (const item of items) {
         const { inventoryId, quantity } = item;
@@ -198,7 +202,7 @@ class InventoryService {
           throw new Error(`Not enough stock for ${invItem._id} during reservation`);
         }
 
-        // 3. Cập nhật (dùng $inc để đảm bảo tính nguyên tử)
+        // 3. Cập nhật
         await InventoryItem.updateOne(
           { _id: inventoryId },
           { $inc: { [updateField]: quantity } }
@@ -208,14 +212,13 @@ class InventoryService {
       return { success: true };
 
     } catch (error) {
-      // Vì không có transaction, nếu lỗi ở giữa chừng thì dữ liệu có thể bị lệch (chấp nhận vì là môi trường học tập)
       console.error("Reserve Stock Error:", error);
       throw error;
     }
   }
 
   /**
-   * [SỬA ĐỔI] Nhả chỗ - BỎ TRANSACTION
+   * [Nội bộ] Nhả chỗ
    */
   async releaseStock(items) {
     try {
