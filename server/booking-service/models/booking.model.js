@@ -1,16 +1,16 @@
-// models/booking.model.js
+// server/payment-service/models/booking.model.js
 const mongoose = require('mongoose');
 
-// Đây là schema cho MỘT MỤC HÀNG (được nhúng)
+// 1. Schema Hạng mục (Booking Item)
 const bookingItemSchema = new mongoose.Schema({
-  product_id: { // ID từ Catalog
+  product_id: { 
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product', // (Ref logic)
+    ref: 'Product', 
     required: true,
   },
-  inventory_id: { // ID từ Inventory
+  inventory_id: { 
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'InventoryItem', // (Ref logic)
+    ref: 'InventoryItem',
     required: true,
   },
   product_type: {
@@ -22,83 +22,86 @@ const bookingItemSchema = new mongoose.Schema({
     required: true,
     min: 1,
   },
-  unit_price: { // Giá tại thời điểm đặt
+  unit_price: { 
     type: Number,
     required: true,
   },
-  
-  // --- "ẢNH CHỤP NHANH" (SNAPSHOT) ---
-  // Lưu lại thông tin sản phẩm TẠI THỜI ĐIỂM ĐẶT
+  // Snapshot thông tin tại thời điểm đặt
   snapshot: {
     title: { type: String, required: true },
     description_short: String,
-    image: String, // (Lấy ảnh đầu tiên)
-    
-    // Lưu lại chi tiết (ví dụ: ngày tour, tên phòng)
-    // Tùy chỉnh dựa trên product_type
+    image: String,
     details_text: String, 
   }
-}, { _id: false }); // Không cần _id cho sub-document này
+}, { _id: false });
 
-// Đây là schema cho THANH TOÁN (được nhúng)
+// 2. Schema Thanh toán (Lịch sử giao dịch nhúng)
 const paymentSchema = new mongoose.Schema({
-  gateway: { type: String, required: true }, // 'MoMo', 'Stripe'
+  gateway: { type: String, required: true }, // 'vnpay', 'stripe', 'momo'
   gateway_transaction_id: { type: String, required: true },
   amount: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'succeeded', 'failed'], required: true },
   timestamp: { type: Date, default: Date.now },
-}, { _id: true }); // Cần _id để tham chiếu
+}, { _id: true });
 
-// --- SCHEMA CHÍNH: ĐƠN HÀNG ---
+// 3. SCHEMA CHÍNH: ĐƠN HÀNG
 const bookingSchema = new mongoose.Schema(
   {
-    user_id: { // ID của User (từ UserService)
+    user_id: { 
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
+      ref: 'User' // Thêm ref User để sau này populate nếu cần
     },
     status: {
       type: String,
-      enum: ['pending', 'confirmed', 'cancelled', 'failed'],
+      enum: ['pending', 'confirmed', 'cancelled', 'failed', 'completed'],
       default: 'pending',
       index: true,
     },
     
+    // [QUAN TRỌNG] Thêm trường này để khớp với code update của Payment Service
+    payment_status: {
+      type: String,
+      enum: ['unpaid', 'paid', 'refunded'],
+      default: 'unpaid'
+    },
+
     // Thông tin giá
     pricing: {
       total_price_before_discount: { type: Number, required: true },
       discount_amount: { type: Number, default: 0 },
       final_price: { type: Number, required: true },
     },
-    promotion_id: { // REF (nếu có dùng mã)
+    promotion_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Promotion',
     },
 
-    // [MỚI] Danh sách hành khách chi tiết
+    // Danh sách hành khách
     passengers: [
       {
-        type: { type: String, enum: ['adult', 'child', 'toddler', 'infant'], required: true }, // Người lớn, Trẻ em...
+        type: { type: String, enum: ['adult', 'child', 'toddler', 'infant'], required: true },
         fullName: { type: String, required: true },
         gender: { type: String, enum: ['Nam', 'Nữ', 'Khác'] },
-        dateOfBirth: { type: Date }, // Có thể null nếu không nhập
+        dateOfBirth: { type: Date },
       }
     ],
 
-    // --- NHÚNG (EMBED) ---
+    // Nhúng
     items: [bookingItemSchema],
-    payments: [paymentSchema],
+    payments: [paymentSchema], // Lưu lịch sử các lần thanh toán
     
-    // Thông tin người liên hệ (Người đặt) - Đã cập nhật đầy đủ
+    // Thông tin người liên hệ
     customer_details: {
       fullName: String,
       email: String,
       phone: String,
-      address: String, // [MỚI] Thêm địa chỉ
-      note: String     // [MỚI] Thêm ghi chú
+      address: String,
+      note: String
     }
   },
-  { timestamps: true } // createdAt, updatedAt
+  { timestamps: true }
 );
 
 module.exports = mongoose.model('Booking', bookingSchema);

@@ -197,6 +197,10 @@ class BookingService {
     
     // 5. Cập nhật đơn hàng thành công
     booking.status = 'confirmed';
+    
+    // [CẬP NHẬT QUAN TRỌNG] Đánh dấu trạng thái thanh toán
+    booking.payment_status = 'paid'; 
+
     booking.payments.push({
       gateway: paymentInfo.gateway,
       gateway_transaction_id: paymentInfo.gateway_transaction_id, // Sửa lại key cho khớp controller
@@ -206,7 +210,7 @@ class BookingService {
 
     await booking.save();
     
-    console.log(`✅ Booking ${booking._id} confirmed successfully.`);
+    console.log(`✅ Booking ${booking._id} confirmed & paid successfully.`);
     return booking;
   }
 

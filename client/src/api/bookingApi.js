@@ -54,7 +54,11 @@ const bookingApi = {
   // 4. Cập nhật trạng thái đơn hàng (Dùng khi thanh toán xong)
   updateStatus: (id, status) => {
       return bookingClient.patch(`/bookings/${id}/status`, { status });
-  }
+  },
+
+  cancelBooking: (id) => {
+    return bookingClient.post(`/bookings/${id}/cancel`);
+  },
 };
 
 export default bookingApi;

@@ -6,9 +6,10 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Card from "react-bootstrap/Card";
 import Button from "react-bootstrap/Button";
-import Spinner from "react-bootstrap/Spinner"; // Thêm Spinner
-import "../styles/booking-process.css"; 
+import Spinner from "react-bootstrap/Spinner";
+import "../styles/booking-process.css";
 import { formatCurrency } from "../utils/formatData";
+import paymentApi from "../api/paymentApi"; // Đảm bảo đã import API
 
 // Stepper (Bước 3 Active)
 const BookingStepper = ({ step }) => (
@@ -41,28 +42,54 @@ export default function BookingSuccess() {
         // 1. Kiểm tra URL Params (Trường hợp quay về từ VNPAY)
         const params = new URLSearchParams(location.search);
         const vnpResponseCode = params.get('vnp_ResponseCode');
-        const vnpTxnRef = params.get('vnp_TxnRef'); // Mã đơn hàng từ VNPAY
 
-        // 2. Lấy data từ Mock Test (Trường hợp cũ)
+        // 2. Lấy data từ Mock Test (Trường hợp cũ - fallback)
         const stateBooking = location.state?.booking;
 
         if (vnpResponseCode) {
             // --- XỬ LÝ KẾT QUẢ TỪ VNPAY ---
             if (vnpResponseCode === '00') {
-                setStatus('success');
-                // Ở đây lý tưởng nhất là gọi API backend để lấy lại chi tiết booking mới nhất bằng vnpTxnRef
-                // Nhưng để đơn giản, ta tạm thời hiển thị mã đơn hàng từ URL
-                setBooking({ 
-                    _id: vnpTxnRef || "Unknown",
-                    status: 'confirmed',
-                    // Các thông tin khác có thể bị thiếu nếu không gọi API lấy lại detail
-                    // Bạn có thể bổ sung gọi API: bookingApi.getBookingDetails(vnpTxnRef) tại đây
-                });
+                // Gom tất cả params VNPAY trả về thành object
+                const vnpParams = Object.fromEntries(params);
+
+                // Gọi Backend để xác thực chữ ký và LẤY THÔNG TIN BOOKING
+                // Thay thế đoạn logic verifyPayment cũ bằng đoạn này:
+
+                const verifyPayment = async () => {
+                    try {
+                        // Gọi API
+                        const response = await paymentApi.verifyVNPay(vnpParams);
+
+                        // [FIX]: Lấy data thật sự bất kể có qua interceptor hay không
+                        // Nếu response có thuộc tính .data (Axios Object) thì lấy .data
+                        // Nếu không (đã qua Interceptor) thì lấy chính nó
+                        const data = response.data ? response.data : response;
+
+                        console.log("Verify Result:", data); // Log để debug nếu cần
+
+                        // Kiểm tra kết quả từ Backend
+                        if (data.status === 'success') {
+                            setStatus('success');
+                            // Backend trả về: { status: 'success', data: { ...booking... } }
+                            // Nên booking object nằm trong data.data
+                            setBooking(data.data);
+                        } else {
+                            console.error("Lỗi xác thực VNPAY:", data);
+                            setStatus('failed');
+                        }
+                    } catch (error) {
+                        console.error("Lỗi gọi API Verify:", error);
+                        setStatus('failed');
+                    }
+                }; 
+                verifyPayment();
+
             } else {
+                // Mã lỗi khác 00 (Khách hủy hoặc lỗi)
                 setStatus('failed');
             }
         } else if (stateBooking) {
-            // --- TRƯỜNG HỢP TEST MOCK HOẶC THANH TOÁN SAU ---
+            // --- TRƯỜNG HỢP TEST KHÔNG QUA VNPAY ---
             setStatus('success');
             setBooking(stateBooking);
         } else {
@@ -74,9 +101,10 @@ export default function BookingSuccess() {
     // --- MÀN HÌNH LOADING ---
     if (status === 'loading') {
         return (
-            <Container className="text-center py-5" style={{minHeight: '60vh'}}>
+            <Container className="text-center py-5" style={{ minHeight: '60vh' }}>
                 <Spinner animation="border" variant="primary" />
-                <p className="mt-3 text-muted">Đang xử lý kết quả thanh toán...</p>
+                <h5 className="mt-3 text-primary">Đang xác thực thanh toán...</h5>
+                <p className="text-muted">Hệ thống đang cập nhật trạng thái đơn hàng, vui lòng không tắt trình duyệt.</p>
             </Container>
         );
     }
@@ -91,11 +119,10 @@ export default function BookingSuccess() {
                         <i className="bi bi-x-lg display-4"></i>
                     </div>
                     <h2 className="fw-bold text-danger">Thanh toán thất bại!</h2>
-                    <p className="text-muted mb-4">Giao dịch của bạn đã bị hủy hoặc xảy ra lỗi trong quá trình thanh toán.</p>
-                    
+                    <p className="text-muted mb-4">Giao dịch của bạn đã bị hủy hoặc xảy ra lỗi trong quá trình xác thực.</p>
+
                     <div className="d-flex justify-content-center gap-3">
                         <Button variant="secondary" onClick={() => navigate("/")}>Về trang chủ</Button>
-                        {/* Nếu có logic lưu bookingId vào localStorage hoặc URL, có thể quay lại trang payment */}
                         <Button variant="danger" onClick={() => navigate(-1)}>Thử thanh toán lại</Button>
                     </div>
                 </div>
@@ -104,9 +131,11 @@ export default function BookingSuccess() {
     }
 
     // --- MÀN HÌNH THÀNH CÔNG ---
-    // (Dữ liệu hiển thị an toàn: Nếu booking thiếu data do redirect từ VNPAY, hiển thị placeholder)
-    const snapshot = booking?.items?.[0]?.snapshot || {};
+    // Lấy dữ liệu an toàn từ object booking
+    const firstItem = booking?.items?.[0] || {};
+    const snapshot = firstItem.snapshot || {}; // Thông tin tour lưu lúc đặt
     const customer = booking?.customer_details || {};
+    const pricing = booking?.pricing || {};
 
     return (
         <Container className="my-5">
@@ -126,40 +155,45 @@ export default function BookingSuccess() {
                     <Card className="shadow-sm border-0 rounded-4 overflow-hidden mb-4">
                         <div className="bg-primary text-white p-3 d-flex justify-content-between align-items-center bg-gradient">
                             <span className="fw-bold"><i className="bi bi-receipt"></i> MÃ ĐƠN HÀNG</span>
-                            <span className="fs-5 fw-bold">{booking?._id?.slice(-10).toUpperCase()}</span>
+                            {/* Hiển thị 6 ký tự cuối của ID cho gọn */}
+                            <span className="fs-5 fw-bold">{booking?._id ? booking._id.slice(-6).toUpperCase() : '...'}</span>
                         </div>
                         <Card.Body className="p-4">
-                            {/* Thông tin Tour (Chỉ hiện nếu có snapshot từ state, nếu từ VNPAY về có thể sẽ không có snapshot ngay) */}
+
+                            {/* --- THÔNG TIN TOUR (Lấy từ DB) --- */}
                             {snapshot.title ? (
                                 <div className="d-flex gap-3 mb-4 pb-4 border-bottom">
-                                    <img 
-                                        src={snapshot.image || "https://placehold.co/150x100"} 
-                                        alt="Tour" 
+                                    <img
+                                        src={snapshot.image || "https://placehold.co/150x100"}
+                                        alt="Tour"
                                         className="rounded-3 shadow-sm"
-                                        style={{ width: 120, height: 90, objectFit: 'cover' }} 
+                                        style={{ width: 120, height: 90, objectFit: 'cover' }}
                                     />
                                     <div>
                                         <h6 className="fw-bold mb-1">{snapshot.title}</h6>
-                                        <div className="text-muted small mb-2 text-truncate-2-lines">{snapshot.details_text}</div>
+                                        {/* Hiển thị text chi tiết nếu có */}
+                                        <div className="text-muted small mb-2 text-truncate-2-lines">
+                                            {snapshot.details_text || snapshot.description_short || 'Thông tin chi tiết tour'}
+                                        </div>
                                         <div className="badge bg-info text-dark">
-                                            {booking?.items?.[0]?.quantity || 1} Khách
+                                            {firstItem.quantity || 1} Khách
                                         </div>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="alert alert-success mb-4">
                                     <i className="bi bi-info-circle me-2"></i>
-                                    Đơn hàng của bạn đã được ghi nhận trên hệ thống. Vui lòng kiểm tra email hoặc mục "Quản lý đơn hàng" để xem chi tiết tour.
+                                    Đơn hàng của bạn đã được ghi nhận và thanh toán thành công.
                                 </div>
                             )}
 
                             <Row className="g-3">
-                                {/* Thông tin khách hàng */}
+                                {/* --- THÔNG TIN KHÁCH HÀNG (Lấy từ DB) --- */}
                                 <Col md={6}>
                                     <h6 className="fw-bold text-uppercase small text-muted mb-3">Người đặt tour</h6>
                                     {customer.fullName ? (
                                         <ul className="list-unstyled mb-0 small">
-                                            <li className="mb-2"><i className="bi bi-person me-2 text-primary"></i> {customer.fullName}</li>
+                                            <li className="mb-2"><i className="bi bi-person me-2 text-primary"></i> <strong>{customer.fullName}</strong></li>
                                             <li className="mb-2"><i className="bi bi-telephone me-2 text-primary"></i> {customer.phone}</li>
                                             <li className="mb-2"><i className="bi bi-envelope me-2 text-primary"></i> {customer.email}</li>
                                             <li><i className="bi bi-geo-alt me-2 text-primary"></i> {customer.address || 'Chưa cập nhật'}</li>
@@ -169,20 +203,27 @@ export default function BookingSuccess() {
                                     )}
                                 </Col>
 
-                                {/* Thông tin thanh toán */}
+                                {/* --- THÔNG TIN THANH TOÁN (Lấy từ DB) --- */}
                                 <Col md={6}>
                                     <h6 className="fw-bold text-uppercase small text-muted mb-3">Thanh toán</h6>
                                     <div className="bg-light p-3 rounded">
                                         <div className="d-flex justify-content-between mb-2 small">
                                             <span>Trạng thái:</span>
-                                            <span className="text-success fw-bold">Đã thanh toán <i className="bi bi-check-circle-fill"></i></span>
+                                            <span className="text-success fw-bold">
+                                                {booking?.payment_status === 'paid' ? 'Đã thanh toán' : 'Thành công'} <i className="bi bi-check-circle-fill"></i>
+                                            </span>
                                         </div>
-                                        {booking?.pricing?.final_price && (
+                                        <div className="d-flex justify-content-between mb-2 small">
+                                            <span>Phương thức:</span>
+                                            <span className="fw-bold text-primary">VNPAY QR</span>
+                                        </div>
+
+                                        {pricing.final_price && (
                                             <>
-                                                <hr className="my-2"/>
+                                                <hr className="my-2" />
                                                 <div className="d-flex justify-content-between align-items-center">
                                                     <span className="fw-bold">Tổng tiền:</span>
-                                                    <span className="text-danger fw-bold fs-5">{formatCurrency(booking.pricing.final_price)}</span>
+                                                    <span className="text-danger fw-bold fs-5">{formatCurrency(pricing.final_price)}</span>
                                                 </div>
                                             </>
                                         )}
@@ -193,7 +234,7 @@ export default function BookingSuccess() {
                         <Card.Footer className="bg-white p-3 text-center border-top">
                             <small className="text-muted fst-italic">
                                 * Quý khách vui lòng kiểm tra email để xem chi tiết lịch trình và vé điện tử.
-                                <br/>Nếu cần hỗ trợ, vui lòng liên hệ hotline: <strong>1900 1234</strong>
+                                <br />Nếu cần hỗ trợ, vui lòng liên hệ hotline: <strong>1900 1234</strong>
                             </small>
                         </Card.Footer>
                     </Card>
