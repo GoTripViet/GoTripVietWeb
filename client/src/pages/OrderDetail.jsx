@@ -41,7 +41,7 @@ export default function OrderDetail() {
     setCancelling(true);
     try {
       await bookingApi.cancelBooking(id);
-      alert("Đã hủy đơn hàng thành công.");
+      alert("Đã hủy đơn hàng thành công. Tiền sẽ được chúng tôi hoàn trả lại cho bạn!");
       fetchBooking(); 
     } catch (err) {
       alert("Lỗi hủy đơn: " + (err.response?.data?.message || err.message));

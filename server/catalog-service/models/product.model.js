@@ -16,7 +16,7 @@ const productSchema = new mongoose.Schema(
     product_type: {
       type: String,
       default: "tour", // Mặc định là tour
-      enum: ["tour", "hotel", "flight", "car"], // Giữ enum để mở rộng sau này nếu cần
+      enum: ["tour"], // Giữ enum để mở rộng sau này nếu cần
     },
     partner_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -121,39 +121,7 @@ const productSchema = new mongoose.Schema(
           content: String, // Nội dung chi tiết
         },
       ],
-
-      // // g. Điều khoản (Giữ lại để tương thích ngược nếu cần,
-      // // nhưng nên ưu tiên dùng policy_notes cho chi tiết hơn)
-      // includes: [String],
-      // excludes: [String],
-
-      // // h. Thông tin thêm về chuyến bay (nếu là tour bay)
-      // is_flight_included: { type: Boolean, default: false },
-      // flight_info: {
-      //     airline: String,
-      //     airline_logo: String,
-      //     depart_code: String,
-      //     return_code: String
-      // }
     },
-
-    // --- CÁC FIELD CŨ (Giữ lại để tương thích hoặc mở rộng sau này, optional) ---
-    // hotel_details: {
-    //   star_rating: Number,
-    //   address: String,
-    //   amenities: [String],
-    //   coordinates: {
-    //     type: { type: String, enum: ['Point'], default: 'Point' },
-    //     coordinates: { type: [Number], default: [0, 0] },
-    //   },
-    // },
-
-    // flight_details: {
-    //   airline: String,
-    //   flight_code_template: String,
-    //   origin_code: String,
-    //   destination_code: String,
-    // },
   },
   {
     timestamps: true,
