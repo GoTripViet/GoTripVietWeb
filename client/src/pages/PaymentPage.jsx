@@ -83,7 +83,7 @@ export default function PaymentPage() {
             if (paymentMethod === 'vnpay') {
                 // 1. Gọi API tạo link
                 const response = await paymentApi.createVNPayUrl({
-                    amount: booking.totalPrice, // Hoặc số tiền cần thanh toán
+                    amount: booking.pricing?.final_price, // Hoặc số tiền cần thanh toán
                     bookingId: booking._id,
                     bankCode: '', // Để rỗng nếu muốn chọn bank tại VNPAY
                     language: 'vn'
