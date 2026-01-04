@@ -62,7 +62,10 @@ async function chat({ sessionId, message }) {
     const queryVec = await embedText(message);
     hits = await search(queryVec, 5); // topK=5
   } catch (err) {
-    // nếu embedding/qdrant lỗi thì vẫn không làm chết chat
+    console.error(
+      "QDRANT_SEARCH_ERROR:",
+      err?.response?.data || err?.message || err
+    );
     hits = [];
   }
 
@@ -80,15 +83,25 @@ async function chat({ sessionId, message }) {
 
   // 6) gọi OpenAI để viết câu trả lời
   const system =
-    "Bạn là GoTripViet Assistant. Nhiệm vụ: tư vấn tour phù hợp dựa trên danh sách TOUR trong ngữ cảnh. " +
+    "Bạn là GoTripViet Assistant. Tuyệt đối KHÔNG được tự tạo (bịa) tour. " +
+    "Chỉ được tham chiếu các tour có trong DANH SÁCH TOUR (TOP) của ngữ cảnh. " +
+    "Nếu danh sách chỉ có 1 tour thì chỉ được gợi ý 1 tour. Nếu không có tour thì hỏi thêm thông tin. " +
     "Nếu thiếu thông tin (điểm đến/số ngày/ngân sách/số người), hãy hỏi tối đa 2 câu để làm rõ. " +
-    "Nếu có tour phù hợp, gợi ý 3 tour tốt nhất, nêu lý do ngắn gọn. " +
     "Trả lời tiếng Việt, thân thiện, không bịa giá nếu không có.";
 
   let answer = "";
   try {
-    answer = await generateAnswer({ system, user: message, contextText });
+    const safeContext = String(contextText || "").slice(0, 4000);
+    answer = await generateAnswer({
+      system,
+      user: message,
+      contextText: safeContext,
+    });
   } catch (err) {
+    console.error(
+      "OLLAMA_GENERATE_ERROR:",
+      err?.response?.data || err?.message || err
+    );
     answer =
       "Mình đang gặp lỗi khi tạo câu trả lời. Bạn cho mình biết điểm đến + số ngày + ngân sách dự kiến để mình gợi ý nhanh nhé.";
   }
@@ -102,9 +115,29 @@ async function chat({ sessionId, message }) {
     image: t.image,
   }));
 
+  let finalAnswer = answer;
+
+  if (suggestedTours.length > 0) {
+    const lines = suggestedTours
+      .map((t, i) => {
+        const parts = [
+          `${i + 1}. ${t.title}`,
+          t.location ? `(${t.location})` : null,
+          t.priceFrom ? `— Từ ${t.priceFrom}` : null,
+        ].filter(Boolean);
+        return parts.join(" ");
+      })
+      .join("\n");
+
+    finalAnswer =
+      `Mình tìm thấy ${suggestedTours.length} tour phù hợp với yêu cầu của bạn:\n` +
+      `${lines}\n\n` +
+      `Bạn muốn đi ngày nào và ngân sách khoảng bao nhiêu để mình tư vấn lịch trình/giá sát nhất?`;
+  }
+
   const result = {
     answer:
-      answer ||
+      finalAnswer ||
       "Bạn cho mình thêm điểm đến / số ngày / ngân sách để mình gợi ý chính xác nhé.",
     suggestedTours,
     followUpQuestions: [
