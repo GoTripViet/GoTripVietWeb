@@ -4,7 +4,7 @@ import axios from 'axios';
 const inventoryClient = axios.create({
   baseURL: 'http://localhost:3003',
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -37,7 +37,29 @@ const inventoryApi = {
   // DELETE: Xóa lịch
   remove: (id) => {
     return inventoryClient.delete(`/inventory/${id}`);
-  }
+  },
+  // Kiểm tra mã giảm giá
+  checkPromotion: (code) => {
+    return inventoryClient.get(`/promotions/code/${code}`);
+  },
+  // EVENTS (PUBLIC)
+  getActiveEvents: () => {
+    return inventoryClient.get(`/events/active`);
+  },
+  // Lấy chi tiết sự kiện public theo id hoặc slug
+  getPublicEventByIdOrSlug: (idOrSlug) => {
+    return inventoryClient.get(`/events/public/${idOrSlug}`);
+  },
+  // Lấy danh sách tour áp dụng sự kiện public theo id hoặc slug
+  getPublicEventTours: (idOrSlug) => {
+    return inventoryClient.get(`/events/public/${idOrSlug}/tours`);
+  },
+  // Lấy tất cả event trong tháng (theo month 1-12)
+  getEventsInMonth: (year, month) => {
+    return inventoryClient.get(`/events/public/month`, {
+      params: { year, month },
+    });
+  },
 };
 
 export default inventoryApi;

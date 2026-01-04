@@ -1,5 +1,12 @@
 // services/event.service.js
 const Event = require("../models/event.model");
+const axios = require("axios");
+const mongoose = require("mongoose");
+
+const CATALOG_BASE_URL =
+  process.env.CATALOG_BASE_URL ||
+  process.env.GATEWAY_URL ||
+  "http://localhost:3000";
 
 function slugify(str) {
   return String(str || "")
@@ -72,6 +79,43 @@ function isInYearlyRange(now, sm, sd, em, ed) {
 
   // range băng qua năm (vd 11/15 -> 2/10)
   return cur >= start || cur <= end;
+}
+
+async function fetchToursFromCatalogByIds(ids) {
+  // thử endpoint /products?ids=csv
+  try {
+    const r = await axios.get(`${CATALOG_BASE_URL}/products`, {
+      params: { ids: ids.join(",") },
+    });
+    return r.data?.data || r.data?.items || r.data || [];
+  } catch (e) {
+    // fallback: gọi từng id
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        const rr = await axios.get(`${CATALOG_BASE_URL}/products/${id}`);
+        return rr.data?.data || rr.data;
+      })
+    );
+    return results.filter(Boolean);
+  }
+}
+
+async function fetchToursFromCatalogDefault(limit = 12) {
+  const r = await axios.get(`${CATALOG_BASE_URL}/products`, {
+    params: { product_type: "tour", limit },
+  });
+  return r.data?.data || r.data?.items || r.data || [];
+}
+
+function isValidObjectId(x) {
+  return mongoose.Types.ObjectId.isValid(String(x || ""));
+}
+
+function overlapsMonth(startMonth, endMonth, month) {
+  // không wrap: 3 -> 6
+  if (startMonth <= endMonth) return month >= startMonth && month <= endMonth;
+  // wrap năm: 12 -> 1
+  return month >= startMonth || month <= endMonth;
 }
 
 module.exports = {
@@ -194,5 +238,75 @@ module.exports = {
     });
 
     return activeNow;
+  },
+  // Lấy chi tiết sự kiện public theo id hoặc slug
+  async getPublicByIdOrSlug(idOrSlug) {
+    const now = new Date();
+
+    const q = isValidObjectId(idOrSlug)
+      ? { _id: idOrSlug }
+      : { slug: String(idOrSlug || "").trim() };
+
+    const ev = await Event.findOne(q).lean();
+    if (!ev) throw new Error("Không tìm thấy event.");
+
+    if (!ev.is_active) throw new Error("Event không còn hoạt động.");
+
+    // chỉ cho public xem event đang hiệu lực (yearly)
+    if (ev.is_yearly) {
+      const ok = isInYearlyRange(
+        now,
+        ev.start_month,
+        ev.start_day,
+        ev.end_month,
+        ev.end_day
+      );
+      if (!ok) throw new Error("Event hiện chưa đến thời gian áp dụng.");
+    }
+
+    return ev;
+  },
+  // Lấy danh sách tour áp dụng sự kiện public theo id hoặc slug
+  async getPublicTours(idOrSlug) {
+    const ev = await this.getPublicByIdOrSlug(idOrSlug);
+
+    if (ev.apply_to_all_tours) {
+      return fetchToursFromCatalogDefault(12);
+    }
+
+    const ids = Array.isArray(ev.tour_ids) ? ev.tour_ids : [];
+    if (!ids.length) return [];
+
+    return fetchToursFromCatalogByIds(ids);
+  },
+
+  // PUBLIC: Lấy tất cả event trong tháng (dựa trên start/end month)
+  // - Chỉ lấy is_active=true
+  // - Nếu is_yearly=true: lọc theo tháng (vì yearly không phụ thuộc năm)
+  // - Nếu sau này có non-yearly theo năm, bạn có thể mở rộng thêm
+  async getPublicEventsInMonth(year, month) {
+    if (!month || month < 1 || month > 12) {
+      throw new Error("Month không hợp lệ (1-12).");
+    }
+
+    const rows = await Event.find({ is_active: true })
+      .sort({ priority: -1, createdAt: -1 })
+      .lean();
+
+    const filtered = rows.filter((ev) => {
+      const sm = Number(ev.start_month);
+      const em = Number(ev.end_month);
+      if (!sm || !em) return false;
+      return overlapsMonth(sm, em, month);
+    });
+
+    // sort theo ngày bắt đầu trong năm cho đẹp
+    filtered.sort((a, b) => {
+      const aKey = (a.start_month || 0) * 100 + (a.start_day || 0);
+      const bKey = (b.start_month || 0) * 100 + (b.start_day || 0);
+      return aKey - bKey;
+    });
+
+    return filtered;
   },
 };

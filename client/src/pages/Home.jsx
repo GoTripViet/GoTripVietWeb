@@ -4,6 +4,7 @@ import Container from "react-bootstrap/Container";
 import "../styles/home.css";
 import { cld } from "../utils/cld.js";
 import catalogApi from "../api/catalogApi";
+import inventoryApi from "../api/inventoryApi";
 
 // Import hàm xử lý dữ liệu mới
 import { mapProductToCard } from "../utils/formatData";
@@ -33,6 +34,9 @@ export default function Home() {
   // [KHÔI PHỤC] State lưu danh mục phân tầng
   const [categorySections, setCategorySections] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Sự kiện nổi bật trên cùng
+  const [realEvents, setRealEvents] = useState([]);
+  const [heroEvent, setHeroEvent] = useState(null);
 
   // --- 1. HÀM XỬ LÝ TÌM KIẾM ---
   const handleUnifiedSearch = (data) => {
@@ -54,14 +58,17 @@ export default function Home() {
     const fetchHomeData = async () => {
       try {
         setLoading(true);
-
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth() + 1;
         // a. Gọi API cơ bản
-        const [locationsRes, toursRes, rootCatsRes] = await Promise.all([
-          catalogApi.getAllLocations(),
-          catalogApi.getAll({ product_type: "tour", limit: 8 }),
-          // [KHÔI PHỤC] Lấy danh mục gốc (Parent = null)
-          catalogApi.getAllCategories({ parent: "null" }),
-        ]);
+        const [locationsRes, toursRes, rootCatsRes, eventsRes] =
+          await Promise.all([
+            catalogApi.getAllLocations(),
+            catalogApi.getAll({ product_type: "tour", limit: 8 }),
+            catalogApi.getAllCategories({ parent: "null" }),
+            inventoryApi.getEventsInMonth(curYear, curMonth),
+          ]);
 
         // b. Xử lý LOCATION
         let locList = Array.isArray(locationsRes?.data || locationsRes)
@@ -146,6 +153,20 @@ export default function Home() {
             }
           })
         );
+
+        // e. Xử lý EVENTS từ inventory-service
+        const eventsList = Array.isArray(eventsRes?.data) ? eventsRes.data : [];
+
+        const formattedEvents = eventsList.map((ev) => ({
+          backgroundUrl:
+            ev?.image?.url || "https://placehold.co/1200x450?text=Event",
+          alt: ev?.name || "Event",
+          href: `/event/${ev?.slug || ev?._id}`,
+        }));
+
+        setRealEvents(formattedEvents);
+        setHeroEvent(formattedEvents[0] || null);
+
         setCategorySections(sectionsData.filter((section) => section));
       } catch (error) {
         console.error("Lỗi tải dữ liệu Home:", error);
@@ -185,20 +206,24 @@ export default function Home() {
       {/* --- PHẦN 2: SỰ KIỆN --- */}
       <Container className="my-4">
         <Event
-          backgroundUrl={cld("event_boxingday_iusunh", {
-            w: 1200,
-            h: 450,
-            crop: "fill",
-            g: "auto",
-          })}
-          alt="Event"
-          href="#"
+          backgroundUrl={
+            heroEvent?.backgroundUrl ||
+            cld("event_boxingday_iusunh", {
+              w: 1200,
+              h: 450,
+              crop: "fill",
+              g: "auto",
+            })
+          }
+          alt={heroEvent?.alt || "Event"}
+          href={heroEvent?.href || "/events"} // fallback nếu chưa có event
         />
       </Container>
+
       <Container className="my-4">
         <Slider
           title="Ưu đãi & Sự kiện"
-          items={events}
+          items={realEvents}
           itemMinWidth={350}
           renderItem={(e) => <Event {...e} />}
         />

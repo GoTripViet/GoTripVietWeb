@@ -96,4 +96,35 @@ module.exports = {
       res.status(400).json({ message: e.message || "Upload ảnh thất bại" });
     }
   },
+  // Lấy chi tiết sự kiện public theo id hoặc slug
+  async getPublicByIdOrSlug(req, res) {
+    try {
+      const row = await eventService.getPublicByIdOrSlug(req.params.idOrSlug);
+      res.json(row);
+    } catch (e) {
+      res.status(404).json({ message: e.message });
+    }
+  },
+  // Lấy danh sách tour áp dụng sự kiện public theo id hoặc slug
+  async getPublicTours(req, res) {
+    try {
+      const rows = await eventService.getPublicTours(req.params.idOrSlug);
+      res.json(rows);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
+    }
+  },
+  // PUBLIC: lấy tất cả event trong tháng (theo month 1-12)
+  async getPublicEventsInMonth(req, res) {
+    try {
+      const now = new Date();
+      const year = Number(req.query.year) || now.getFullYear();
+      const month = Number(req.query.month) || now.getMonth() + 1; // 1-12
+
+      const rows = await eventService.getPublicEventsInMonth(year, month);
+      res.json(rows);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
+    }
+  },
 };

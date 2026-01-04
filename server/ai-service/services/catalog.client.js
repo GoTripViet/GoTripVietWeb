@@ -35,4 +35,11 @@ async function getTourByIdOrSlug(idOrSlug) {
   return data;
 }
 
-module.exports = { searchTours, getTourByIdOrSlug };
+async function listTours({ limit = 100, page = 1 } = {}) {
+  const res = await http.get("/products", {
+    params: { product_type: "tour", limit, page },
+  });
+  return extractProducts(res.data);
+}
+
+module.exports = { searchTours, listTours, getTourByIdOrSlug };

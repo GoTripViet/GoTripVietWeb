@@ -31,6 +31,7 @@ import Profile from "./pages/Profile.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import PaymentPage from "./pages/PaymentPage";
 import BookingSuccess from "./pages/BookingSuccess";
+import EventDetail from "./pages/EventDetail.jsx";
 
 /**
  * Trang Home được bọc trong UserLayout,
@@ -65,7 +66,10 @@ const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
 
 const BookingSuccessPage = ({ activeCategoryIndex, onCategoryChange }) => {
   return (
-    <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
       <BookingSuccess />
     </UserLayout>
   );
@@ -83,7 +87,10 @@ const SearchPageWrapper = ({ activeCategoryIndex, onCategoryChange }) => {
 };
 
 const PaymentPageWrapper = ({ activeCategoryIndex, onCategoryChange }) => (
-  <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+  <UserLayout
+    activeCategoryIndex={activeCategoryIndex}
+    onCategoryChange={onCategoryChange}
+  >
     <PaymentPage />
   </UserLayout>
 );
@@ -156,7 +163,10 @@ const OrderPage = ({ activeCategoryIndex, onCategoryChange }) => {
 
 const ProductDetailPage = ({ activeCategoryIndex, onCategoryChange }) => {
   return (
-    <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+    <UserLayout
+      activeCategoryIndex={activeCategoryIndex}
+      onCategoryChange={onCategoryChange}
+    >
       <ProductDetail />
     </UserLayout>
   );
@@ -358,10 +368,6 @@ const AppRouter = () => {
           }
         />
 
-
-
-
-
         {/* Trang xác nhận đặt phòng */}
         <Route
           path="/confirm-order"
@@ -374,12 +380,22 @@ const AppRouter = () => {
         />
         <Route
           path="/payment"
-          element={<PaymentPageWrapper activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
+          element={
+            <PaymentPageWrapper
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
         />
 
         <Route
           path="/booking-success"
-          element={<BookingSuccessPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
+          element={
+            <BookingSuccessPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
         />
 
         {/* Trang danh sách thành phố */}
@@ -462,7 +478,24 @@ const AppRouter = () => {
 
         <Route
           path="/product/:id"
-          element={<ProductDetailPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
+          element={
+            <ProductDetailPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
+        />
+
+        <Route
+          path="/event/:id"
+          element={
+            <UserLayout
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            >
+              <EventDetail />
+            </UserLayout>
+          }
         />
       </Routes>
     </BrowserRouter>

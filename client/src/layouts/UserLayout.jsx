@@ -23,6 +23,7 @@ const UserLayout = ({ children, activeCategoryIndex, onCategoryChange }) => {
         logoSrc={logoOutLineBesideUrl}
         onLogin={handleLogin}
         onRegister={handleRegister}
+        categories={[]}
         activeCategoryIndex={activeCategoryIndex}
         onCategoryChange={onCategoryChange}
         // userName="Nguyễn Văn A"

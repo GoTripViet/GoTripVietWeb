@@ -5,7 +5,7 @@ const {
   OLLAMA_EMBED_MODEL,
 } = require("../../config/env");
 
-const http = axios.create({ baseURL: OLLAMA_URL, timeout: 60000 });
+const http = axios.create({ baseURL: OLLAMA_URL, timeout: 180000 });
 
 async function embedText(text) {
   const { data } = await http.post("/api/embeddings", {
@@ -23,6 +23,10 @@ async function generateAnswer({ system, user, contextText }) {
     model: OLLAMA_CHAT_MODEL,
     prompt,
     stream: false,
+    options: {
+      num_predict: 256, // giới hạn output -> ít timeout
+      temperature: 0.4,
+    },
   });
 
   return data.response || "";

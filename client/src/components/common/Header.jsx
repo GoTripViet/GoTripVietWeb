@@ -19,32 +19,27 @@ const DEFAULT_TOPLINKS = [
   { label: "Mở ứng dụng", href: "#" },
 ];
 
-const DEFAULT_CATEGORIES = [
-  { label: "Lưu trú", icon: <i className="bi bi-building" /> },
-  { label: "Chuyến bay", icon: <i className="bi bi-airplane" /> },
-  { label: "Chuyến bay & Khách sạn", icon: <i className="bi bi-briefcase" /> },
-  { label: "Taxi sân bay", icon: <i className="bi bi-taxi-front" /> },
-  { label: "Thuê xe", icon: <i className="bi bi-car-front" /> },
-  { label: "Hoạt động", icon: <i className="bi bi-stars" /> },
-];
-
 export default function Header(props) {
   const {
     logoSrc,
     language = "VI",
     onChangeLanguage,
     topLinks = DEFAULT_TOPLINKS,
-    categories = DEFAULT_CATEGORIES,
+    categories = [],
     activeCategoryIndex = 0,
-    // userName, -> Không dùng props này nữa mà dùng state nội bộ
-    // avatarUrl,
   } = props;
 
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
-  const [user, setUser] = useState(null); // [MỚI] State lưu thông tin user
-
-  // [MỚI] Gọi API lấy thông tin user khi component được mount
+  const [user, setUser] = useState(null);
+  // Hàm xử lý đăng xuất
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    navigate("/login");
+  };
+  // Gọi API lấy thông tin user khi component được mount
   useEffect(() => {
     const fetchProfile = async () => {
       const token = localStorage.getItem("token");
@@ -64,14 +59,6 @@ export default function Header(props) {
 
     fetchProfile();
   }, []);
-
-  // [MỚI] Hàm xử lý đăng xuất
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setUser(null);
-    navigate("/login");
-  };
 
   const handleLogin = () => {
     navigate("/login");
@@ -276,37 +263,35 @@ export default function Header(props) {
         </Container>
       </Navbar>
 
-      {/* Hàng dưới: dải danh mục dạng pill viền trắng */}
-      <div className="gv-header-cats">
-        <Container className="py-2 d-flex flex-wrap align-items-center gap-3">
-          {categories.map((c, idx) => (
-            <a
-              key={idx}
-              href={c.href || "#"}
-              className={`gv-cat-pill d-flex align-items-center gap-2 ${
-                idx === activeCategoryIndex ? "active" : ""
-              }`}
-              onClick={(e) => {
-                e.preventDefault();
+      {/* CHỈ HIỆN KHI CÓ categories */}
+      {Array.isArray(categories) && categories.length > 0 && (
+        <div className="gv-header-cats">
+          <Container className="py-2 d-flex flex-wrap align-items-center gap-3">
+            {categories.map((c, idx) => (
+              <a
+                key={idx}
+                href={c.href || "#"}
+                className={`gv-cat-pill d-flex align-items-center gap-2 ${
+                  idx === activeCategoryIndex ? "active" : ""
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  props.onCategoryChange?.(idx);
 
-                // đổi tab đang active
-                props.onCategoryChange?.(idx);
+                  if (location.pathname !== "/") {
+                    navigate("/");
+                  }
 
-                // nếu đang ở trang khác (listing, detail, order...) thì về Home để render đúng tab
-                if (location.pathname !== "/") {
-                  navigate("/");
-                }
-
-                // đóng menu mobile nếu đang mở
-                setShowMenu(false);
-              }}
-              role="button"
-            >
-              {c.icon} <span>{c.label}</span>
-            </a>
-          ))}
-        </Container>
-      </div>
+                  setShowMenu(false);
+                }}
+                role="button"
+              >
+                {c.icon} <span>{c.label}</span>
+              </a>
+            ))}
+          </Container>
+        </div>
+      )}
 
       {/* Offcanvas (mobile toplinks) */}
       <Offcanvas
