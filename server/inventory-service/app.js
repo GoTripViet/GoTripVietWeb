@@ -4,6 +4,8 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const connectDB = require("./config/db");
+const cron = require("node-cron");
+const { syncAllPricesNow } = require("./services/event.apply.service");
 
 // --- Import Routes ---
 const promotionRoutes = require("./routes/promotion.routes");
@@ -30,6 +32,15 @@ app.use((req, res, next) => {
 app.use("/promotions", promotionRoutes);
 app.use("/inventory", inventoryRoutes);
 app.use("/events", eventRoutes);
+// --- Cron Job: Đồng bộ giá theo event mỗi ngày lúc 00:05 ---
+cron.schedule("5 0 * * *", async () => {
+  try {
+    await syncAllPricesNow();
+    console.log("[CRON] Synced event prices OK");
+  } catch (e) {
+    console.error("[CRON] Sync event prices FAIL:", e.message);
+  }
+});
 
 // --- Khởi chạy Server ---
 const PORT = process.env.PORT || 3003;

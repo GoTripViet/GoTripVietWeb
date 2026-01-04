@@ -2,6 +2,7 @@
 const eventService = require("../services/event.service");
 const cloudinary = require("../config/cloudinary"); // bạn nói đã có sẵn
 const streamifier = require("streamifier");
+const { syncPricesForEventChange } = require("../services/event.apply.service");
 
 function uploadToCloudinary(buffer, folder = "events") {
   return new Promise((resolve, reject) => {
@@ -41,6 +42,7 @@ module.exports = {
   async create(req, res) {
     try {
       const ev = await eventService.create(req.body);
+      await syncPricesForEventChange(ev);
       res.status(201).json(ev);
     } catch (e) {
       res.status(400).json({ message: e.message });
@@ -50,6 +52,7 @@ module.exports = {
   async update(req, res) {
     try {
       const ev = await eventService.update(req.params.id, req.body);
+      await syncPricesForEventChange(ev);
       res.json(ev);
     } catch (e) {
       res.status(400).json({ message: e.message });
@@ -59,6 +62,7 @@ module.exports = {
   async delete(req, res) {
     try {
       const ev = await eventService.deleteHard(req.params.id);
+      await syncPricesForEventChange(ev);
       res.json({ message: "Đã xóa event", id: ev._id });
     } catch (e) {
       res.status(400).json({ message: e.message });
@@ -68,6 +72,7 @@ module.exports = {
   async toggleStatus(req, res) {
     try {
       const ev = await eventService.toggleStatus(req.params.id);
+      await syncPricesForEventChange(ev);
       res.json(ev);
     } catch (e) {
       res.status(400).json({ message: e.message });
@@ -125,6 +130,15 @@ module.exports = {
       res.json(rows);
     } catch (e) {
       res.status(400).json({ message: e.message });
+    }
+  },
+  async forceSyncPrices(req, res) {
+    try {
+      const ev = await eventService.getById(req.params.id);
+      const result = await syncPricesForEventChange(ev);
+      res.json({ ok: true, event_id: ev._id, ...result });
+    } catch (e) {
+      res.status(400).json({ ok: false, message: e.message });
     }
   },
 };

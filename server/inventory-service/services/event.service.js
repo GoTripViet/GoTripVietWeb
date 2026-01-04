@@ -2,6 +2,7 @@
 const Event = require("../models/event.model");
 const axios = require("axios");
 const mongoose = require("mongoose");
+const InventoryItem = require("../models/inventory.model");
 
 const CATALOG_BASE_URL =
   process.env.CATALOG_BASE_URL ||
@@ -270,13 +271,16 @@ module.exports = {
   async getPublicTours(idOrSlug) {
     const ev = await this.getPublicByIdOrSlug(idOrSlug);
 
-    if (ev.apply_to_all_tours) {
-      return fetchToursFromCatalogDefault(12);
-    }
+    // CHỈ lấy các tour "đang giảm thật" = inventory đã apply event này
+    const productIds = await InventoryItem.distinct("product_id", {
+      product_type: "tour",
+      "applied_event.event_id": ev._id,
+    });
 
-    const ids = Array.isArray(ev.tour_ids) ? ev.tour_ids : [];
+    const ids = (productIds || []).map(String);
     if (!ids.length) return [];
 
+    // Lấy thông tin tour từ catalog-service
     return fetchToursFromCatalogByIds(ids);
   },
 
