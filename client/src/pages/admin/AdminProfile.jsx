@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
-import { getAdminMe, updateAdminMe } from "../../data/adminStore";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import authApi from "../../api/authApi";
 
 function Modal({ open, title, children, onClose }) {
   if (!open) return null;
@@ -46,40 +47,89 @@ function Modal({ open, title, children, onClose }) {
   );
 }
 
+function getInitials(name = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "A";
+  const a = parts[0][0] || "";
+  const b = parts.length > 1 ? parts[parts.length - 1][0] || "" : "";
+  return (a + b).toUpperCase();
+}
+
 export default function AdminProfile() {
-  const initial = useMemo(() => getAdminMe(), []);
-  const [me, setMe] = useState(initial);
+  const nav = useNavigate();
+
+  const [me, setMe] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [editing, setEditing] = useState(false);
 
-  // đổi mật khẩu (mock)
+  // đổi mật khẩu (chưa có backend -> tạm giữ UI)
   const [pwOpen, setPwOpen] = useState(false);
   const [otp, setOtp] = useState(null);
   const [msg, setMsg] = useState("");
 
-  const saveInfo = (e) => {
+  const handleAuthFail = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    nav("/login");
+  };
+
+  const loadMe = async () => {
+    setLoading(true);
+    try {
+      const profile = await authApi.getProfile(); // GET /users/me
+      setMe(profile);
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) return handleAuthFail();
+      console.error("Load profile failed:", err);
+      setMsg("Không tải được thông tin admin.");
+      setTimeout(() => setMsg(""), 2200);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveInfo = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    // Backend user-service hiện update profile thường chỉ cho fullName/phone (và có thể email tùy bạn)
+    // Avatar/address/dob: nếu backend chưa có field thì gửi lên cũng không lưu.
     const patch = {
-      avatar: String(fd.get("avatar") || ""),
       fullName: String(fd.get("fullName") || ""),
       phone: String(fd.get("phone") || ""),
-      email: String(fd.get("email") || ""),
-      address: String(fd.get("address") || ""),
-      dob: String(fd.get("dob") || ""),
+      // Nếu backend cho phép update email thì mở dòng dưới:
+      // email: String(fd.get("email") || ""),
+      // Các field dưới đây chỉ dùng nếu bạn đã thêm vào model + updateProfile:
+      // avatar: String(fd.get("avatar") || ""),
+      // address: String(fd.get("address") || ""),
+      // dob: String(fd.get("dob") || ""),
     };
-    const next = updateAdminMe(patch);
-    setMe(next);
-    setEditing(false);
-    setMsg("Đã cập nhật thông tin admin.");
-    setTimeout(() => setMsg(""), 2200);
+
+    try {
+      const updated = await authApi.updateProfile(patch); // PUT /users/me
+      setMe(updated);
+      setEditing(false);
+      setMsg("Đã cập nhật thông tin admin.");
+      setTimeout(() => setMsg(""), 2200);
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) return handleAuthFail();
+      setMsg(err?.response?.data?.message || "Cập nhật thất bại.");
+      setTimeout(() => setMsg(""), 2500);
+    }
   };
 
   const requestOtp = () => {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     setOtp(code);
-    // ở đây nếu có backend: call API sendOtp(email)
-    setMsg(`Đã gửi OTP đến email: ${me.email} (dev OTP: ${code})`);
+    setMsg(`Đã gửi OTP đến email: ${me?.email} (dev OTP: ${code})`);
     setTimeout(() => setMsg(""), 3500);
   };
 
@@ -104,19 +154,37 @@ export default function AdminProfile() {
     setTimeout(() => setMsg(""), 2500);
   };
 
+  if (loading) return <div>Đang tải...</div>;
+  if (!me) return <div>Không có dữ liệu admin.</div>;
+
+  const avatarNode = me?.avatar ? (
+    <img
+      src={me.avatar}
+      alt="admin"
+      style={{ width: 70, height: 70, borderRadius: 18, objectFit: "cover" }}
+    />
+  ) : (
+    <div
+      style={{
+        width: 70,
+        height: 70,
+        borderRadius: 18,
+        display: "grid",
+        placeItems: "center",
+        background: "#e5e7eb",
+        fontWeight: 900,
+        fontSize: 18,
+      }}
+      title={me?.fullName || "Admin"}
+    >
+      {getInitials(me?.fullName || me?.email || "Admin")}
+    </div>
+  );
+
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <img
-          src={me?.avatar}
-          alt="avatar"
-          style={{
-            width: 70,
-            height: 70,
-            borderRadius: 18,
-            objectFit: "cover",
-          }}
-        />
+        {avatarNode}
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 900, fontSize: 22 }}>{me?.fullName}</div>
           <div style={{ color: "#6b7280" }}>{me?.email}</div>
@@ -169,8 +237,8 @@ export default function AdminProfile() {
         >
           <Info label="Số điện thoại" value={me?.phone} />
           <Info label="Email" value={me?.email} />
-          <Info label="Địa chỉ" value={me?.address} />
-          <Info label="Ngày sinh" value={me?.dob} />
+          <Info label="Role" value={(me?.roles || []).join(", ")} />
+          <Info label="Trạng thái" value={me?.status || "ACTIVE"} />
           <Info label="Ngày tạo tài khoản" value={me?.createdAt} />
           <Info label="Mật khẩu" value={"••••••••"} />
         </div>
@@ -186,11 +254,9 @@ export default function AdminProfile() {
           onSubmit={saveInfo}
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
         >
-          <Field
-            name="avatar"
-            label="Avatar URL"
-            defaultValue={me?.avatar || ""}
-          />
+          {/* Nếu backend chưa support avatar/address/dob thì bạn có thể ẩn các field này */}
+          {/* <Field name="avatar" label="Avatar URL" defaultValue={me?.avatar || ""} /> */}
+
           <Field
             name="fullName"
             label="Họ tên"
@@ -201,16 +267,12 @@ export default function AdminProfile() {
             label="Số điện thoại"
             defaultValue={me?.phone || ""}
           />
-          <Field name="email" label="Email" defaultValue={me?.email || ""} />
+
           <Field
-            name="address"
-            label="Địa chỉ"
-            defaultValue={me?.address || ""}
-          />
-          <Field
-            name="dob"
-            label="Ngày sinh (YYYY-MM-DD)"
-            defaultValue={me?.dob || ""}
+            name="email"
+            label="Email"
+            defaultValue={me?.email || ""}
+            disabled
           />
 
           <div
@@ -312,7 +374,7 @@ function Info({ label, value }) {
   );
 }
 
-function Field({ name, label, defaultValue, type = "text" }) {
+function Field({ name, label, defaultValue, type = "text", disabled = false }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <span style={{ fontWeight: 800, fontSize: 13 }}>{label}</span>
@@ -320,11 +382,13 @@ function Field({ name, label, defaultValue, type = "text" }) {
         name={name}
         defaultValue={defaultValue}
         type={type}
+        disabled={disabled}
         style={{
           borderRadius: 12,
           border: "1px solid #e5e7eb",
           padding: "10px 12px",
           outline: "none",
+          background: disabled ? "#f3f4f6" : "#fff",
         }}
       />
     </label>

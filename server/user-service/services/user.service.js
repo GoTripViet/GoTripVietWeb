@@ -51,6 +51,10 @@ class UserService {
       throw new Error("Invalid credentials");
     }
 
+    if (user.status && user.status !== "ACTIVE") {
+      throw new Error("Account is not active");
+    }
+
     // 3. Tạo JWT
     const payload = {
       id: user._id,
@@ -288,6 +292,21 @@ class UserService {
     }
     // Trả về thông tin user đã xóa (hoặc chỉ một tin nhắn)
     return { message: "User deleted successfully" };
+  }
+
+  // services/user.service.js
+  async updateUserStatus(userId, status) {
+    const valid = ["ACTIVE", "LOCKED", "BANNED"];
+    if (!valid.includes(status)) throw new Error("Invalid status");
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: { status } },
+      { new: true, runValidators: true }
+    ).select("-password_hash");
+
+    if (!updatedUser) throw new Error("User not found");
+    return updatedUser;
   }
 }
 

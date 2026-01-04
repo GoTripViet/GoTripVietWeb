@@ -96,7 +96,8 @@ app.use((req, res, next) => {
   if (
     (p.startsWith("/products") ||
       p.startsWith("/categories") ||
-      p.startsWith("/locations")) &&
+      p.startsWith("/locations") ||
+      p.startsWith("/uploads")) &&
     req.method !== "GET"
   ) {
     return authMiddleware(req, res, next);
@@ -173,6 +174,26 @@ app.use(
   })
 );
 
+// Event routes (Xem sự kiện công khai)
+app.use(
+  "/events",
+  createProxyMiddleware({
+    ...proxyOptions,
+    target: SERVICES.inventory,
+    pathRewrite: (path) => `/events${path}`,
+  })
+);
+
+// Uploads (Catalog Service)
+app.use(
+  "/uploads",
+  createProxyMiddleware({
+    ...proxyOptions,
+    target: SERVICES.catalog,
+    pathRewrite: keepPrefix,
+  })
+);
+
 // --- B. Các route BẢO VỆ (Phải có token hợp lệ) ---
 
 // Kích hoạt "tường lửa" (authMiddleware) cho TẤT CẢ các route bên dưới
@@ -217,16 +238,6 @@ app.use(
   createProxyMiddleware({
     ...proxyOptions,
     target: SERVICES.payment,
-    pathRewrite: keepPrefix,
-  })
-);
-
-// Uploads (Catalog Service - protected)
-app.use(
-  "/uploads",
-  createProxyMiddleware({
-    ...proxyOptions,
-    target: SERVICES.catalog,
     pathRewrite: keepPrefix,
   })
 );
