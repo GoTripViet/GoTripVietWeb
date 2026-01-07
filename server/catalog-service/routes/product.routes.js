@@ -18,6 +18,13 @@ router.get(
   productController.getProductByIdOrSlugAdmin
 );
 
+router.get(
+  "/partner/me",
+  authMiddleware,
+  checkRole(["partner", "admin"]),
+  productController.getMyProducts
+);
+
 // GET /products/:idOrSlug (Lấy chi tiết 1 sản phẩm)
 router.get("/:idOrSlug", productController.getProductByIdOrSlug);
 

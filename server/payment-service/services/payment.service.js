@@ -4,7 +4,7 @@ const axios = require('axios');
 const moment = require('moment');
 const qs = require('qs');
 const crypto = require('crypto');
-
+const Transaction = require('../models/transaction.model');
 const BOOKING_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3004';
 const API_KEY = process.env.INTERNAL_API_KEY;
 
@@ -196,6 +196,60 @@ class PaymentService {
         sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
     }
     return sorted;
+  }
+
+  /**
+   * [INTERNAL] Xử lý phân chia doanh thu khi Booking thành công
+   * @param {string} bookingId
+   * @param {string} partnerId
+   * @param {number} totalAmount - Tổng tiền khách trả
+   */
+  async processBookingRevenue(bookingId, partnerId, totalAmount) {
+    const COMMISSION_RATE = 0.15; // Phí sàn 15%
+    
+    const commission = totalAmount * COMMISSION_RATE;
+    const income = totalAmount - commission;
+
+    // 1. Tạo giao dịch ghi nhận doanh thu (Ở trạng thái PENDING - Tạm giữ)
+    const transaction = new Transaction({
+      partner_id: partnerId,
+      booking_id: bookingId,
+      type: 'INCOME',
+      amount: income,
+      description: `Doanh thu từ đơn hàng ${bookingId} (đã trừ 15% phí)`,
+      status: 'PENDING' // Tiền treo, chưa rút được ngay
+    });
+
+    await transaction.save();
+    return transaction;
+  }
+
+  /**
+   * [INTERNAL] Quyết toán: Chuyển tiền từ PENDING sang COMPLETED
+   * Hàm này sẽ được gọi khi Tour kết thúc hoặc sau X ngày
+   */
+  async settleTransaction(transactionId) {
+    const tx = await Transaction.findById(transactionId);
+    if (!tx || tx.status !== 'PENDING') throw new Error('Giao dịch không hợp lệ');
+
+    // 1. Cập nhật trạng thái
+    tx.status = 'COMPLETED';
+    await tx.save();
+
+    // 2. Gọi sang User Service để cộng số dư ví thực tế (Wallet Balance)
+    // (Cần dùng API Key nội bộ)
+    try {
+      await axios.post(
+        `${process.env.USER_SERVICE_URL}/users/internal/wallet/add`, 
+        { userId: tx.partner_id, amount: tx.amount },
+        { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+      );
+    } catch (error) {
+      console.error("Lỗi cập nhật ví User:", error.message);
+      // Có thể cần logic retry ở đây
+    }
+
+    return tx;
   }
 }
 

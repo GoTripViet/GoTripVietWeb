@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import locationApi from "../../api/locationApi";
 
+// --- HELPERS ---
+
 function normalizeList(res) {
   const a = res?.data ?? res;
   const b = a?.data ?? a;
@@ -31,6 +33,9 @@ function toRow(x) {
     tags_csv: tags.join(", "),
     lng,
     lat,
+    // Ensure status exists (default to active for old data)
+    status: x?.status || "active",
+    created_by: x?.created_by,
   };
 }
 
@@ -63,8 +68,12 @@ function toPayload(form) {
     images: Array.isArray(form.images) ? form.images : [],
     tags,
     coordinates: { type: "Point", coordinates: [lng, lat] },
+    // Admin can update status manually
+    status: form.status, 
   };
 }
+
+// --- STYLES ---
 
 const styles = {
   page: { display: "grid", gap: 12 },
@@ -94,6 +103,16 @@ const styles = {
     fontWeight: 900,
     color: "#0b5fff",
   },
+  successBtn: {
+    borderRadius: 12,
+    border: "1px solid #bbf7d0",
+    padding: "10px 12px",
+    cursor: "pointer",
+    background: "#f0fdf4",
+    fontWeight: 900,
+    color: "#16a34a",
+    marginRight: 6,
+  },
   dangerBtn: {
     borderRadius: 12,
     border: "1px solid #fecaca",
@@ -120,8 +139,29 @@ const styles = {
     background: "#fafafa",
     whiteSpace: "nowrap",
   },
-  td: { padding: 10, borderBottom: "1px solid #f3f4f6", verticalAlign: "top" },
+  td: { padding: 10, borderBottom: "1px solid #f3f4f6", verticalAlign: "middle" },
   empty: { color: "#9ca3af", fontSize: 12 },
+
+  // Badges
+  badgePending: {
+    background: "#fffbeb",
+    color: "#b45309",
+    border: "1px solid #fcd34d",
+    padding: "2px 8px",
+    borderRadius: 20,
+    fontSize: 11,
+    fontWeight: 900,
+    marginLeft: 6,
+  },
+  badgeActive: {
+    background: "#dcfce7",
+    color: "#166534",
+    border: "1px solid #86efac",
+    padding: "2px 8px",
+    borderRadius: 20,
+    fontSize: 11,
+    fontWeight: 900,
+  },
 
   overlay: {
     position: "fixed",
@@ -175,6 +215,14 @@ const styles = {
     outline: "none",
     width: "100%",
   },
+  select: {
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    padding: "10px 12px",
+    outline: "none",
+    width: "100%",
+    background: "#fff",
+  },
   textarea: {
     borderRadius: 12,
     border: "1px solid #e5e7eb",
@@ -214,6 +262,8 @@ function Modal({ open, title, onClose, children }) {
   );
 }
 
+// --- MAIN COMPONENT ---
+
 export default function ManageLocation() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -229,6 +279,7 @@ export default function ManageLocation() {
     images: [],
     lng: 0,
     lat: 0,
+    status: "active", // Default status
   });
 
   const [uploadingImg, setUploadingImg] = useState(false);
@@ -244,7 +295,17 @@ export default function ManageLocation() {
     setLoading(true);
     try {
       const res = await locationApi.getAll();
-      setRows(normalizeList(res).map(toRow));
+      const list = normalizeList(res).map(toRow);
+
+      // Sorting: Pending requests first, then by date (implied or name)
+      list.sort((a, b) => {
+        if (a.status === "pending" && b.status !== "pending") return -1;
+        if (a.status !== "pending" && b.status === "pending") return 1;
+        // Optional: Sort by created date if available, else by name
+        return 0;
+      });
+
+      setRows(list);
     } catch (e) {
       console.error(e);
       alert(
@@ -269,6 +330,7 @@ export default function ManageLocation() {
       images: [],
       lng: 0,
       lat: 0,
+      status: "active",
     });
     setLocalPreview("");
     setEditOpen(true);
@@ -284,6 +346,7 @@ export default function ManageLocation() {
       images: Array.isArray(row?.images) ? row.images : [],
       lng: row?.lng ?? 0,
       lat: row?.lat ?? 0,
+      status: row?.status || "active",
     });
     setLocalPreview("");
     setEditOpen(true);
@@ -304,6 +367,17 @@ export default function ManageLocation() {
       alert(
         e?.response?.data?.message || e?.message || "Lưu địa điểm thất bại"
       );
+    }
+  };
+
+  // Quick Approve Function
+  const approve = async (row) => {
+    if (!confirm(`Duyệt địa điểm "${row.name}"?`)) return;
+    try {
+        await locationApi.update(row.id, { status: 'active' });
+        await load();
+    } catch (e) {
+        alert("Lỗi duyệt: " + e.message);
     }
   };
 
@@ -374,7 +448,7 @@ export default function ManageLocation() {
         <div>
           <div style={styles.h1}>Quản lý địa điểm</div>
           <div style={styles.sub}>
-            Gồm: tên, slug tự động, quốc gia, mô tả, ảnh, thẻ, tọa độ.
+            Duyệt các địa điểm Pending từ Partner và quản lý dữ liệu gốc.
           </div>
         </div>
 
@@ -392,7 +466,7 @@ export default function ManageLocation() {
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={styles.th}>Tên</th>
+              <th style={styles.th}>Tên / Trạng thái</th>
               <th style={styles.th}>Slug</th>
               <th style={styles.th}>Quốc gia</th>
               <th style={styles.th}>Ảnh</th>
@@ -401,46 +475,60 @@ export default function ManageLocation() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((x) => (
-              <tr key={x.id || x._id}>
-                <td style={styles.td}>{x.name}</td>
-                <td style={styles.td}>
-                  {x.slug ? (
-                    <code>{x.slug}</code>
-                  ) : (
-                    <span style={styles.empty}>Tự động</span>
-                  )}
-                </td>
-                <td style={styles.td}>
-                  {x.country || <span style={styles.empty}>—</span>}
-                </td>
-                <td style={styles.td}>
-                  {Array.isArray(x.images) && x.images.length ? (
-                    <span>{x.images.length} ảnh</span>
-                  ) : (
-                    <span style={styles.empty}>—</span>
-                  )}
-                </td>
-                <td style={styles.td}>
-                  <code>{Number(x.lng).toFixed(6)}</code>,{" "}
-                  <code>{Number(x.lat).toFixed(6)}</code>
-                </td>
-                <td
-                  style={{
-                    ...styles.td,
-                    textAlign: "right",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <button style={styles.btn} onClick={() => openEdit(x)}>
-                    Chỉnh sửa
-                  </button>{" "}
-                  <button style={styles.dangerBtn} onClick={() => remove(x.id)}>
-                    Xóa
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rows.map((x) => {
+                const isPending = x.status === 'pending';
+                return (
+                  <tr key={x.id || x._id} style={isPending ? {background: '#fffbf0'} : {}}>
+                    <td style={styles.td}>
+                        <div style={{fontWeight: 600, color: '#111'}}>{x.name}</div>
+                        {isPending && <span style={styles.badgePending}>⏳ Chờ duyệt</span>}
+                        {x.created_by && isPending && <div style={{fontSize: 11, color: '#666', marginTop: 4}}>Từ Partner</div>}
+                    </td>
+                    <td style={styles.td}>
+                      {x.slug ? (
+                        <code>{x.slug}</code>
+                      ) : (
+                        <span style={styles.empty}>Tự động</span>
+                      )}
+                    </td>
+                    <td style={styles.td}>
+                      {x.country || <span style={styles.empty}>—</span>}
+                    </td>
+                    <td style={styles.td}>
+                      {Array.isArray(x.images) && x.images.length ? (
+                        <span>{x.images.length} ảnh</span>
+                      ) : (
+                        <span style={styles.empty}>—</span>
+                      )}
+                    </td>
+                    <td style={styles.td}>
+                      <code>{Number(x.lng).toFixed(4)}</code>,{" "}
+                      <code>{Number(x.lat).toFixed(4)}</code>
+                    </td>
+                    <td
+                      style={{
+                        ...styles.td,
+                        textAlign: "right",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {/* Approve Button for Pending Items */}
+                      {isPending && (
+                        <button style={styles.successBtn} onClick={() => approve(x)}>
+                            ✓ Duyệt
+                        </button>
+                      )}
+
+                      <button style={styles.btn} onClick={() => openEdit(x)}>
+                        Sửa
+                      </button>{" "}
+                      <button style={styles.dangerBtn} onClick={() => remove(x.id)}>
+                        Xóa
+                      </button>
+                    </td>
+                  </tr>
+                );
+            })}
             {!loading && rows.length === 0 ? (
               <tr>
                 <td style={styles.td} colSpan={6}>
@@ -458,15 +546,28 @@ export default function ManageLocation() {
         onClose={() => setEditOpen(false)}
       >
         <div style={styles.modalBody}>
-          <div>
-            <div style={styles.label}>Tên</div>
-            <input
-              style={styles.input}
-              value={form.name}
-              onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-              placeholder="Ví dụ: Đà Lạt"
-            />
-            <div style={styles.sub}>Slug sẽ tự tạo từ tên khi lưu.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+             <div>
+                <div style={styles.label}>Tên</div>
+                <input
+                  style={styles.input}
+                  value={form.name}
+                  onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
+                  placeholder="Ví dụ: Đà Lạt"
+                />
+             </div>
+             <div>
+                <div style={styles.label}>Trạng thái</div>
+                <select 
+                    style={styles.select}
+                    value={form.status}
+                    onChange={(e) => setForm(s => ({...s, status: e.target.value}))}
+                >
+                    <option value="active">Active (Hoạt động)</option>
+                    <option value="pending">Pending (Chờ duyệt)</option>
+                    <option value="rejected">Rejected (Từ chối)</option>
+                </select>
+             </div>
           </div>
 
           <div>

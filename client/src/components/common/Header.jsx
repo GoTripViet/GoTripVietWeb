@@ -13,12 +13,15 @@ import flagVN from "../../assets/flags/flag_vn.png";
 import flagEN from "../../assets/flags/flag_en.png";
 
 const DEFAULT_TOPLINKS = [
-  { icon: <i className="bi bi-tag-fill" />, label: "Khuyến mãi", href: "#" },
-  { label: "Hỗ trợ", href: "#" },
-  { label: "Hợp tác với chúng tôi", href: "#" },
+  { icon: <i className="bi bi-tag-fill" />, label: "Khuyến mãi", href: "/promotions" }, // Ví dụ
+  { label: "Hỗ trợ", href: "/support" },
+  
+  // --- [SỬA DÒNG NÀY] ---
+  { label: "Hợp tác với chúng tôi", href: "/partner/register" }, 
+  // ----------------------
+
   { label: "Mở ứng dụng", href: "#" },
 ];
-
 export default function Header(props) {
   const {
     logoSrc,

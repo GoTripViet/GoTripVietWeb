@@ -22,6 +22,16 @@ const userApi = {
   // PUT /users/:id/status  (status: "ACTIVE" | "LOCKED" | "BANNED")
   updateStatus: (id, status) =>
     axiosClient.put(`/users/${id}/status`, { status }),
+
+  approvePartner: (id) => {
+    return axiosClient.patch(`/users/${id}/approve`);
+  },
+
+  // [MỚI] Lấy danh sách Partner (có thể filter theo status)
+  getAllPartners: (params = {}) => {
+    // Giả sử backend hỗ trợ filter role=partner
+    return axiosClient.get("/users", { params: { ...params, role: "partner" } });
+  }
 };
 
 export default userApi;

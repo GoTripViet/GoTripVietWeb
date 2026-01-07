@@ -8,28 +8,43 @@ class UserService {
    * @param {object} userData - Dữ liệu từ controller (email, password, fullName)
    */
   async registerUser(userData) {
-    const { email, password, fullName } = userData;
+    const { email, password, fullName, role, partner_details } = userData;
 
-    // 1. Kiểm tra logic: Email đã tồn tại chưa?
+    // 1. Check email tồn tại (Giữ nguyên)
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       throw new Error("Email already in use");
     }
 
-    // 2. Tạo user mới
-    // Lưu ý: Chúng ta chỉ cần truyền "password" vào trường "password_hash"
-    // Model sẽ tự động băm nó (nhờ 'pre-save' hook)
+    // 2. Xử lý Roles (Logic mới)
+    // Mặc định là user thường
+    let roles = ["user"];
+
+    // Nếu client xin làm partner -> Duyệt (nhưng vẫn phải chờ admin approve trong partner_details)
+    if (role === "partner") {
+      roles.push("partner");
+    }
+
+    // [BẢO MẬT] Tuyệt đối KHÔNG cho phép tự đăng ký làm admin
+    // if (role === "admin") { ... } -> Bỏ qua hoặc throw Error
+
+    // 3. Tạo User mới
     const user = new User({
       email,
-      password_hash: password, // Model sẽ hash cái này
+      password_hash: password,
       fullName,
+      roles: roles, // Lưu mảng roles đã xử lý
+
+      // Lưu thông tin partner nếu có (và nếu role là partner)
+      partner_details: (role === "partner" && partner_details) ? {
+        ...partner_details,
+        is_approved: false, // Luôn ép về false để chờ duyệt
+        wallet_balance: 0
+      } : undefined
     });
 
-    // 3. Lưu vào DB
     await user.save();
-
-    // 4. Trả về user (không trả về mật khẩu)
-    user.password_hash = undefined; // Xóa mật khẩu trước khi trả về
+    user.password_hash = undefined;
     return user;
   }
 
@@ -308,6 +323,23 @@ class UserService {
     if (!updatedUser) throw new Error("User not found");
     return updatedUser;
   }
+
+  // user-service/services/user.service.js
+  async approvePartner(adminId, partnerId) {
+    const partner = await User.findById(partnerId);
+    if (!partner) throw new Error("Partner not found");
+
+    if (!partner.roles.includes('partner')) {
+      throw new Error("User is not a partner");
+    }
+
+    partner.partner_details.is_approved = true;
+    partner.partner_details.approved_at = new Date();
+    // partner.partner_details.approved_by = adminId; // Nếu muốn lưu ai duyệt
+
+    return await partner.save();
+  }
+
 }
 
 // Export một instance (thể hiện) của class
