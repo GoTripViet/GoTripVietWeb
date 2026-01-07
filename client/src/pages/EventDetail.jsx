@@ -97,10 +97,15 @@ export default function EventDetail() {
 
         // 2) Lấy tours áp dụng từ inventory-service
         const toursRes = await inventoryApi.getPublicEventTours(id);
-        const list = toursRes.data;
-
-        if (!alive) return;
-        setTours(Array.isArray(list) ? list : []);
+        const data = toursRes.data;
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.tours)
+          ? data.tours
+          : Array.isArray(data?.items)
+          ? data.items
+          : [];
+        setTours(list);
       } catch (err) {
         if (!alive) return;
         setError("Không tải được Event. Vui lòng thử lại.");

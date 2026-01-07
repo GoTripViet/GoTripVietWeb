@@ -15,6 +15,8 @@ const upload = multer({
 // PUBLIC: active events (không cần auth)
 router.get("/active", eventController.getActivePublic);
 
+router.post("/:id/force-sync", eventController.forceSyncPrices);
+
 // PUBLIC: events in a month (không cần auth)
 router.get("/public/month", eventController.getPublicEventsInMonth);
 
