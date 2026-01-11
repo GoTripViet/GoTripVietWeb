@@ -36,13 +36,20 @@ export default function Login() {
 
       if (response.token) {
         localStorage.setItem("token", response.token);
-        if (response.user) {
-          localStorage.setItem("user", JSON.stringify(response.user));
-        }
-        alert("Đăng nhập thành công!");
+        localStorage.setItem("user", JSON.stringify(response.user));
+
         const roles = response.user?.roles || [];
-        const isAdmin = Array.isArray(roles) && roles.includes("admin");
-        navigate(isAdmin ? "/admin" : from, { replace: true });
+
+        // LOGIC ĐIỀU HƯỚNG MỚI
+        if (roles.includes("admin")) {
+          navigate("/admin/dashboard");
+        } else if (roles.includes("partner")) {
+          // Nếu là Partner -> Vào dashboard dành riêng cho Partner
+          navigate("/partner/dashboard");
+        } else {
+          // User thường -> Về trang chủ hoặc trang trước đó
+          navigate(from, { replace: true });
+        }
       }
     } catch (error) {
       console.error("Login failed:", error);
@@ -119,9 +126,8 @@ export default function Login() {
                       title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                     >
                       <i
-                        className={`bi ${
-                          showPassword ? "bi-eye-slash-fill" : "bi-eye-fill"
-                        } fs-5`}
+                        className={`bi ${showPassword ? "bi-eye-slash-fill" : "bi-eye-fill"
+                          } fs-5`}
                       ></i>
                     </span>
                   </div>

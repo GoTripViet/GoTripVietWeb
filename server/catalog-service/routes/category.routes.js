@@ -5,14 +5,22 @@ const categoryController = require("../controllers/category.controller");
 const authMiddleware = require("../middleware/auth.middleware");
 const checkRole = require("../middleware/checkRole.middleware");
 
+// --- Partner Routes (THÊM MỚI) ---
+// POST /categories/request
+// Route này cho phép Partner gửi yêu cầu tạo danh mục mới
+router.post(
+  "/request",
+  authMiddleware,
+  checkRole(["partner", "admin"]),
+  categoryController.requestCategory
+);
+
 // --- Public Routes ---
-// GET /categories (Lấy tất cả, hoặc lọc, ví dụ: /categories?parent=null)
 router.get("/", categoryController.getAllCategories);
-// GET /categories/tour-bien (slug)
 router.get("/:idOrSlug", categoryController.getCategoryByIdOrSlug);
 
 // --- Admin Routes ---
-// POST /categories
+// POST /categories (Admin tạo trực tiếp)
 router.post(
   "/",
   authMiddleware,

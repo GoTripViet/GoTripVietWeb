@@ -5,27 +5,25 @@ class UserController {
   // Controller cho việc Đăng ký
   async register(req, res) {
     try {
-      // 1. Lấy dữ liệu từ request
-      const { email, password, fullName } = req.body;
+      // 1. Lấy thêm role và partner_details
+      const { email, password, fullName, role, partner_details } = req.body;
 
-      // 2. Validate (Đơn giản - Bạn nên dùng thư viện như Joi, Zod sau này)
+      // 2. Validate cơ bản
       if (!email || !password) {
-        return res
-          .status(400)
-          .json({ message: "Email and password are required" });
+        return res.status(400).json({ message: "Email and password are required" });
       }
 
-      // 3. Gọi Service để xử lý nghiệp vụ
+      // 3. Gọi Service
       const user = await userService.registerUser({
         email,
         password,
         fullName,
+        role,             // Truyền xuống service
+        partner_details   // Truyền xuống service
       });
 
-      // 4. Trả về response thành công
       res.status(201).json({ message: "User registered successfully", user });
     } catch (error) {
-      // 5. Xử lý lỗi (ví dụ: email trùng)
       res.status(400).json({ message: error.message });
     }
   }
@@ -224,6 +222,42 @@ class UserController {
       res.status(400).json({ message: error.message });
     }
   }
+
+  // user-service/controllers/user.controller.js
+  async updateWalletInternal(req, res) {
+    try {
+      const { userId, amount } = req.body;
+      // Tìm và update atomic (tránh race condition)
+      const user = await User.findByIdAndUpdate(
+        userId,
+        { $inc: { wallet_balance: amount } }, // $inc: tăng/giảm số lượng
+        { new: true }
+      );
+      res.json({ success: true, newBalance: user.wallet_balance });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
+  async approvePartner(req, res) {
+    try {
+      const partnerId = req.params.id; // Lấy ID partner cần duyệt từ URL
+      const adminId = req.user.id;     // Lấy ID admin đang thực hiện (để log nếu cần)
+
+      // Gọi Service (đảm bảo bạn đã thêm hàm này bên user.service.js như đã bàn)
+      const updatedUser = await userService.approvePartner(adminId, partnerId);
+
+      res.status(200).json({
+        message: "Partner approved successfully",
+        user: updatedUser
+      });
+    } catch (error) {
+      // Xử lý lỗi (ví dụ: User không phải partner, hoặc không tìm thấy)
+      res.status(400).json({ message: error.message });
+    }
+  }
+
+
 }
 
 module.exports = new UserController();

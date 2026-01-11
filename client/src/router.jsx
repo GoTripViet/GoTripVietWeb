@@ -32,11 +32,15 @@ import ForgotPassword from "./pages/ForgotPassword.jsx";
 import PaymentPage from "./pages/PaymentPage";
 import BookingSuccess from "./pages/BookingSuccess";
 import EventDetail from "./pages/EventDetail.jsx";
+import RegisterPartner from "./pages/partner/RegisterPartner.jsx";
+import ManagePartners from './pages/admin/ManagePartners';
+import PartnerWallet from './pages/partner/PartnerWallet';
+import ProtectedRoute from './components/ProtectedRoute';
+import ManageMyTours from './pages/partner/PartnerManageTours';
+import CreateTour from './pages/partner/PartnerCreateTour';
+import PartnerDashboard from './pages/partner/PartnerDashboard';
 
-/**
- * Trang Home được bọc trong UserLayout,
- * và có onNavigateToHotels để chuyển sang /hotels.
- */
+
 const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
   const navigate = useNavigate();
 
@@ -99,34 +103,6 @@ const ForgotPasswordPage = () => {
   return <ForgotPassword />;
 };
 
-/**
- * Trang ListingHotel trong layout,
- * khi click “Xem chỗ trống” thì đi tới /hotel-detail.
- */
-const ListingHotelPage = ({ activeCategoryIndex, onCategoryChange }) => {
-  const navigate = useNavigate();
-
-  return (
-    <UserLayout
-      activeCategoryIndex={activeCategoryIndex}
-      onCategoryChange={onCategoryChange}
-    >
-      <ListingHotel onNavigateToHotelDetail={() => navigate("/hotel-detail")} />
-    </UserLayout>
-  );
-};
-
-const HotelDetailPage = ({ activeCategoryIndex, onCategoryChange }) => {
-  return (
-    <UserLayout
-      activeCategoryIndex={activeCategoryIndex}
-      onCategoryChange={onCategoryChange}
-    >
-      <HotelDetail />
-    </UserLayout>
-  );
-};
-
 const ListingCitiesPage = ({ activeCategoryIndex, onCategoryChange }) => {
   const location = useLocation();
   return (
@@ -135,17 +111,6 @@ const ListingCitiesPage = ({ activeCategoryIndex, onCategoryChange }) => {
       onCategoryChange={onCategoryChange}
     >
       <ListingCities key={location.search} />
-    </UserLayout>
-  );
-};
-
-const ListingFlightsPage = ({ activeCategoryIndex, onCategoryChange }) => {
-  return (
-    <UserLayout
-      activeCategoryIndex={activeCategoryIndex}
-      onCategoryChange={onCategoryChange}
-    >
-      <ListingFlights />
     </UserLayout>
   );
 };
@@ -216,18 +181,10 @@ const ProfilePage = ({ activeCategoryIndex, onCategoryChange }) => {
   );
 };
 
-/**
- *
- * Trang Register cũng KHÔNG bọc UserLayout
- */
 const RegisterPage = () => {
   return <Register />;
 };
 
-/**
- * Login KHÔNG bọc UserLayout
- * -> chỉ render nội dung Login + AuthHeader bên trong trang.
- */
 const LoginPage = () => {
   const navigate = useNavigate();
 
@@ -239,10 +196,6 @@ const LoginPage = () => {
   return <Login onNext={handleNext} />;
 };
 
-/**
- * OtpVerify KHÔNG bọc UserLayout
- * -> dùng AuthHeader riêng, giống Login.
- */
 const OtpVerifyPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -263,8 +216,6 @@ const OtpVerifyPage = () => {
     />
   );
 };
-
-
 
 const ScrollToTop = () => {
   const { pathname, search } = useLocation();
@@ -304,15 +255,13 @@ const OrderDetailPage = ({ activeCategoryIndex, onCategoryChange }) => (
   </UserLayout>
 );
 
-/**
- * Component Router chính – dùng trong main.jsx
- */
 const AppRouter = () => {
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
 
   return (
     <BrowserRouter>
       <ScrollToTop />
+      
       <Routes>
         {/* Trang chủ */}
         <Route
@@ -325,27 +274,6 @@ const AppRouter = () => {
           }
         />
 
-        {/* Trang danh sách khách sạn */}
-        <Route
-          path="/hotels"
-          element={
-            <ListingHotelPage
-              activeCategoryIndex={activeCategoryIndex}
-              onCategoryChange={setActiveCategoryIndex}
-            />
-          }
-        />
-
-        {/* Trang chi tiết khách sạn */}
-        <Route
-          path="/hotel-detail"
-          element={
-            <HotelDetailPage
-              activeCategoryIndex={activeCategoryIndex}
-              onCategoryChange={setActiveCategoryIndex}
-            />
-          }
-        />
 
         <Route
           path="/search"
@@ -409,27 +337,6 @@ const AppRouter = () => {
           }
         />
 
-        {/* Trang danh sách chuyến bay */}
-        <Route
-          path="/flights"
-          element={
-            <ListingFlightsPage
-              activeCategoryIndex={activeCategoryIndex}
-              onCategoryChange={setActiveCategoryIndex}
-            />
-          }
-        />
-
-        {/* Trang đặt chuyến bay */}
-        <Route
-          path="/order-flight"
-          element={
-            <OrderFlightPage
-              activeCategoryIndex={activeCategoryIndex}
-              onCategoryChange={setActiveCategoryIndex}
-            />
-          }
-        />
 
         <Route
           path="/order-success"
@@ -446,13 +353,32 @@ const AppRouter = () => {
           element={<OrderDetailPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
         />
 
+        {/* --- ADMIN ROUTES --- */}
+        <Route path="/admin/manage/partners" element={
+          <ProtectedRoute roles={['admin']}>
+            <ManagePartners />
+          </ProtectedRoute>
+        } />
+
+        {/* --- PARTNER ROUTES --- */}
+        <Route element={<ProtectedRoute roles={['partner']} />}>
+          <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+          <Route path="/partner/wallet" element={<PartnerWallet />} />
+
+          {/* Trang danh sách tour của chính họ */}
+          <Route path="/partner/tours" element={<ManageMyTours />} />
+
+          {/* Tái sử dụng trang tạo tour, nhưng cần chỉnh sửa logic một chút để phù hợp context */}
+          <Route path="/partner/tours/create" element={<CreateTour mode="partner" />} />
+        </Route>
+
         {/* Login – KHÔNG dùng UserLayout */}
         <Route path="/login" element={<LoginPage />} />
         {/* Register – KHÔNG dùng UserLayout */}
         <Route path="/register" element={<RegisterPage />} />
         {/* OTP – KHÔNG dùng UserLayout */}
         <Route path="/otp-verify" element={<OtpVerifyPage />} />
-
+        <Route path="/partner/register" element={<RegisterPartner />} />
         {/* Admin layout */}
         <Route
           path="/admin/*"

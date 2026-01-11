@@ -6,7 +6,7 @@ const checkRole = require("../middleware/checkRole.middleware");
 
 // --- QUAN TRỌNG: Import middleware ở đây ---
 const authMiddleware = require("../middleware/auth.middleware");
-
+const apiKeyAuth = require('../middleware/apiKey.middleware');
 // --- CÁC TUYẾN ĐƯỜNG ĐƯỢC BẢO VỆ ---
 
 // GET /users/me
@@ -71,6 +71,19 @@ router.put(
   authMiddleware,
   checkRole(["admin"]),
   userController.updateUserStatus
+);
+
+router.post(
+  '/internal/wallet/add', 
+  apiKeyAuth, 
+  userController.updateWalletInternal
+);
+
+router.patch(
+  "/:id/approve",
+  authMiddleware,        // 1. Phải đăng nhập
+  checkRole(["admin"]),  // 2. Phải là Admin
+  userController.approvePartner
 );
 
 module.exports = router;

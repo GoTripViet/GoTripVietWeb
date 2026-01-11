@@ -38,8 +38,19 @@ const paymentApi = {
   processMockPayment: (bookingId) => {
     // Giả sử ta gọi endpoint này để báo Payment Service là "Đã trả tiền xong"
     return paymentClient.post('/payment/mock-success', { bookingId });
-  }
+  },
 
+
+  // [MỚI] Lấy lịch sử giao dịch ví (Cho Partner)
+  getWalletTransactions: () => {
+    return paymentClient.get('/payment/transactions'); 
+    // Lưu ý: Bạn cần đảm bảo Backend Payment Service có route GET này
+  },
+
+  // [MỚI] Yêu cầu rút tiền
+  requestWithdrawal: (amount, bankInfo) => {
+    return paymentClient.post('/payment/withdraw', { amount, bankInfo });
+  }
   
 
 

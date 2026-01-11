@@ -3,6 +3,7 @@ const Location = require("../models/location.model");
 const cloudinary = require("../config/cloudinary");
 
 class LocationService {
+  
   async createLocation(data) {
     const location = new Location(data);
     return await location.save();

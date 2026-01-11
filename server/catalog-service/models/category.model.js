@@ -15,12 +15,10 @@ const categorySchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
-    // --- TRƯỜNG QUAN TRỌNG NHẤT ---
-    // Đây là trường tạo ra cây thư mục (cha-con)
     parent: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category", // Tự tham chiếu đến chính nó
-      default: null, // Nếu là 'null', đây là mục cha (cấp 1)
+      ref: "Category",
+      default: null,
     },
     description: String,
     image: {
@@ -28,11 +26,22 @@ const categorySchema = new mongoose.Schema(
       public_id: { type: String, default: "" },
       _id: false,
     },
+    
+    // --- [MỚI] Thêm trường Status và Created_by ---
+    status: { 
+      type: String, 
+      enum: ['active', 'pending', 'rejected'], 
+      default: 'active' // Admin tạo thì active luôn, Partner tạo thì pending (xử lý ở Controller)
+    },
+    created_by: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'User', 
+      default: null // Null nghĩa là Admin/System tạo
+    }
   },
   { timestamps: true }
 );
 
-// Tự động tạo slug từ 'name'
 categorySchema.pre("save", function (next) {
   if (this.isModified("name")) {
     const name = this.name.replace(/Đ/g, "D").replace(/đ/g, "d");

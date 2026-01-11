@@ -12,7 +12,7 @@ const locationSchema = new mongoose.Schema(
     slug: {
       type: String,
       unique: true,
-      index: true, // Thêm index cho slug
+      index: true,
     },
     country: {
       type: String,
@@ -26,7 +26,7 @@ const locationSchema = new mongoose.Schema(
         _id: false,
       },
     ],
-    tags: [{ type: String }], // ['beach', 'family-friendly']
+    tags: [{ type: String }],
     coordinates: {
       type: {
         type: String,
@@ -38,19 +38,31 @@ const locationSchema = new mongoose.Schema(
         default: [0, 0],
       },
     },
+    
+    // --- [NEW] Fields for Request & Approve flow ---
+    status: {
+      type: String,
+      enum: ["active", "pending", "rejected"],
+      default: "active", // Admin creates active by default, API will override for partners
+    },
+    created_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null, // Null implies Admin/System created
+    },
   },
   { timestamps: true }
 );
-// Tự động tạo/cập nhật slug trước khi lưu
+
+// Automatic slug generation
 locationSchema.pre("save", function (next) {
   if (this.isModified("name")) {
-    // Sửa chữ "Đ" thành "D" và "đ" thành "d" TRƯỚC KHI tạo slug
     const name = this.name.replace(/Đ/g, "D").replace(/đ/g, "d");
     this.slug = slugify(name, { lower: true, strict: true });
   }
   next();
 });
-// Tạo chỉ mục (index) để tìm kiếm địa lý
+
 locationSchema.index({ coordinates: "2dsphere" });
 
 module.exports = mongoose.model("Location", locationSchema);

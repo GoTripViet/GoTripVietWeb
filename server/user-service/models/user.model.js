@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
-// Đây là Schema từ ERD (NoSQL) chúng ta đã thiết kế
 const userSchema = new mongoose.Schema(
   {
     email: {
@@ -22,7 +21,7 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
     phone: {
-      type: String,
+      type: String, // SĐT cá nhân
       default: "",
     },
     roles: {
@@ -35,6 +34,8 @@ const userSchema = new mongoose.Schema(
       enum: ["ACTIVE", "LOCKED", "BANNED"],
       default: "ACTIVE",
     },
+    
+    // Sở thích (Dành cho User thường)
     preferences: {
       travel_style: String,
       interests: [String],
@@ -43,45 +44,61 @@ const userSchema = new mongoose.Schema(
       pace: String,
       sustainability_priority: Boolean,
     },
+
+    // --- [CẬP NHẬT] THÔNG TIN PARTNER ---
     partner_details: {
-      company_name: String,
-      business_license: String,
-      is_verified: {
-        type: Boolean,
-        default: false,
+      // Thông tin hiển thị
+      company_name: String,       // Tên thương hiệu/Công ty (VD: VietTravel)
+      business_license: String,   // Mã số thuế / Giấy phép kinh doanh
+      contact_phone: String,      // SĐT liên hệ công việc (Hotline)
+      
+      // Thông tin thanh toán (Admin chuyển khoản cho Partner vào đây)
+      bank_account: {
+        bank_name: String,        // VD: Vietcombank
+        account_number: String,   // VD: 0123456789
+        account_holder: String,   // VD: NGUYEN VAN A
       },
+
+      // Trạng thái duyệt (Admin duyệt thì mới được đăng bài)
+      is_approved: {
+        type: Boolean,
+        default: false, // Mặc định là FALSE (Chờ duyệt)
+      },
+      approved_at: {
+        type: Date,
+      }
     },
+
+    // --- [MỚI] VÍ TIỀN (WALLET) ---
+    // Lưu doanh thu của Partner (sau khi trừ 15% phí sàn)
+    wallet_balance: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+
     passwordResetToken: String,
     passwordResetExpires: Date,
   },
-  { timestamps: true } // Tự động thêm createdAt và updatedAt
+  { timestamps: true }
 );
 
-userSchema.methods.createPasswordResetToken = function () {
-  // 1. Tạo một token ngẫu nhiên
-  const resetToken = crypto.randomBytes(32).toString("hex");
+// --- CÁC METHOD VÀ MIDDLEWARE GIỮ NGUYÊN ---
 
-  // 2. Băm (hash) token này trước khi lưu vào DB (để bảo mật)
+userSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString("hex");
   this.passwordResetToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
-
-  // 3. Đặt thời gian hết hạn (ví dụ: 10 phút)
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 phút
-
-  // 4. Trả về token GỐC (chưa băm) để gửi email
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; 
   return resetToken;
 };
 
-// --- Middleware QUAN TRỌNG ---
-// Tự động hash mật khẩu TRƯỚC KHI lưu vào DB
 userSchema.pre("save", async function (next) {
-  // Chỉ hash nếu mật khẩu được thay đổi (hoặc là user mới)
   if (!this.isModified("password_hash")) {
     return next();
   }
-
   try {
     const salt = await bcrypt.genSalt(10);
     this.password_hash = await bcrypt.hash(this.password_hash, salt);
@@ -91,11 +108,9 @@ userSchema.pre("save", async function (next) {
   }
 });
 
-// Thêm một method (phương thức) vào model để so sánh mật khẩu
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password_hash);
 };
 
-// Tạo và export Model
 const User = mongoose.model("User", userSchema);
 module.exports = User;

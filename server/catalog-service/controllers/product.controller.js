@@ -4,14 +4,35 @@ const productService = require("../services/product.service");
 class ProductController {
   async createProduct(req, res) {
     try {
-      // Lấy partnerId từ token (do authMiddleware + checkRole gán vào)
-      // Giả định role 'partner' hoặc 'admin' mới được tạo
-      const partnerId = req.user.id; // Lấy ID của người đang đăng nhập
 
+      const partnerRes = await axios.get(
+        `${process.env.USER_SERVICE_URL}/users/${req.user.id}`,
+        { headers: { Authorization: req.headers.authorization } }
+      );
+      const partner = partnerRes.data;
+
+      if (!partner.partner_details?.is_approved) {
+        return res.status(403).json({
+          message: "Tài khoản đối tác của bạn chưa được duyệt. Vui lòng chờ Admin phê duyệt."
+        });
+      }
+
+      const partnerId = req.user.id; // Lấy ID của người đang đăng nhập
       const product = await productService.createProduct(req.body, partnerId);
       res.status(201).json(product);
     } catch (error) {
       res.status(400).json({ message: error.message });
+    }
+  }
+
+  async getMyProducts(req, res) {
+    try {
+      const partnerId = req.user.id; // Lấy ID từ token
+      // Gọi service tìm product có partner_id trùng khớp
+      const products = await productService.getProducts({ ...req.query, partner_id: partnerId });
+      res.status(200).json(products);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
     }
   }
 
