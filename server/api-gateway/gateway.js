@@ -16,9 +16,9 @@ const SERVICES = {
   catalog: "http://127.0.0.1:3002", // Catalog Service
   inventory: "http://127.0.0.1:3003", // Inventory Service
   booking: "http://127.0.0.1:3004", // Booking Service
-  ai: "http://127.0.0.1:3005", // AI Service
+  ai: "http://127.0.0.1:3007", // AI Service
   interaction: "http://127.0.0.1:3006", // Interaction Service
-  payment: "http://127.0.0.1:3007", // Payment Service
+  payment: "http://127.0.0.1:3005", // Payment Service
   notification: "http://127.0.0.1:3008", // Notification Service
 };
 
