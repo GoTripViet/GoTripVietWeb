@@ -1,63 +1,77 @@
 // routes/booking.routes.js
 const express = require('express');
 const router = express.Router();
+// ✅ FIXED: Must import bookingController, NOT productController
 const bookingController = require('../controllers/booking.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 const checkRole = require('../middleware/checkRole.middleware');
 const apiKeyAuth = require('../middleware/apiKey.middleware');
 
-// --- [MỚI] API NỘI BỘ (Service-to-Service) ---
-// Thay thế cho Webhook cũ. Payment Service sẽ gọi vào đây.
-// Bảo vệ bằng API Key, KHÔNG yêu cầu User Token.
+// --- [NEW] INTERNAL API (Service-to-Service) ---
+// Payment Service calls this to confirm payment. Protected by API Key.
 router.post(
   '/internal/confirm-payment',
-  apiKeyAuth, // Chỉ cho phép service có key gọi
+  apiKeyAuth,
   bookingController.confirmPaymentInternal
 );
 
 // -----------------------------------------------------
-// CÁC API DƯỚI ĐÂY DÀNH CHO USER (YÊU CẦU ĐĂNG NHẬP)
+// AUTHENTICATED ROUTES (USER & PARTNER)
 // -----------------------------------------------------
 router.use(authMiddleware);
 
-// POST /bookings (Tạo đơn hàng mới)
+// --- [NEW] PARTNER ROUTES ---
+// ⚠️ IMPORTANT: Place these BEFORE '/:id' to avoid conflicts
+
+// 1. Get Partner's Order List
+router.get(
+  '/partner/me',
+  checkRole(['partner', 'admin']),
+  bookingController.getPartnerBookings
+);
+
+// 2. Get Partner's Order Detail (Bypasses User owner check)
+router.get(
+  '/partner/detail/:id',
+  checkRole(['partner', 'admin']),
+  bookingController.getPartnerBookingDetail
+);
+
+// --- USER ROUTES ---
+
+// Create new booking
 router.post('/', bookingController.createBooking);
 
-// GET /bookings (Lấy lịch sử đơn hàng)
-router.get('/my-bookings', bookingController.getMyBookings); // Lưu ý: Nên dùng /my-bookings hoặc / để đồng bộ với API Client
+// Get my booking history
+router.get('/my-bookings', bookingController.getMyBookings);
+router.get('/', bookingController.getMyBookings); // Root alias
 
-// GET /bookings (Lấy lịch sử đơn hàng - Route gốc)
-router.get('/', bookingController.getMyBookings);
-
-// GET /bookings/:id (Xem chi tiết 1 đơn)
+// Get single booking detail
+// ⚠️ This has a parameter :id, so keep it BELOW specific routes like /partner/me
 router.get('/:id', bookingController.getBookingDetails);
 
-// POST /bookings/:id/cancel (Hủy đơn hàng)
+// Cancel booking
 router.post(
   '/:id/cancel',
   bookingController.cancelBooking
 );
 
-
 // -----------------------------------------------------
-// CÁC API DÀNH CHO ADMIN
+// ADMIN ROUTES
 // -----------------------------------------------------
 
-// GET /bookings/admin/all
 router.get(
   '/admin/all',
-  checkRole(['admin']), // Chỉ Admin
+  checkRole(['admin']),
   bookingController.adminGetAllBookings
 );
 
-// GET /bookings/admin/user/:userId
 router.get(
   '/admin/user/:userId',
   checkRole(['admin']),
   bookingController.adminGetBookingsForUser
 );
 
-// POST /bookings/:id/admin/cancel
 router.post(
   '/:id/admin/cancel',
   checkRole(['admin']),

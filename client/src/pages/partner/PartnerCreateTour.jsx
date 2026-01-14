@@ -180,8 +180,11 @@ export default function PartnerCreateTour() {
   };
 
   const handleSubmit = async () => {
+    // 1. Validate cơ bản ở Client
     if (!form.title.trim()) return alert("Vui lòng nhập tên Tour");
     if (form.base_price < 0) return alert("Giá không hợp lệ");
+    if (form.location_ids.length === 0) return alert("Vui lòng chọn ít nhất 1 Địa điểm");
+    if (form.category_ids.length === 0) return alert("Vui lòng chọn ít nhất 1 Danh mục");
 
     setLoading(true);
     try {
@@ -222,8 +225,17 @@ export default function PartnerCreateTour() {
       alert("Đăng tour thành công! Vui lòng chờ duyệt.");
       nav("/partner/tours");
     } catch (err) {
-      console.error(err);
-      alert("Lỗi tạo tour: " + (err.response?.data?.message || err.message));
+      console.error("Full Error:", err);
+
+      // 2. Lấy thông báo lỗi chi tiết từ Backend
+      const serverMessage =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        (typeof err.response?.data === 'string' ? err.response?.data : JSON.stringify(err.response?.data)) ||
+        err.message ||
+        "Lỗi không xác định";
+
+      alert("Lỗi tạo tour: " + serverMessage);
     } finally {
       setLoading(false);
     }

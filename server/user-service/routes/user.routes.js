@@ -45,7 +45,7 @@ router.put(
 router.get(
   "/:id",
   authMiddleware,
-  checkRole(["admin"]),
+  checkRole(["admin", "partner"]),
   userController.getUserById
 );
 
@@ -74,8 +74,8 @@ router.put(
 );
 
 router.post(
-  '/internal/wallet/add', 
-  apiKeyAuth, 
+  '/internal/wallet/add',
+  apiKeyAuth,
   userController.updateWalletInternal
 );
 
@@ -84,6 +84,12 @@ router.patch(
   authMiddleware,        // 1. Phải đăng nhập
   checkRole(["admin"]),  // 2. Phải là Admin
   userController.approvePartner
+);
+
+router.post(
+  '/internal/wallet/update',
+  apiKeyAuth, // Bắt buộc phải có API Key nội bộ
+  userController.updateWalletInternal
 );
 
 module.exports = router;

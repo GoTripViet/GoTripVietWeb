@@ -1,6 +1,6 @@
 // controllers/user.controller.js
 const userService = require("../services/user.service"); // Tầng 2 (Service)
-
+const User = require("../models/user.model");
 class UserController {
   // Controller cho việc Đăng ký
   async register(req, res) {
@@ -227,14 +227,34 @@ class UserController {
   async updateWalletInternal(req, res) {
     try {
       const { userId, amount } = req.body;
-      // Tìm và update atomic (tránh race condition)
+
+      if (!userId || amount === undefined) {
+        return res.status(400).json({ message: "Thiếu userId hoặc amount" });
+      }
+
+      console.log(`💰 [User Service] Update Wallet: User ${userId} | Amount: ${amount}`);
+
+      // Sử dụng model User đã import ở đầu file
       const user = await User.findByIdAndUpdate(
         userId,
-        { $inc: { wallet_balance: amount } }, // $inc: tăng/giảm số lượng
-        { new: true }
+        { $inc: { wallet_balance: Number(amount) } },
+        { new: true, runValidators: true }
       );
-      res.json({ success: true, newBalance: user.wallet_balance });
+
+      if (!user) {
+        return res.status(404).json({ message: "Không tìm thấy User" });
+      }
+
+      console.log(`✅ Success! New Balance: ${user.wallet_balance}`);
+
+      res.status(200).json({
+        success: true,
+        message: "Cập nhật ví thành công",
+        newBalance: user.wallet_balance
+      });
+
     } catch (error) {
+      console.error("❌ Lỗi update wallet:", error.message);
       res.status(500).json({ message: error.message });
     }
   }

@@ -57,31 +57,34 @@ export default function BookingSuccess() {
 
                 const verifyPayment = async () => {
                     try {
-                        // Gọi API
+                        console.log("🔄 Đang xác thực với Backend...");
                         const response = await paymentApi.verifyVNPay(vnpParams);
 
-                        // [FIX]: Lấy data thật sự bất kể có qua interceptor hay không
-                        // Nếu response có thuộc tính .data (Axios Object) thì lấy .data
-                        // Nếu không (đã qua Interceptor) thì lấy chính nó
-                        const data = response.data ? response.data : response;
+                        // --- [FIX LOGIC LẤY DATA] ---
+                        let payload = response;
 
-                        console.log("Verify Result:", data); // Log để debug nếu cần
+                        // Nếu response là Axios Object chuẩn (có .data, .status code, .headers)
+                        // Thì ta mới cần lấy .data. Còn nếu đã qua Interceptor thì chính nó là payload.
+                        if (response.data && response.status && response.headers) {
+                            payload = response.data;
+                        }
 
-                        // Kiểm tra kết quả từ Backend
-                        if (data.status === 'success') {
+                        console.log("✅ Kết quả Verify:", payload); // Xem log này để chắc chắn
+
+                        // Kiểm tra status từ payload chuẩn
+                        if (payload.status === 'success') {
                             setStatus('success');
-                            // Backend trả về: { status: 'success', data: { ...booking... } }
-                            // Nên booking object nằm trong data.data
-                            setBooking(data.data);
+                            // Dữ liệu booking nằm trong payload.data
+                            setBooking(payload.data);
                         } else {
-                            console.error("Lỗi xác thực VNPAY:", data);
+                            console.error("❌ Xác thực thất bại:", payload);
                             setStatus('failed');
                         }
                     } catch (error) {
-                        console.error("Lỗi gọi API Verify:", error);
+                        console.error("❌ Lỗi gọi API Verify:", error);
                         setStatus('failed');
                     }
-                }; 
+                };
                 verifyPayment();
 
             } else {

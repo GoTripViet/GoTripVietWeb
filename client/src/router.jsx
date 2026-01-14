@@ -12,6 +12,7 @@ import {
 import UserLayout from "./layouts/UserLayout.jsx";
 import AdminLayout from "./layouts/AdminLayout.jsx";
 import SearchPage from "./pages/SearchPage.jsx";
+import PartnerManageOrders from './pages/partner/PartnerManageOrders';
 // Pages
 import OrderDetail from "./pages/OrderDetail.jsx";
 import ProductDetail from "./pages/ProductDetail.jsx";
@@ -39,6 +40,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ManageMyTours from './pages/partner/PartnerManageTours';
 import CreateTour from './pages/partner/PartnerCreateTour';
 import PartnerDashboard from './pages/partner/PartnerDashboard';
+import PartnerInventory from './pages/partner/PartnerInventory'; // [NEW IMPORT]
+import PartnerEditTour from './pages/partner/PartnerEditTour';
+import PartnerOrderDetail from './pages/partner/PartnerOrderDetail';
 
 
 const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
@@ -261,7 +265,7 @@ const AppRouter = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      
+
       <Routes>
         {/* Trang chủ */}
         <Route
@@ -360,7 +364,6 @@ const AppRouter = () => {
           </ProtectedRoute>
         } />
 
-        {/* --- PARTNER ROUTES --- */}
         <Route element={<ProtectedRoute roles={['partner']} />}>
           <Route path="/partner/dashboard" element={<PartnerDashboard />} />
           <Route path="/partner/wallet" element={<PartnerWallet />} />
@@ -370,6 +373,11 @@ const AppRouter = () => {
 
           {/* Tái sử dụng trang tạo tour, nhưng cần chỉnh sửa logic một chút để phù hợp context */}
           <Route path="/partner/tours/create" element={<CreateTour mode="partner" />} />
+          <Route path="/partner/tours/:id" element={<PartnerEditTour />} />
+          {/* [NEW] Route quản lý tồn kho (Inventory) */}
+          <Route path="/partner/tours/:id/inventory" element={<PartnerInventory />} />
+          <Route path="/partner/orders" element={<PartnerManageOrders />} />
+          <Route path="/partner/orders/:id" element={<PartnerOrderDetail />} />
         </Route>
 
         {/* Login – KHÔNG dùng UserLayout */}

@@ -84,6 +84,7 @@ class ProductService {
    */
   async getProducts(queryParams) {
     const {
+      partner_id,
       page = 1,
       limit = 10,
       product_type,
@@ -115,6 +116,10 @@ class ProductService {
 
     if (tags) filter.tags = { $in: tags.split(",") };
 
+    if (partner_id) {
+      filter.partner_id = partner_id;
+      delete filter.is_active;
+    }
     // --- CÁC BỘ LỌC NÂNG CAO ---
 
     // 1. Lọc theo từ khóa (Tìm trong Title, Slug, hoặc StartPoint của tour)
@@ -324,6 +329,129 @@ class ProductService {
     await product.populate("category_ids", "name slug");
     return product;
   }
+
+  async addSchedule(productId, scheduleData, partnerId) {
+    const product = await Product.findById(productId);
+    if (!product) throw new Error("Product not found");
+
+    // Check quyền sở hữu
+    if (product.partner_id.toString() !== partnerId) {
+      throw new Error("Forbidden: You do not own this product");
+    }
+
+    // Đảm bảo mảng schedules tồn tại
+    if (!product.tour_details.schedules) {
+      product.tour_details.schedules = [];
+    }
+
+    // Kiểm tra xem ngày này đã có chưa (nếu có thì update số chỗ)
+    const existingIndex = product.tour_details.schedules.findIndex(
+      (s) => new Date(s.date).toDateString() === new Date(scheduleData.date).toDateString()
+    );
+
+    if (existingIndex > -1) {
+      // Update tồn tại
+      product.tour_details.schedules[existingIndex].stock = scheduleData.stock;
+      product.tour_details.schedules[existingIndex].price_override = scheduleData.price;
+    } else {
+      // Thêm mới
+      product.tour_details.schedules.push({
+        date: scheduleData.date,
+        stock: parseInt(scheduleData.stock),
+        booked: 0, // Mặc định chưa ai đặt
+        price_override: scheduleData.price || 0 // Giá riêng cho ngày đó (nếu có)
+      });
+    }
+
+    // Sắp xếp lại lịch theo ngày tăng dần
+    product.tour_details.schedules.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    await product.save();
+    return product;
+  }
+
+  /**
+   * [MỚI] Xóa lịch khởi hành
+   */
+  async removeSchedule(productId, scheduleId, partnerId) {
+    const product = await Product.findById(productId);
+    if (!product) throw new Error("Product not found");
+
+    if (product.partner_id.toString() !== partnerId) {
+      throw new Error("Forbidden");
+    }
+
+    // Lọc bỏ schedule có _id tương ứng
+    product.tour_details.schedules = product.tour_details.schedules.filter(
+      (s) => s._id.toString() !== scheduleId
+    );
+
+    await product.save();
+    return product;
+  }
+
+  async addSchedule(productId, scheduleData, partnerId) {
+    const product = await Product.findById(productId);
+    if (!product) throw new Error("Product not found");
+
+    // Check quyền sở hữu
+    if (product.partner_id.toString() !== partnerId) {
+      throw new Error("Forbidden: You do not own this product");
+    }
+
+    // Đảm bảo mảng schedules tồn tại
+    if (!product.tour_details.schedules) {
+      product.tour_details.schedules = [];
+    }
+
+    // Kiểm tra xem ngày này đã có chưa (nếu có thì update số chỗ)
+    const existingIndex = product.tour_details.schedules.findIndex(
+      (s) => new Date(s.date).toDateString() === new Date(scheduleData.date).toDateString()
+    );
+
+    if (existingIndex > -1) {
+      // Update tồn tại
+      product.tour_details.schedules[existingIndex].stock = scheduleData.stock;
+      product.tour_details.schedules[existingIndex].price_override = scheduleData.price;
+    } else {
+      // Thêm mới
+      product.tour_details.schedules.push({
+        date: scheduleData.date,
+        stock: parseInt(scheduleData.stock),
+        booked: 0, // Mặc định chưa ai đặt
+        price_override: scheduleData.price || 0 // Giá riêng cho ngày đó (nếu có)
+      });
+    }
+
+    // Sắp xếp lại lịch theo ngày tăng dần
+    product.tour_details.schedules.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    await product.save();
+    return product;
+  }
+
+  /**
+   * [MỚI] Xóa lịch khởi hành
+   */
+  async removeSchedule(productId, scheduleId, partnerId) {
+    const product = await Product.findById(productId);
+    if (!product) throw new Error("Product not found");
+
+    if (product.partner_id.toString() !== partnerId) {
+      throw new Error("Forbidden");
+    }
+
+    // Lọc bỏ schedule có _id tương ứng
+    product.tour_details.schedules = product.tour_details.schedules.filter(
+      (s) => s._id.toString() !== scheduleId
+    );
+
+    await product.save();
+    return product;
+  }
+
+ 
+
 }
 
 module.exports = new ProductService();
