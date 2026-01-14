@@ -5,10 +5,19 @@ const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
 
+// 👇 [MỚI] 1. Import Cron Job Tự động Hoàn thành Tour
+const startCompletedCheckCron = require('./cron/completedCheck.cron');
+
 const bookingRoutes = require('./routes/booking.routes');
 
 const app = express();
+
+// 2. Kết nối Database
 connectDB();
+
+// 👇 [MỚI] 3. Kích hoạt Cron Job
+// Hệ thống sẽ bắt đầu chạy ngầm để quét các tour đã kết thúc
+startCompletedCheckCron();
 
 app.use(cors());
 app.use(morgan('dev'));

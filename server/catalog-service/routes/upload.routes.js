@@ -15,7 +15,7 @@ const upload = multer({
 router.post(
   "/category-image",
   authMiddleware,
-  checkRole(["admin"]),
+  checkRole(['admin', 'partner']),
   upload.single("file"),
   async (req, res) => {
     try {
@@ -71,7 +71,7 @@ router.post(
 router.post(
   "/tour-image",
   authMiddleware,
-  checkRole(["admin"]),
+  checkRole(['admin', 'partner']),
   upload.single("file"),
   async (req, res) => {
     try {

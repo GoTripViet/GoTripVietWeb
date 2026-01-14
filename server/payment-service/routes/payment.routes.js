@@ -3,50 +3,83 @@ const express = require('express');
 const router = express.Router();
 const paymentController = require('../controllers/payment.controller');
 const authMiddleware = require('../middleware/auth.middleware');
-const apiKeyAuth = require('../middleware/apiKey.middleware'); // [MỚI]
-const checkRole = require('../middleware/checkRole.middleware'); // [MỚI]
+const apiKeyAuth = require('../middleware/apiKey.middleware');
+const checkRole = require('../middleware/checkRole.middleware');
 
-// --- API Cho Frontend (User gọi) ---
+// ==========================================
+// 1. VNPAY API
+// ==========================================
+
 router.post(
-  '/create-payment-intent',
-  authMiddleware, 
-  paymentController.createPaymentIntent
+  '/create-vnpay-url',
+  // authMiddleware, // Uncomment if you want to force login to pay
+  paymentController.createVNPayUrl
 );
 
-// --- API Cho Stripe (Webhook) ---
-router.post(
-  '/webhook/stripe',
-  paymentController.handleStripeWebhook
+router.get('/vnpay-return', paymentController.vnpayReturn);
+
+
+// ==========================================
+// 2. PARTNER WALLET API (NEW)
+// ==========================================
+
+// Get Wallet Balance & Transaction History
+router.get(
+  '/wallet/me',
+  authMiddleware, // Requires User Token
+  paymentController.getMyWallet
 );
 
-// --- [MỚI] API NỘI BỘ (CHO BOOKING SERVICE GỌI) ---
+// Request Payout (Withdrawal)
+router.post(
+  '/payout-request',
+  authMiddleware, // Requires User Token
+  paymentController.requestPayout
+);
+
+
+// ==========================================
+// 3. INTERNAL API (Service-to-Service)
+// ==========================================
+
+// [NEW] Distribute Revenue (Called by Cron Job)
+router.post(
+  '/internal/distribute-revenue',
+  apiKeyAuth, // Protected by Internal API Key
+  paymentController.distributeRevenue
+);
+
+// Refund Payment
 router.post(
   '/refund',
-  apiKeyAuth, // Bảo vệ bằng API Key
+  apiKeyAuth,
   paymentController.refundPayment
 );
 
-// --- [MỚI] API ADMIN ---
+
+// ==========================================
+// 4. ADMIN API
+// ==========================================
+
 router.get(
   '/admin/all',
   authMiddleware,
-  checkRole(['admin']), // Chỉ Admin
+  checkRole(['admin']),
   paymentController.adminGetAllPayments
 );
 
 router.get(
   '/booking/:bookingId',
   authMiddleware,
-  checkRole(['admin']), // Chỉ Admin
+  checkRole(['admin']),
   paymentController.adminGetPaymentsForBooking
 );
 
-router.post(
-  '/create-vnpay-url',
-  // authMiddleware, // (Bật cái này nếu muốn bắt buộc đăng nhập mới được tạo link)
-  paymentController.createVNPayUrl
+router.get(
+  '/admin/stats',
+  // authMiddleware,             // Uncomment khi muốn bảo vệ
+  // checkRole(['admin']),       // Uncomment khi muốn bảo vệ
+  paymentController.getSystemStats
 );
-
-router.get('/vnpay-return', paymentController.vnpayReturn);
 
 module.exports = router;

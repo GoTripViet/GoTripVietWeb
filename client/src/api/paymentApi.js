@@ -1,60 +1,74 @@
 // src/api/paymentApi.js
 import axios from 'axios';
 
+// 1. Tạo instance Axios cho Payment Service
+// (Giữ nguyên port 3005 như file bạn gửi)
 const paymentClient = axios.create({
-  baseURL: 'http://localhost:3005', // Port của Payment Service
+  baseURL: 'http://localhost:3005',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Gắn Token (nếu có yêu cầu đăng nhập để thanh toán)
+// 2. Interceptor Request: Tự động gắn Token
+// Quan trọng để Backend biết ai đang gọi API (Partner nào, User nào)
 paymentClient.interceptors.request.use(async (config) => {
   const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
-});
+}, (error) => Promise.reject(error));
+
+// 3. Interceptor Response: Trả về data gọn gàng
+paymentClient.interceptors.response.use((response) => {
+  return response.data;
+}, (error) => Promise.reject(error));
 
 const paymentApi = {
-  // Hàm này giả lập việc gọi cổng thanh toán
-  // Trong thực tế, nó sẽ trả về URL của VNPay/MoMo hoặc ClientSecret của Stripe
-  createPayment: (bookingId, amount, gateway = 'credit_card') => {
-    return paymentClient.post('/payment/create', { bookingId, amount, gateway });
+
+  // --- A. WALLET API (Dành cho Partner) ---
+
+  // 1. [QUAN TRỌNG] Lấy thông tin ví & lịch sử giao dịch
+  // Endpoint này sẽ trả về: { balance: 5000000, transactions: [...] }
+  getWalletTransactions: () => {
+    return paymentClient.get('/payment/wallet/me');
   },
 
+  // 2. [QUAN TRỌNG] Yêu cầu rút tiền
+  // Gửi số tiền và thông tin ngân hàng lên Server
+  requestPayout: (amount, bankInfo) => {
+    return paymentClient.post('/payment/payout-request', { amount, bankInfo });
+  },
+
+  // --- B. PAYMENT GATEWAY API (Dành cho User thanh toán Booking) ---
+
   /**
-     * Tạo URL thanh toán VNPAY
-     * @param {object} data - { amount, bookingId, bankCode, language }
-     */
+   * Tạo URL thanh toán VNPAY
+   * @param {object} data - { amount, bookingId, bankCode, language }
+   */
   createVNPayUrl: (data) => {
     return paymentClient.post("/payment/create-vnpay-url", data);
   },
 
+  /**
+   * Xác thực kết quả trả về từ VNPAY
+   * (Gọi khi VNPAY redirect về frontend)
+   */
   verifyVNPay: (params) => {
     return paymentClient.get("/payment/vnpay-return", { params });
-  }
-  ,
-  // Hàm xác nhận thanh toán (nếu dùng thẻ test nội bộ)
+  },
+
+  // (Tùy chọn) Mock Payment để test nhanh mà không cần VNPAY thật
   processMockPayment: (bookingId) => {
-    // Giả sử ta gọi endpoint này để báo Payment Service là "Đã trả tiền xong"
     return paymentClient.post('/payment/mock-success', { bookingId });
   },
 
-
-  // [MỚI] Lấy lịch sử giao dịch ví (Cho Partner)
-  getWalletTransactions: () => {
-    return paymentClient.get('/payment/transactions'); 
-    // Lưu ý: Bạn cần đảm bảo Backend Payment Service có route GET này
+  getSystemStats: () => {
+    return paymentClient.get('/payment/admin/stats');
   },
-
-  // [MỚI] Yêu cầu rút tiền
-  requestWithdrawal: (amount, bankInfo) => {
-    return paymentClient.post('/payment/withdraw', { amount, bankInfo });
-  }
-  
-
-
-
 };
+
+
 
 export default paymentApi;

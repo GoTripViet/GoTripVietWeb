@@ -15,6 +15,20 @@ const catalogApi = {
     });
   },
 
+  getPartnerTours(params) {
+    return axiosClient.get("/products/partner/me", { params });
+  },
+
+  // [MỚI] Thêm lịch
+  addSchedule(productId, data) {
+    return axiosClient.post(`/products/${productId}/schedules`, data);
+  },
+
+  // [MỚI] Xóa lịch
+  removeSchedule(productId, scheduleId) {
+    return axiosClient.delete(`/products/${productId}/schedules/${scheduleId}`);
+  },
+
   // --- ĐỊA ĐIỂM ---
   getAllLocations: () => axiosClient.get("/locations"),
   createLocation: (payload) => axiosClient.post("/locations", payload),

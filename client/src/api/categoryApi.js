@@ -6,6 +6,8 @@ const categoryApi = {
     return axiosClient.get("/categories", { params });
   },
 
+  
+
   // Lấy chi tiết
   getById(id) {
     return axiosClient.get(`/categories/${id}`);

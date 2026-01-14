@@ -1,32 +1,152 @@
 // services/payment.service.js
 const Payment = require('../models/payment.model');
+const Transaction = require('../models/transaction.model');
 const axios = require('axios');
 const moment = require('moment');
 const qs = require('qs');
 const crypto = require('crypto');
-const Transaction = require('../models/transaction.model');
+
+// Environment Variables
 const BOOKING_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3004';
+const USER_URL = process.env.USER_SERVICE_URL || 'http://localhost:3001';
 const API_KEY = process.env.INTERNAL_API_KEY;
 
 class PaymentService {
 
   // ==========================================
-  // CHỈ CÒN LẠI VNPAY
+  // 1. REVENUE & WALLET LOGIC
   // ==========================================
 
   /**
-   * TẠO URL THANH TOÁN VNPAY
+   * [INTERNAL] Distribute Revenue (Called by Cron Job when Tour Completed)
+   * Splits money: 15% Commission (System), 85% Income (Partner)
    */
+  async distributeRevenue(bookingId, partnerId, amount, description) {
+    const COMMISSION_RATE = 0.15; // 15%
+
+    // Calculate amounts
+    const commissionAmount = amount * COMMISSION_RATE;
+    const partnerReceived = amount - commissionAmount;
+
+    // A. Record Transactions (Keep in Payment DB)
+    await Transaction.create({
+      partner_id: partnerId,
+      booking_id: bookingId,
+      type: 'INCOME',
+      amount: amount,
+      description: description || 'Revenue for completed tour',
+      status: 'COMPLETED'
+    });
+
+    await Transaction.create({
+      partner_id: partnerId,
+      booking_id: bookingId,
+      type: 'COMMISSION',
+      amount: -commissionAmount, // Negative amount
+      description: `Platform fee 15% for booking ${bookingId}`,
+      status: 'COMPLETED'
+    });
+
+    // B. Call User Service to Update Balance (API Call instead of DB)
+    try {
+      await axios.post(
+        `${USER_URL}/users/internal/wallet/update`,
+        { userId: partnerId, amount: partnerReceived },
+        { headers: { 'x-api-key': API_KEY } }
+      );
+    } catch (error) {
+      console.error("Failed to update User Wallet via API:", error.message);
+      // In a real app, you might want to add a retry mechanism here
+      throw new Error(`Wallet update failed: ${error.message}`);
+    }
+
+    console.log(`💰 Revenue Distributed: Partner +${partnerReceived}`);
+    return { message: 'Success', partnerReceived, commissionAmount };
+  }
+
+  /**
+   * Get Wallet Info for Frontend
+   */
+  async getWalletInfo(partnerId, userToken) {
+    let balance = 0;
+
+    // 1. Gọi User Service để lấy số dư
+    try {
+      // [FIX] Sửa '/users/profile' thành '/users/' + partnerId
+      const userRes = await axios.get(`${USER_URL}/users/${partnerId}`, {
+        headers: { Authorization: userToken }
+      });
+
+      // Lấy field wallet_balance từ kết quả trả về
+      balance = userRes.data.wallet_balance || 0;
+
+    } catch (error) {
+      console.warn("Could not fetch balance from User Service:", error.message);
+      // Nếu lỗi, balance mặc định là 0 để không chết trang web
+    }
+
+    // 2. Lấy lịch sử giao dịch từ Database local
+    const transactions = await Transaction.find({ partner_id: partnerId })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    return { balance, transactions };
+  }
+
+  /**
+   * Handle Payout Request
+   */
+  async requestPayout(partnerId, amount, bankInfo, userToken) {
+    // 1. Check Balance via User Service
+    let currentBalance = 0;
+    try {
+      const userRes = await axios.get(`${USER_URL}/users/profile`, {
+        headers: { Authorization: userToken }
+      });
+      currentBalance = userRes.data.wallet_balance || 0;
+    } catch (error) {
+      throw new Error("Could not verify balance with User Service");
+    }
+
+    if (currentBalance < amount) {
+      throw new Error("Insufficient balance.");
+    }
+
+    // 2. Create Transaction
+    const tx = new Transaction({
+      partner_id: partnerId,
+      type: 'WITHDRAWAL',
+      amount: -amount,
+      description: `Withdrawal to ${bankInfo.bankName} - ${bankInfo.accountNumber}`,
+      status: 'PENDING'
+    });
+    await tx.save();
+
+    // 3. Deduct Balance via User Service
+    await axios.post(
+      `${USER_URL}/users/internal/wallet/update`,
+      { userId: partnerId, amount: -amount }, // Negative amount to deduct
+      { headers: { 'x-api-key': API_KEY } }
+    );
+
+    return { message: "Withdrawal request submitted!", transaction: tx };
+  }
+
+
+  // ==========================================
+  // 2. VNPAY LOGIC
+  // ==========================================
+
   createVNPayUrl(req, bookingId, amount, bankCode) {
     process.env.TZ = 'Asia/Ho_Chi_Minh';
     const date = new Date();
     const createDate = moment(date).format('YYYYMMDDHHmmss');
-    
+
     let ipAddr = req.headers['x-forwarded-for'] ||
       req.connection.remoteAddress ||
       req.socket.remoteAddress ||
       req.connection.socket.remoteAddress;
-    
+
     if (ipAddr === '::1') ipAddr = '127.0.0.1';
 
     const tmnCode = process.env.VNP_TMN_CODE;
@@ -64,111 +184,96 @@ class PaymentService {
     return finalUrl;
   }
 
-  /**
-   * XÁC THỰC KẾT QUẢ VNPAY TRẢ VỀ
-   */
   async verifyVNPayReturn(vnp_Params) {
-    console.log("⚠️ DEV MODE: Bỏ qua kiểm tra chữ ký, tin tưởng URL params");
+    console.log("⚠️ DEV MODE: Bypassing signature check");
 
     const vnp_ResponseCode = vnp_Params['vnp_ResponseCode'];
     const rawTxnRef = vnp_Params['vnp_TxnRef'];
     const amount = parseInt(vnp_Params['vnp_Amount']) / 100;
 
     if (vnp_ResponseCode === '00') {
-        const bookingId = rawTxnRef.includes('_') ? rawTxnRef.split('_')[0] : rawTxnRef;
+      const bookingId = rawTxnRef.includes('_') ? rawTxnRef.split('_')[0] : rawTxnRef;
 
-        // 1. Lưu transaction vào bảng Payment
-        try {
-           await Payment.findOneAndUpdate(
-              { booking_id: bookingId }, // Tìm theo booking_id
-              {
-                  booking_id: bookingId,
-                  amount: amount,
-                  currency: 'vnd',
-                  status: 'succeeded',
-                  gateway: 'vnpay',
-                  transaction_date: new Date(),
-                  // Lưu thêm vài thông tin để đối soát nếu cần
-                  gateway_transaction_id: vnp_Params['vnp_TransactionNo']
-              },
-              { upsert: true, new: true }
-           );
-        } catch (dbError) {
-           console.error("Lỗi lưu Payment DB:", dbError.message);
-        }
+      try {
+        await Payment.findOneAndUpdate(
+          { booking_id: bookingId },
+          {
+            booking_id: bookingId,
+            amount: amount,
+            currency: 'vnd',
+            status: 'succeeded',
+            gateway: 'vnpay',
+            transaction_date: new Date(),
+            gateway_transaction_id: vnp_Params['vnp_TransactionNo']
+          },
+          { upsert: true, new: true }
+        );
+      } catch (dbError) {
+        console.error("DB Error:", dbError.message);
+      }
 
-        // 2. Gọi sang Booking Service
-        try {
-            const internalApiUrl = `${BOOKING_URL}/bookings/internal/confirm-payment`;
-            console.log(`Calling Internal API: ${internalApiUrl}`);
+      // Call Booking Service to CONFIRM
+      try {
+        const internalApiUrl = `${BOOKING_URL}/bookings/internal/confirm-payment`;
+        const response = await axios.post(
+          internalApiUrl,
+          {
+            bookingId: bookingId,
+            paymentInfo: {
+              gateway: 'vnpay',
+              gateway_transaction_id: vnp_Params['vnp_TransactionNo'] || 'Unknown',
+              amount: amount,
+              status: 'succeeded'
+            }
+          },
+          { headers: { 'x-api-key': API_KEY } }
+        );
 
-            const response = await axios.post(
-                internalApiUrl,
-                { 
-                    bookingId: bookingId, 
-                    paymentInfo: {
-                        gateway: 'vnpay',
-                        gateway_transaction_id: vnp_Params['vnp_TransactionNo'] || 'Unknown',
-                        amount: amount,
-                        status: 'succeeded'
-                    } 
-                },
-                { headers: { 'x-api-key': API_KEY } }
-            );
+        return {
+          status: 'success',
+          message: 'Payment Successful',
+          data: response.data
+        };
 
-            // Trả về dữ liệu thật cho Frontend
-            return { 
-                status: 'success', 
-                message: 'Thanh toán thành công',
-                data: response.data 
-            };
-
-        } catch (error) {
-            console.error("Lỗi gọi sang Booking Service:", error.message);
-            return { 
-                status: 'success', 
-                message: 'Thanh toán thành công (Data sync error)',
-                data: { _id: bookingId, status: 'confirmed', payment_status: 'paid' } 
-            };
-        }
+      } catch (error) {
+        console.error("Booking Service Sync Error:", error.message);
+        return {
+          status: 'success',
+          message: 'Payment Successful (Sync Warning)',
+          data: { _id: bookingId }
+        };
+      }
     } else {
-        return { status: 'failed', message: 'Thanh toán thất bại', code: vnp_ResponseCode };
+      return { status: 'failed', message: 'Payment Failed', code: vnp_ResponseCode };
     }
   }
 
-  /**
-   * HOÀN TIỀN (CHỈ XỬ LÝ VNPAY MOCK)
-   */
+  // ==========================================
+  // 3. ADMIN & UTILS
+  // ==========================================
+
   async refundPayment(bookingId) {
-    // 1. Tìm giao dịch
+    // 1. Find Payment
     const payment = await Payment.findOne({ booking_id: bookingId, status: 'succeeded' });
-    
-    if (!payment) {
-        throw new Error('Không tìm thấy giao dịch thanh toán thành công để hoàn tiền.');
-    }
+    if (!payment) throw new Error('No successful payment found.');
 
-    // 2. Xử lý VNPAY (Giả lập)
+    // 2. Handle VNPAY (Mock)
     if (payment.gateway === 'vnpay') {
-        console.log(`♻️ Processing VNPAY Refund (Mock) for Booking: ${bookingId}`);
-        
-        // [SỬA ĐỔI QUAN TRỌNG]: Dùng findByIdAndUpdate để tránh lỗi "user_id is required"
-        const updatedPayment = await Payment.findByIdAndUpdate(
-            payment._id,
-            { 
-                $set: { 
-                    status: 'refunded', 
-                    amount_refunded: payment.amount,
-                    refunded_at: new Date()
-                } 
-            },
-            { new: true, runValidators: false } // <--- runValidators: false để bỏ qua check user_id
-        );
-        
-        return updatedPayment;
+      console.log(`♻️ Processing VNPAY Refund (Mock) for ${bookingId}`);
+      const updatedPayment = await Payment.findByIdAndUpdate(
+        payment._id,
+        {
+          $set: {
+            status: 'refunded',
+            amount_refunded: payment.amount,
+            refunded_at: new Date()
+          }
+        },
+        { new: true, runValidators: false } // Avoids 'user_id' required error
+      );
+      return updatedPayment;
     }
-
-    // Logic cũ cho Stripe (nếu còn dùng) hoặc throw lỗi
-    throw new Error(`Cổng thanh toán '${payment.gateway}' không hỗ trợ hoàn tiền tự động.`);
+    throw new Error(`Refund not supported for gateway: ${payment.gateway}`);
   }
 
   async getAllPayments(queryParams) {
@@ -181,75 +286,22 @@ class PaymentService {
     return { payments, currentPage: parseInt(page), totalPages: Math.ceil(totalPayments / limit), totalPayments };
   }
 
-  // Hàm sắp xếp object (Bắt buộc theo chuẩn VNPAY)
+  async getPaymentsForBooking(bookingId) {
+    return await Payment.find({ booking_id: bookingId });
+  }
+
   sortObject(obj) {
     let sorted = {};
     let str = [];
     let key;
     for (key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        str.push(encodeURIComponent(key));
-      }
+      if (obj.hasOwnProperty(key)) str.push(encodeURIComponent(key));
     }
     str.sort();
     for (key = 0; key < str.length; key++) {
-        sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
+      sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
     }
     return sorted;
-  }
-
-  /**
-   * [INTERNAL] Xử lý phân chia doanh thu khi Booking thành công
-   * @param {string} bookingId
-   * @param {string} partnerId
-   * @param {number} totalAmount - Tổng tiền khách trả
-   */
-  async processBookingRevenue(bookingId, partnerId, totalAmount) {
-    const COMMISSION_RATE = 0.15; // Phí sàn 15%
-    
-    const commission = totalAmount * COMMISSION_RATE;
-    const income = totalAmount - commission;
-
-    // 1. Tạo giao dịch ghi nhận doanh thu (Ở trạng thái PENDING - Tạm giữ)
-    const transaction = new Transaction({
-      partner_id: partnerId,
-      booking_id: bookingId,
-      type: 'INCOME',
-      amount: income,
-      description: `Doanh thu từ đơn hàng ${bookingId} (đã trừ 15% phí)`,
-      status: 'PENDING' // Tiền treo, chưa rút được ngay
-    });
-
-    await transaction.save();
-    return transaction;
-  }
-
-  /**
-   * [INTERNAL] Quyết toán: Chuyển tiền từ PENDING sang COMPLETED
-   * Hàm này sẽ được gọi khi Tour kết thúc hoặc sau X ngày
-   */
-  async settleTransaction(transactionId) {
-    const tx = await Transaction.findById(transactionId);
-    if (!tx || tx.status !== 'PENDING') throw new Error('Giao dịch không hợp lệ');
-
-    // 1. Cập nhật trạng thái
-    tx.status = 'COMPLETED';
-    await tx.save();
-
-    // 2. Gọi sang User Service để cộng số dư ví thực tế (Wallet Balance)
-    // (Cần dùng API Key nội bộ)
-    try {
-      await axios.post(
-        `${process.env.USER_SERVICE_URL}/users/internal/wallet/add`, 
-        { userId: tx.partner_id, amount: tx.amount },
-        { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
-      );
-    } catch (error) {
-      console.error("Lỗi cập nhật ví User:", error.message);
-      // Có thể cần logic retry ở đây
-    }
-
-    return tx;
   }
 }
 

@@ -3,12 +3,12 @@ const mongoose = require('mongoose');
 
 // 1. Schema Hạng mục (Booking Item)
 const bookingItemSchema = new mongoose.Schema({
-  product_id: { 
+  product_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product', 
+    ref: 'Product',
     required: true,
   },
-  inventory_id: { 
+  inventory_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'InventoryItem',
     required: true,
@@ -22,16 +22,15 @@ const bookingItemSchema = new mongoose.Schema({
     required: true,
     min: 1,
   },
-  unit_price: { 
+  unit_price: {
     type: Number,
     required: true,
   },
-  // Snapshot thông tin tại thời điểm đặt
   snapshot: {
     title: { type: String, required: true },
     description_short: String,
     image: String,
-    details_text: String, 
+    details_text: String,
   }
 }, { _id: false });
 
@@ -47,7 +46,7 @@ const paymentSchema = new mongoose.Schema({
 // 3. SCHEMA CHÍNH: ĐƠN HÀNG
 const bookingSchema = new mongoose.Schema(
   {
-    user_id: { 
+    user_id: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
@@ -59,26 +58,24 @@ const bookingSchema = new mongoose.Schema(
       default: 'pending',
       index: true,
     },
-    
-    // [QUAN TRỌNG] Thêm trường này để khớp với code update của Payment Service
+
     payment_status: {
       type: String,
       enum: ['unpaid', 'paid', 'refunded'],
       default: 'unpaid'
     },
 
-    // Thông tin giá
     pricing: {
       total_price_before_discount: { type: Number, required: true },
       discount_amount: { type: Number, default: 0 },
       final_price: { type: Number, required: true },
     },
+
     promotion_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Promotion',
     },
 
-    // Danh sách hành khách
     passengers: [
       {
         type: { type: String, enum: ['adult', 'child', 'toddler', 'infant'], required: true },
@@ -88,18 +85,19 @@ const bookingSchema = new mongoose.Schema(
       }
     ],
 
-    // Nhúng
     items: [bookingItemSchema],
-    payments: [paymentSchema], // Lưu lịch sử các lần thanh toán
-    
-    // Thông tin người liên hệ
+    payments: [paymentSchema],
+
     customer_details: {
       fullName: String,
       email: String,
       phone: String,
       address: String,
       note: String
-    }
+    },
+    
+    start_date: { type: Date, required: true },
+    end_date: { type: Date, required: true },
   },
   { timestamps: true }
 );

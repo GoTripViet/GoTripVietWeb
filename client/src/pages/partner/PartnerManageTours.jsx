@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import catalogApi from "../../api/catalogApi"; // Đảm bảo đã có hàm getPartnerTours trong API
+import catalogApi from "../../api/catalogApi"; 
 import "../../styles/admin/ManageTours.css"; 
 
 // --- HELPERS (Giữ nguyên) ---
@@ -33,13 +33,11 @@ export default function PartnerManageTours() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // Load Data - QUAN TRỌNG: Gọi API lấy tour của chính Partner
+  // Load Data
   const loadMyTours = async () => {
     setLoading(true);
     setErr("");
     try {
-      // Giả sử API backend có endpoint /tours/me hoặc filter user_id từ token
-      // Bạn cần thêm hàm này vào catalogApi
       const res = await catalogApi.getPartnerTours({ limit: 100 }); 
       setItems(normalizeListResponse(res));
     } catch (e) {
@@ -54,7 +52,7 @@ export default function PartnerManageTours() {
     loadMyTours();
   }, []);
 
-  // Filter Logic (Client-side)
+  // Filter Logic
   const filtered = useMemo(() => {
     let result = items;
     if (filterStatus !== "all") {
@@ -72,14 +70,16 @@ export default function PartnerManageTours() {
   }, [items, q, filterStatus]);
 
   // Actions
-  const createTour = () => nav("/partner/tours/create"); // Link sang trang Partner create
+  const createTour = () => nav("/partner/tours/create");
   const openDetail = (id) => nav(`/partner/tours/${id}`);
+
+  // 👇 [UPDATE] Nút này sẽ dẫn sang trang PartnerInventory.jsx bạn vừa tạo
   const openInventory = (id) => nav(`/partner/tours/${id}/inventory`);
 
   const deleteTour = async (id, title) => {
     if (!window.confirm(`Bạn muốn gỡ bỏ tour: "${title}"?`)) return;
     try {
-      await catalogApi.remove(id); // Partner chỉ có thể soft-delete hoặc ẩn
+      await catalogApi.remove(id);
       loadMyTours();
     } catch (e) {
       alert("Xóa thất bại: " + e.message);
@@ -164,7 +164,13 @@ export default function PartnerManageTours() {
                   </td>
                   <td>
                     <div className="mt-actions">
-                      <button className="mt-btn-action" onClick={() => openInventory(id)} style={{color: '#0b5fff', background: '#eff6ff'}}>
+                      {/* 👇 Nút dẫn sang trang Inventory */}
+                      <button 
+                        className="mt-btn-action" 
+                        onClick={() => openInventory(id)} 
+                        style={{color: '#0b5fff', background: '#eff6ff', border: '1px solid #bfdbfe'}}
+                        title="Quản lý lịch khởi hành & Số chỗ"
+                      >
                         📦 Lịch & Chỗ
                       </button>
                       <button className="mt-btn-action" onClick={() => openDetail(id)}>Sửa</button>

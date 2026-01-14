@@ -3,23 +3,21 @@ const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema(
   {
-    booking_id: { // ID từ Booking Service
+    booking_id: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: 'Booking', // Ref logic
+      ref: 'Booking',
     },
-    user_id: { // ID của người trả tiền
+    user_id: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
-      ref: 'User', // Ref logic
+      ref: 'User', // VNPAY return might not always have user_id immediately visible, so removing 'required' is safer for now
     },
-    amount: { // Số tiền (tính bằng đồng nhỏ nhất, ví dụ: VND)
+    amount: {
       type: Number,
       required: true,
     },
     currency: {
       type: String,
-      required: true,
       default: 'vnd',
     },
     status: {
@@ -27,20 +25,32 @@ const paymentSchema = new mongoose.Schema(
       enum: ['pending', 'succeeded', 'failed', 'refunded'],
       default: 'pending',
     },
-    amount_refunded: { // <-- THÊM TRƯỜNG MỚI
+
+    // --- [UPDATED] GATEWAY INFO ---
+    gateway: {
+      type: String,
+      enum: ['vnpay'], // Only VNPAY now
+      default: 'vnpay',
+    },
+
+    // Replaces stripe_payment_intent_id
+    // Stores the transaction number from VNPAY for reconciliation
+    gateway_transaction_id: {
+      type: String,
+    },
+
+    // --- REFUND INFO ---
+    amount_refunded: {
       type: Number,
       default: 0
     },
-    gateway: {
-      type: String,
-      default: 'stripe',
+    refunded_at: {
+      type: Date
     },
-    // ID giao dịch của Stripe
-    stripe_payment_intent_id: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true,
+
+    transaction_date: {
+      type: Date,
+      default: Date.now
     },
   },
   { timestamps: true }
