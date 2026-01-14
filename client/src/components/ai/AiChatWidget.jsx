@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { Card, Button, Form, Spinner, Badge } from "react-bootstrap";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { aiChat } from "../../api/aiApi.js";
 import "../../styles/aiChatWidget.css";
 
@@ -30,6 +32,36 @@ export default function AiChatWidget() {
 
   const [sending, setSending] = useState(false);
   const listRef = useRef(null);
+
+  const norm = (s = "") =>
+    String(s)
+      .toLowerCase()
+      .replace(/đ/g, "d")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const getStrongText = (children) => {
+    // children có thể là ["text"] hoặc nested
+    if (typeof children === "string") return children;
+    if (Array.isArray(children)) return children.map(getStrongText).join("");
+    if (children?.props?.children)
+      return getStrongText(children.props.children);
+    return "";
+  };
+
+  const hasAnchorChild = (children) => {
+    if (!children) return false;
+    if (Array.isArray(children)) return children.some(hasAnchorChild);
+
+    // React element <a> hoặc <Link> (thường có props.href)
+    return (
+      children?.type === "a" ||
+      typeof children?.props?.href === "string" ||
+      typeof children?.props?.to === "string"
+    );
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -81,7 +113,7 @@ export default function AiChatWidget() {
     const userMsg = { role: "user", content };
     const typingMsg = {
       role: "assistant",
-      content: "Đang tìm tour phù hợp…",
+      content: "Bạn đợi tôi xíu, tôi sẽ trả lời bạn ngay…",
       typing: true,
     };
 
@@ -175,41 +207,115 @@ export default function AiChatWidget() {
                   className={`ai-msg-row ${isUser ? "user" : "bot"}`}
                 >
                   <div className={`ai-msg ${isUser ? "user" : "bot"}`}>
-                    <div className="ai-msg-text">{m.content}</div>
+                    <div className="ai-msg-text">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        skipHtml
+                        components={{
+                          a: ({ href, children }) => {
+                            if (href && href.startsWith("/")) {
+                              return (
+                                <Link to={href} className="ai-md-link">
+                                  {children}
+                                </Link>
+                              );
+                            }
+                            return (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ai-md-link"
+                              >
+                                {children}
+                              </a>
+                            );
+                          },
 
+                          strong: ({ children }) => {
+                            if (hasAnchorChild(children))
+                              return <strong>{children}</strong>;
+
+                            const title = getStrongText(children).trim();
+                            const tours = Array.isArray(m.suggestedTours)
+                              ? m.suggestedTours
+                              : [];
+                            const hit = tours.find(
+                              (t) => norm(t.title) === norm(title)
+                            );
+
+                            if (hit) {
+                              return (
+                                <Link
+                                  to={`/product/${hit.id}`}
+                                  className="ai-md-link"
+                                >
+                                  <strong>{children}</strong>
+                                </Link>
+                              );
+                            }
+
+                            return <strong>{children}</strong>;
+                          },
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    </div>
                     {/* suggested tours */}
                     {!isUser &&
                       Array.isArray(m.suggestedTours) &&
                       m.suggestedTours.length > 0 && (
                         <div className="ai-suggest">
-                          <div className="ai-suggest-title">Gợi ý nhanh:</div>
-                          {m.suggestedTours.slice(0, 4).map((t) => (
-                            <div key={t.id} className="ai-suggest-item">
-                              <div className="ai-suggest-main">
-                                <div className="ai-suggest-name">{t.title}</div>
-                                {(t.location || t.priceFrom) && (
-                                  <div className="ai-suggest-meta">
-                                    {t.location && <span>{t.location}</span>}
-                                    {t.priceFrom && (
-                                      <>
-                                        <span className="mx-2">•</span>
-                                        <span>
-                                          Từ <b>{t.priceFrom}</b>
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                )}
+                          <div className="ai-suggest-title">
+                            Các tour được gợi ý:
+                          </div>
+
+                          {(() => {
+                            const tours = m.suggestedTours;
+                            const contentNorm = norm(m.content);
+
+                            // ưu tiên tour mà AI vừa nhắc trong ai-msg
+                            const mentioned = tours.filter((t) => {
+                              const tNorm = norm(t.title);
+                              return (
+                                tNorm.length >= 8 && contentNorm.includes(tNorm)
+                              );
+                            });
+
+                            // nếu ai-msg không nhắc tour nào, vẫn hiện như cũ
+                            const displayTours = (
+                              mentioned.length > 0 ? mentioned : tours
+                            ).slice(0, 4);
+
+                            return displayTours.map((t) => (
+                              <div key={t.id} className="ai-suggest-item">
+                                <div className="ai-suggest-main">
+                                  <Link
+                                    to={`/product/${t.id}`}
+                                    className="ai-suggest-name ai-suggest-link"
+                                    title="Xem chi tiết tour"
+                                  >
+                                    {t.title}
+                                  </Link>
+
+                                  {(t.location || t.priceFrom) && (
+                                    <div className="ai-suggest-meta">
+                                      {t.location && <span>{t.location}</span>}
+                                      {t.priceFrom && (
+                                        <>
+                                          <span className="mx-2">•</span>
+                                          <span>
+                                            Từ <b>{t.priceFrom}</b>
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <Button
-                                variant="outline-primary"
-                                size="sm"
-                                onClick={() => navigate(`/product/${t.id}`)}
-                              >
-                                Xem
-                              </Button>
-                            </div>
-                          ))}
+                            ));
+                          })()}
                         </div>
                       )}
 
@@ -256,6 +362,6 @@ export default function AiChatWidget() {
     </>
   );
 
-  // ✅ Portal ra body để "fixed" luôn đúng
+  // Portal ra body để "fixed" luôn đúng
   return ReactDOM.createPortal(ui, document.body);
 }

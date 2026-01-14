@@ -1,30 +1,117 @@
 const ChatSession = require("../models/ChatSession.model");
 const inventory = require("./inventory.client");
+const locationClient = require("./location.client");
 
-// ✅ bạn phải tạo 2 file này theo bước trước:
+// Bạn phải tạo 2 file này theo bước trước:
 // services/llm/openai.client.js  -> embedText(), generateAnswer()
 // services/vector/qdrant.client.js -> search()
 const { embedText, generateAnswer } = require("./llm/ollama.client");
 const { search } = require("./vector/qdrant.client");
 
-function buildContext({ hits, events, sessionMessages }) {
-  const topTours = (hits || []).map((h) => h?.payload).filter(Boolean);
+function normalize(str = "") {
+  return String(str)
+    .toLowerCase()
+    .replace(/đ/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // bỏ dấu
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function detectLocationFromConversation(sessionMessages) {
+  const text = normalize(
+    (sessionMessages || [])
+      .filter((m) => m.role === "user")
+      .slice(-4)
+      .map((m) => m.content)
+      .join(" ")
+  );
+
+  if (!text) return null;
+
+  const locations = await locationClient.listLocations(); // [{name, slug, _id}, ...]
+  if (!Array.isArray(locations) || locations.length === 0) return null;
+
+  // match theo slug trước (ổn định), rồi name
+  for (const loc of locations) {
+    const slug = normalize(loc.slug || "");
+    if (slug && text.includes(slug)) return loc;
+  }
+  for (const loc of locations) {
+    const name = normalize(loc.name || "");
+    if (name && text.includes(name)) return loc;
+  }
+
+  return null;
+}
+
+function escapeRegExp(str = "") {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function linkifyToursInAnswer(answer = "", tours = []) {
+  let out = String(answer || "");
+
+  for (const t of tours) {
+    if (!t?.id || !t?.title) continue;
+
+    const url = `/product/${t.id}`; // phải khớp với route FE bạn đang dùng
+    const title = String(t.title);
+
+    // 1) đổi dạng **Title** -> **[Title](/product/id)**
+    const boldRe = new RegExp(
+      `\\*\\*\\s*${escapeRegExp(title)}\\s*\\*\\*`,
+      "g"
+    );
+    out = out.replace(boldRe, `**[${title}](${url})**`);
+
+    // 2) đổi dạng Title (chưa link) -> **[Title](/product/id)**
+    // tránh trường hợp đã nằm trong [Title](
+    const plainRe = new RegExp(`(?<!\\[)${escapeRegExp(title)}(?!\\]\\()`, "g");
+    out = out.replace(plainRe, `**[${title}](${url})**`);
+  }
+
+  return out;
+}
+
+function buildContext({ hits, events, sessionMessages, detectedLocation }) {
+  const SCORE_THRESHOLD = 0.25; // thử 0.2 -> 0.35 tuỳ dữ liệu
+
+  const filteredHits = (hits || []).filter(
+    (h) => (h?.score ?? 0) >= SCORE_THRESHOLD
+  );
+
+  const topTours = filteredHits.map((h) => h?.payload).filter(Boolean);
+
+  let filteredTopTours = topTours;
+
+  if (detectedLocation?.name || detectedLocation?.slug) {
+    const key = normalize(detectedLocation.name || detectedLocation.slug);
+
+    const byLocation = topTours.filter((t) => {
+      const hay = normalize(
+        `${t.title || ""} ${t.location || ""} ${t.text || ""}`
+      );
+      return key && hay.includes(key);
+    });
+
+    if (byLocation.length > 0) filteredTopTours = byLocation;
+  }
 
   const memory = (sessionMessages || [])
-    .slice(-8)
+    .slice(-4) // giảm để nhanh hơn (mục 2)
     .map((m) => `${m.role}: ${m.content}`)
     .join("\n");
 
-  const toursText = topTours
-    .slice(0, 5)
-    .map((t, i) => {
-      return `#${i + 1}
-- id: ${t.id}
-- title: ${t.title}
-- location: ${t.location || "N/A"}
-- priceFrom: ${t.priceFrom || "N/A"}
-`;
-    })
+  const toursText = filteredTopTours
+    .slice(0, 3) // giảm để nhanh hơn (mục 2)
+    .map(
+      (t, i) =>
+        `#${i + 1}\n- id: ${t.id}\n- title: ${t.title}\n- location: ${
+          t.location || "N/A"
+        }\n- priceFrom: ${t.priceFrom || "N/A"}\n`
+    )
     .join("\n");
 
   const eventsText = Array.isArray(events)
@@ -35,15 +122,13 @@ function buildContext({ hits, events, sessionMessages }) {
     : "";
 
   return {
-    topTours,
+    topTours: filteredTopTours,
     contextText: `LỊCH SỬ (MEMORY):
-${memory || "(trống)"}
-
-DANH SÁCH TOUR (TOP):
-${toursText || "(không có tour phù hợp)"}
-
-EVENT ĐANG CHẠY:
-${eventsText || "(không có hoặc không lấy được)"}`,
+    ${memory || "(trống)"}
+    DANH SÁCH TOUR (TOP):
+    ${toursText || "(không có tour phù hợp)"}
+    EVENT ĐANG CHẠY:
+    ${eventsText || "(không có hoặc không lấy được)"}`,
   };
 }
 
@@ -56,11 +141,24 @@ async function chat({ sessionId, message }) {
   session.messages.push({ role: "user", content: message });
   await session.save();
 
+  const detectedLocation = await detectLocationFromConversation(
+    session.messages
+  );
+
   // 3) RAG: embed + vector search
   let hits = [];
   try {
-    const queryVec = await embedText(message);
-    hits = await search(queryVec, 5); // topK=5
+    // build retrieval query từ ngữ cảnh gần nhất để search đúng hơn
+    const recentUserMessages = (session.messages || [])
+      .filter((m) => m.role === "user")
+      .slice(-3)
+      .map((m) => m.content)
+      .join(" | ");
+
+    const retrievalQuery = `${recentUserMessages} | ${message}`;
+
+    const queryVec = await embedText(retrievalQuery);
+    hits = await search(queryVec, 8); // tăng topK chút để có cơ hội lọc
   } catch (err) {
     console.error(
       "QDRANT_SEARCH_ERROR:",
@@ -79,15 +177,24 @@ async function chat({ sessionId, message }) {
     hits,
     events,
     sessionMessages: session.messages,
+    detectedLocation,
   });
 
   // 6) gọi OpenAI để viết câu trả lời
   const system =
-    "Bạn là GoTripViet Assistant. Tuyệt đối KHÔNG được tự tạo (bịa) tour. " +
-    "Chỉ được tham chiếu các tour có trong DANH SÁCH TOUR (TOP) của ngữ cảnh. " +
-    "Nếu danh sách chỉ có 1 tour thì chỉ được gợi ý 1 tour. Nếu không có tour thì hỏi thêm thông tin. " +
-    "Nếu thiếu thông tin (điểm đến/số ngày/ngân sách/số người), hãy hỏi tối đa 2 câu để làm rõ. " +
-    "Trả lời tiếng Việt, thân thiện, không bịa giá nếu không có.";
+    "Bạn là tư vấn viên du lịch GoTripViet: thân thiện, chủ động, nói tự nhiên như người thật.\n" +
+    "QUY TẮC CỨNG:\n" +
+    "- TUYỆT ĐỐI KHÔNG bịa tour. Chỉ dùng tour có trong DANH SÁCH TOUR (TOP).\n" +
+    "- Nếu không có tour phù hợp trong danh sách, hãy nói rõ và hỏi tối đa 2 câu để lấy thêm thông tin.\n" +
+    "CÁCH TRẢ LỜI:\n" +
+    "- Nếu đã đủ thông tin: tóm tắt nhu cầu 1 câu, rồi đưa 1-3 lý do vì sao các tour bên dưới phù hợp.\n" +
+    "- TUYỆT ĐỐI KHÔNG tự nêu tên tour cụ thể trong phần trả lời. Chỉ nói: 'Mình gợi ý vài tour phù hợp bên dưới'.\n" +
+    "- Không nhắc tới 'ngữ cảnh', 'TOP TOURS', 'MEMORY'. Trả lời tiếng Việt.\n" +
+    "FORMAT:\n" +
+    "- Khi liệt kê tour, dùng đúng Markdown list 1 lần:\n" +
+    "  Ví dụ:\n" +
+    "- Khi nhắc tour, chỉ in đậm đúng tên tour, KHÔNG in URL thô và CHỈ được dùng đúng tên trong 'DANH SÁCH TOUR (TOP)' (copy y nguyên), không được sáng tạo.\n" +
+    "  Ví dụ: - **Tên tour** (kèm 1-2 lý do ngắn)";
 
   let answer = "";
   try {
@@ -115,36 +222,30 @@ async function chat({ sessionId, message }) {
     image: t.image,
   }));
 
+  answer = linkifyToursInAnswer(answer, suggestedTours);
+  answer = answer
+    // gom các list rời kiểu "- item\n\n- item" thành 1 list liền
+    .replace(/\n\s*\n(?=\s*[-*]\s)/g, "\n")
+    // giảm blank line quá nhiều
+    .replace(/\n{3,}/g, "\n\n");
   let finalAnswer = answer;
 
-  if (suggestedTours.length > 0) {
-    const lines = suggestedTours
-      .map((t, i) => {
-        const parts = [
-          `${i + 1}. ${t.title}`,
-          t.location ? `(${t.location})` : null,
-          t.priceFrom ? `— Từ ${t.priceFrom}` : null,
-        ].filter(Boolean);
-        return parts.join(" ");
-      })
-      .join("\n");
-
-    finalAnswer =
-      `Mình tìm thấy ${suggestedTours.length} tour phù hợp với yêu cầu của bạn:\n` +
-      `${lines}\n\n` +
-      `Bạn muốn đi ngày nào và ngân sách khoảng bao nhiêu để mình tư vấn lịch trình/giá sát nhất?`;
-  }
+  // follow-up chỉ hỏi khi chưa đủ info/tour
+  const followUpQuestions =
+    suggestedTours.length === 0
+      ? [
+          "Bạn muốn đi đâu ?",
+          "Bạn dự kiến đi mấy ngày ?",
+          "Ngân sách của bạn khoảng bao nhiêu?",
+        ]
+      : [];
 
   const result = {
     answer:
       finalAnswer ||
       "Bạn cho mình thêm điểm đến / số ngày / ngân sách để mình gợi ý chính xác nhé.",
     suggestedTours,
-    followUpQuestions: [
-      "Bạn muốn đi mấy ngày?",
-      "Ngân sách dự kiến?",
-      "Bạn đi mấy người?",
-    ],
+    followUpQuestions,
   };
 
   // 8) lưu assistant msg (Memory)

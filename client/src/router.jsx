@@ -16,16 +16,11 @@ import SearchPage from "./pages/SearchPage.jsx";
 import OrderDetail from "./pages/OrderDetail.jsx";
 import ProductDetail from "./pages/ProductDetail.jsx";
 import Home from "./pages/Home.jsx";
-import ListingHotel from "./pages/ListingHotel.jsx";
-import HotelDetail from "./pages/HotelDetail.jsx";
 import Order from "./pages/Order.jsx";
 import ConfirmOrder from "./pages/ConfirmOrder.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import OtpVerify from "./pages/OtpVerify.jsx";
-import ListingCities from "./pages/ListingCities.jsx";
-import ListingFlights from "./pages/ListingFlights.jsx";
-import OrderFlight from "./pages/OrderFlight.jsx";
 import OrderSuccess from "./pages/OrderSuccess.jsx";
 import Profile from "./pages/Profile.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
@@ -33,13 +28,12 @@ import PaymentPage from "./pages/PaymentPage";
 import BookingSuccess from "./pages/BookingSuccess";
 import EventDetail from "./pages/EventDetail.jsx";
 import RegisterPartner from "./pages/partner/RegisterPartner.jsx";
-import ManagePartners from './pages/admin/ManagePartners';
-import PartnerWallet from './pages/partner/PartnerWallet';
-import ProtectedRoute from './components/ProtectedRoute';
-import ManageMyTours from './pages/partner/PartnerManageTours';
-import CreateTour from './pages/partner/PartnerCreateTour';
-import PartnerDashboard from './pages/partner/PartnerDashboard';
-
+import ManagePartners from "./pages/admin/ManagePartners";
+import PartnerWallet from "./pages/partner/PartnerWallet";
+import ProtectedRoute from "./components/ProtectedRoute";
+import ManageMyTours from "./pages/partner/PartnerManageTours";
+import CreateTour from "./pages/partner/PartnerCreateTour";
+import PartnerDashboard from "./pages/partner/PartnerDashboard";
 
 const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
   const navigate = useNavigate();
@@ -250,7 +244,10 @@ const RequireAdmin = ({ children }) => {
 };
 
 const OrderDetailPage = ({ activeCategoryIndex, onCategoryChange }) => (
-  <UserLayout activeCategoryIndex={activeCategoryIndex} onCategoryChange={onCategoryChange}>
+  <UserLayout
+    activeCategoryIndex={activeCategoryIndex}
+    onCategoryChange={onCategoryChange}
+  >
     <OrderDetail />
   </UserLayout>
 );
@@ -261,7 +258,7 @@ const AppRouter = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      
+
       <Routes>
         {/* Trang chủ */}
         <Route
@@ -273,7 +270,6 @@ const AppRouter = () => {
             />
           }
         />
-
 
         <Route
           path="/search"
@@ -337,7 +333,6 @@ const AppRouter = () => {
           }
         />
 
-
         <Route
           path="/order-success"
           element={
@@ -350,18 +345,26 @@ const AppRouter = () => {
 
         <Route
           path="/order-detail/:id" // [THÊM] Route mới có tham số id
-          element={<OrderDetailPage activeCategoryIndex={activeCategoryIndex} onCategoryChange={setActiveCategoryIndex} />}
+          element={
+            <OrderDetailPage
+              activeCategoryIndex={activeCategoryIndex}
+              onCategoryChange={setActiveCategoryIndex}
+            />
+          }
         />
 
         {/* --- ADMIN ROUTES --- */}
-        <Route path="/admin/manage/partners" element={
-          <ProtectedRoute roles={['admin']}>
-            <ManagePartners />
-          </ProtectedRoute>
-        } />
+        <Route
+          path="/admin/manage/partners"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <ManagePartners />
+            </ProtectedRoute>
+          }
+        />
 
         {/* --- PARTNER ROUTES --- */}
-        <Route element={<ProtectedRoute roles={['partner']} />}>
+        <Route element={<ProtectedRoute roles={["partner"]} />}>
           <Route path="/partner/dashboard" element={<PartnerDashboard />} />
           <Route path="/partner/wallet" element={<PartnerWallet />} />
 
@@ -369,7 +372,10 @@ const AppRouter = () => {
           <Route path="/partner/tours" element={<ManageMyTours />} />
 
           {/* Tái sử dụng trang tạo tour, nhưng cần chỉnh sửa logic một chút để phù hợp context */}
-          <Route path="/partner/tours/create" element={<CreateTour mode="partner" />} />
+          <Route
+            path="/partner/tours/create"
+            element={<CreateTour mode="partner" />}
+          />
         </Route>
 
         {/* Login – KHÔNG dùng UserLayout */}

@@ -17,7 +17,10 @@ async function embedText(text) {
 
 async function generateAnswer({ system, user, contextText }) {
   const prompt =
-    `${system}\n\n` + `NGỮ CẢNH:\n${contextText}\n\n` + `CÂU HỎI:\n${user}\n`;
+    `${system}\n\n` +
+    `NGỮ CẢNH:\n${contextText}\n\n` +
+    `CÂU HỎI:\n${user}\n` +
+    `TRẢ LỜI ĐẦY ĐỦ, KHÔNG BỊ CỤT CÂU:\n`;
 
   const { data } = await http.post("/api/generate", {
     model: OLLAMA_CHAT_MODEL,

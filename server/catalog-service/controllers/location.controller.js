@@ -1,8 +1,6 @@
-// controllers/location.controller.js
-const locationService = require('../services/location.service');
-const Location = require('../models/location.model');
+const locationService = require("../services/location.service");
+const Location = require("../models/location.model");
 class LocationController {
-
   async createLocation(req, res) {
     try {
       const location = await locationService.createLocation(req.body);
@@ -20,18 +18,20 @@ class LocationController {
 
       // 1. Check for duplicates (Case insensitive)
       const existing = await Location.findOne({
-        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
+        name: { $regex: new RegExp(`^${name.trim()}$`, "i") },
       });
 
       if (existing) {
-        return res.status(400).json({ message: "Địa điểm này đã tồn tại trên hệ thống." });
+        return res
+          .status(400)
+          .json({ message: "Địa điểm này đã tồn tại trên hệ thống." });
       }
 
       // 2. Create with 'pending' status
       const newLocation = await Location.create({
         name: name.trim(),
-        status: 'pending',
-        created_by: userId
+        status: "pending",
+        created_by: userId,
       });
 
       res.status(201).json(newLocation);
@@ -50,19 +50,21 @@ class LocationController {
 
       let filter = {};
 
-      if (query_mode === 'partner' && userId) {
+      if (query_mode === "partner" && userId) {
         filter = {
           $or: [
-            { status: 'active' }, // Public locations
-            { status: 'pending', created_by: userId } // My pending requests
-          ]
+            { status: "active" }, // Public locations
+            { status: "pending", created_by: userId }, // My pending requests
+          ],
         };
         const locations = await Location.find(filter).sort({ name: 1 });
         return res.status(200).json(locations);
       }
 
-      // Default behavior (delegate to service or fetch all active)
-      const locations = await locationService.getAllLocations();
+      // Default behavior (fetch all active)
+      const locations = await locationService.getAllLocations({
+        status: "active",
+      });
       res.status(200).json(locations);
     } catch (error) {
       res.status(500).json({ message: error.message });
@@ -71,7 +73,9 @@ class LocationController {
 
   async getLocationByIdOrSlug(req, res) {
     try {
-      const location = await locationService.getLocationByIdOrSlug(req.params.idOrSlug);
+      const location = await locationService.getLocationByIdOrSlug(
+        req.params.idOrSlug
+      );
       res.status(200).json(location);
     } catch (error) {
       res.status(404).json({ message: error.message });
@@ -80,7 +84,10 @@ class LocationController {
 
   async updateLocation(req, res) {
     try {
-      const location = await locationService.updateLocation(req.params.id, req.body);
+      const location = await locationService.updateLocation(
+        req.params.id,
+        req.body
+      );
       res.status(200).json(location);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -95,12 +102,6 @@ class LocationController {
       res.status(404).json({ message: error.message });
     }
   }
-
-
 }
-
-
-
-
 
 module.exports = new LocationController();

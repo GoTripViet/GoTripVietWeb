@@ -148,6 +148,32 @@
   filter: brightness(0.97);
 }
 
+.ai-suggest-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.ai-suggest-link:hover {
+  opacity: 0.85;
+}
+
+.ai-msg-text p {
+  margin: 0;
+}
+.ai-msg-text ul,
+.ai-msg-text ol {
+  margin: 0;
+}
+.ai-md-link {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 /* Mobile tuning */
 @media (max-width: 576px) {
   .ai-panel {
