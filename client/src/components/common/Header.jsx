@@ -13,11 +13,10 @@ import flagVN from "../../assets/flags/flag_vn.png";
 import flagEN from "../../assets/flags/flag_en.png";
 
 const DEFAULT_TOPLINKS = [
-  { icon: <i className="bi bi-tag-fill" />, label: "Khuyến mãi", href: "/promotions" }, // Ví dụ
-  { label: "Hỗ trợ", href: "/support" },
-  
+  { label: "Hỗ trợ", href: "/help" },
+
   // --- [SỬA DÒNG NÀY] ---
-  { label: "Hợp tác với chúng tôi", href: "/partner/register" }, 
+  { label: "Hợp tác với chúng tôi", href: "/partner/register" },
   // ----------------------
 
   { label: "Mở ứng dụng", href: "#" },
@@ -163,6 +162,18 @@ export default function Header(props) {
 
   const isLoggedIn = !!user;
 
+  const isInternalHref = (href) =>
+    typeof href === "string" && href.startsWith("/");
+
+  const handleTopLinkClick = (e, href) => {
+    if (!href || href === "#") return;
+    if (isInternalHref(href)) {
+      e.preventDefault();
+      navigate(href);
+      setShowMenu(false);
+    }
+  };
+
   return (
     <header className="gv-header gv-header--blue">
       <Navbar expand="lg" className="py-3">
@@ -222,6 +233,7 @@ export default function Header(props) {
                 key={idx}
                 className="text-decoration-none text-white opacity-85 hover-underline d-flex align-items-center gap-1"
                 href={l.href || "#"}
+                onClick={(e) => handleTopLinkClick(e, l.href)}
               >
                 {l.icon}
                 {l.label}
@@ -351,6 +363,7 @@ export default function Header(props) {
                 key={i}
                 href={l.href || "#"}
                 className="list-group-item list-group-item-action d-flex align-items-center gap-2"
+                onClick={(e) => handleTopLinkClick(e, l.href)}
               >
                 {l.icon}
                 <span>{l.label}</span>
