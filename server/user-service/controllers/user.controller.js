@@ -1,5 +1,5 @@
-// controllers/user.controller.js
-const userService = require("../services/user.service"); // Tầng 2 (Service)
+const userService = require("../services/user.service");
+const { sendRegisterSuccessEmail } = require("../utils/mailer");
 const User = require("../models/user.model");
 class UserController {
   // Controller cho việc Đăng ký
@@ -10,7 +10,9 @@ class UserController {
 
       // 2. Validate cơ bản
       if (!email || !password) {
-        return res.status(400).json({ message: "Email and password are required" });
+        return res
+          .status(400)
+          .json({ message: "Email and password are required" });
       }
 
       // 3. Gọi Service
@@ -18,8 +20,15 @@ class UserController {
         email,
         password,
         fullName,
-        role,             // Truyền xuống service
-        partner_details   // Truyền xuống service
+        role, // Truyền xuống service
+        partner_details, // Truyền xuống service
+      });
+
+      // gửi mail sau khi tạo user thành công
+      setImmediate(() => {
+        sendRegisterSuccessEmail({ to: user.email, user }).catch((err) =>
+          console.error("❌ Send register email failed:", err.message)
+        );
       });
 
       res.status(201).json({ message: "User registered successfully", user });
@@ -232,7 +241,9 @@ class UserController {
         return res.status(400).json({ message: "Thiếu userId hoặc amount" });
       }
 
-      console.log(`💰 [User Service] Update Wallet: User ${userId} | Amount: ${amount}`);
+      console.log(
+        `💰 [User Service] Update Wallet: User ${userId} | Amount: ${amount}`
+      );
 
       // Sử dụng model User đã import ở đầu file
       const user = await User.findByIdAndUpdate(
@@ -250,9 +261,8 @@ class UserController {
       res.status(200).json({
         success: true,
         message: "Cập nhật ví thành công",
-        newBalance: user.wallet_balance
+        newBalance: user.wallet_balance,
       });
-
     } catch (error) {
       console.error("❌ Lỗi update wallet:", error.message);
       res.status(500).json({ message: error.message });
@@ -262,22 +272,20 @@ class UserController {
   async approvePartner(req, res) {
     try {
       const partnerId = req.params.id; // Lấy ID partner cần duyệt từ URL
-      const adminId = req.user.id;     // Lấy ID admin đang thực hiện (để log nếu cần)
+      const adminId = req.user.id; // Lấy ID admin đang thực hiện (để log nếu cần)
 
       // Gọi Service (đảm bảo bạn đã thêm hàm này bên user.service.js như đã bàn)
       const updatedUser = await userService.approvePartner(adminId, partnerId);
 
       res.status(200).json({
         message: "Partner approved successfully",
-        user: updatedUser
+        user: updatedUser,
       });
     } catch (error) {
       // Xử lý lỗi (ví dụ: User không phải partner, hoặc không tìm thấy)
       res.status(400).json({ message: error.message });
     }
   }
-
-
 }
 
 module.exports = new UserController();
