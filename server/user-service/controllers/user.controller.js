@@ -1,5 +1,8 @@
 const userService = require("../services/user.service");
-const { sendRegisterSuccessEmail } = require("../utils/mailer");
+const {
+  sendRegisterSuccessEmail,
+  sendPartnerApprovedEmail,
+} = require("../utils/mailer");
 const User = require("../models/user.model");
 class UserController {
   // Controller cho việc Đăng ký
@@ -276,6 +279,15 @@ class UserController {
 
       // Gọi Service (đảm bảo bạn đã thêm hàm này bên user.service.js như đã bàn)
       const updatedUser = await userService.approvePartner(adminId, partnerId);
+
+      setImmediate(() => {
+        sendPartnerApprovedEmail({
+          to: updatedUser.email,
+          user: updatedUser,
+        }).catch((err) =>
+          console.error("Send approved email failed:", err.message)
+        );
+      });
 
       res.status(200).json({
         message: "Partner approved successfully",

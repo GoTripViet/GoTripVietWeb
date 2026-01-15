@@ -1,5 +1,5 @@
-// services/user.service.js
-const User = require("../models/user.model"); // Tầng 3 (Model)
+const User = require("../models/user.model");
+const { sendPartnerApprovedEmail } = require("../utils/mailer");
 const jwt = require("jsonwebtoken");
 
 class UserService {
@@ -36,11 +36,14 @@ class UserService {
       roles: roles, // Lưu mảng roles đã xử lý
 
       // Lưu thông tin partner nếu có (và nếu role là partner)
-      partner_details: (role === "partner" && partner_details) ? {
-        ...partner_details,
-        is_approved: false, // Luôn ép về false để chờ duyệt
-        wallet_balance: 0
-      } : undefined
+      partner_details:
+        role === "partner" && partner_details
+          ? {
+              ...partner_details,
+              is_approved: false, // Luôn ép về false để chờ duyệt
+              wallet_balance: 0,
+            }
+          : undefined,
     });
 
     await user.save();
@@ -329,8 +332,13 @@ class UserService {
     const partner = await User.findById(partnerId);
     if (!partner) throw new Error("Partner not found");
 
-    if (!partner.roles.includes('partner')) {
+    if (!partner.roles.includes("partner")) {
       throw new Error("User is not a partner");
+    }
+
+    // Chặn duyệt lại
+    if (partner.partner_details?.is_approved) {
+      throw new Error("Partner already approved");
     }
 
     partner.partner_details.is_approved = true;
@@ -339,7 +347,6 @@ class UserService {
 
     return await partner.save();
   }
-
 }
 
 // Export một instance (thể hiện) của class
