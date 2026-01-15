@@ -33,7 +33,7 @@ export default function Home() {
   const [realTours, setRealTours] = useState([]);
   const [categorySections, setCategorySections] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Sự kiện
   const [realEvents, setRealEvents] = useState([]);
   const [heroEvent, setHeroEvent] = useState(null);
@@ -75,10 +75,10 @@ export default function Home() {
         let locList = Array.isArray(locationsRes?.data || locationsRes)
           ? locationsRes?.data || locationsRes
           : [];
-          
+
         setRealLocations(
           locList.map((loc) => {
-            const img = loc?.images?.[0]?.url; 
+            const img = loc?.images?.[0]?.url;
             return {
               id: loc._id || loc.id,
               title: loc.name,
@@ -105,23 +105,27 @@ export default function Home() {
           tourListRaw.map(async (product) => {
             try {
               const productId = product._id || product.id;
-              
+
               // Gọi API lấy lịch
               // Lưu ý: Dùng getByProductId hoặc getInventoryByProductId tùy file api của bạn
               const invRes = await inventoryApi.getByProductId(productId);
-              
-              const invList = Array.isArray(invRes.data) 
-                ? invRes.data 
-                : (Array.isArray(invRes) ? invRes : []);
+
+              const invList = Array.isArray(invRes.data)
+                ? invRes.data
+                : Array.isArray(invRes)
+                ? invRes
+                : [];
 
               // Lọc ngày hợp lệ: Active + Tương lai + Còn chỗ
               const futureDates = invList
-                .filter(item => {
+                .filter((item) => {
                   const d = new Date(item.tour_details?.date);
-                  const avail = (item.tour_details?.total_slots || 0) - (item.tour_details?.booked_slots || 0);
+                  const avail =
+                    (item.tour_details?.total_slots || 0) -
+                    (item.tour_details?.booked_slots || 0);
                   return item.is_active && d >= new Date() && avail > 0;
                 })
-                .map(item => item.tour_details.date)
+                .map((item) => item.tour_details.date)
                 .sort((a, b) => new Date(a) - new Date(b));
 
               // Gắn vào field mới
@@ -135,7 +139,6 @@ export default function Home() {
 
         setRealTours(toursWithInventory.map((p) => mapProductToCard(p)));
         // ===============================================
-
 
         // d. Xử lý CATEGORY SECTIONS
         const rootCats = Array.isArray(rootCatsRes.data)
@@ -160,7 +163,8 @@ export default function Home() {
 
               const formattedChildren = childrenList.map((child) => {
                 const raw = child?.image?.url ?? child?.image;
-                const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
+                const base =
+                  import.meta.env.VITE_API_URL || "http://localhost:3000";
                 const img =
                   typeof raw === "string" && raw
                     ? raw.startsWith("http")
@@ -194,7 +198,8 @@ export default function Home() {
         // e. Xử lý EVENTS
         const eventsList = Array.isArray(eventsRes?.data) ? eventsRes.data : [];
         const formattedEvents = eventsList.map((ev) => ({
-          backgroundUrl: ev?.image?.url || "https://placehold.co/1200x450?text=Event",
+          backgroundUrl:
+            ev?.image?.url || "https://placehold.co/1200x450?text=Event",
           alt: ev?.name || "Event",
           href: `/event/${ev?.slug || ev?._id}`,
         }));
@@ -202,7 +207,6 @@ export default function Home() {
         setRealEvents(formattedEvents);
         setHeroEvent(formattedEvents[0] || null);
         setCategorySections(sectionsData.filter((section) => section));
-
       } catch (error) {
         console.error("Lỗi tải dữ liệu Home:", error);
       } finally {
@@ -276,7 +280,9 @@ export default function Home() {
               {...c}
               onClick={() =>
                 navigate(
-                  `/search?location=${c.id}&q=${encodeURIComponent(c.title)}`
+                  `/search?location_id=${c.id}&label=${encodeURIComponent(
+                    c.title
+                  )}`
                 )
               }
             />
@@ -297,9 +303,9 @@ export default function Home() {
                 {...childCat}
                 onClick={() =>
                   navigate(
-                    `/search?category=${childCat.id}&q=${encodeURIComponent(
-                      childCat.title
-                    )}`
+                    `/search?category_id=${
+                      childCat.id
+                    }&label=${encodeURIComponent(childCat.title)}`
                   )
                 }
               />
@@ -325,12 +331,12 @@ export default function Home() {
       </Container>
 
       {/* --- PHẦN 6: BANNER APP --- */}
-      <div className="mt-5">
+      {/* <div className="mt-5">
         <BannerMobile
           backgroundUrl="/assets/app/app_bg.jpg"
           title="Tải ứng dụng ngay"
         />
-      </div>
+      </div> */}
       <AiChatWidget />
     </>
   );
