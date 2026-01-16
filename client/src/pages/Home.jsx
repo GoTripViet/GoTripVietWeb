@@ -19,7 +19,7 @@ import BannerMobile from "../components/BannerMobile.jsx";
 import AiChatWidget from "../components/ai/AiChatWidget.jsx";
 
 // Dữ liệu giả (fallback)
-import { events, cities } from "../data/HomeData.jsx";
+import { cities } from "../data/HomeData.jsx";
 
 export default function Home() {
   const navigate = useNavigate();

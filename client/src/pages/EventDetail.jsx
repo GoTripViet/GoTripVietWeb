@@ -44,20 +44,23 @@ const pickImageUrl = (tour) => {
 };
 
 const mapTourToBigCardProps = (tour) => {
-  // BigCard tolerant: thiếu field vẫn render ok
   return {
     id: tour?._id || tour?.id,
     imageUrl: pickImageUrl(tour),
     title: tour?.title || tour?.name || "Tour",
     tourCode: tour?.tour_code || tour?.code || tour?.sku || "N/A",
+
     startPoint:
       tour?.start_point ||
       tour?.tour_details?.start_point ||
       tour?.startPoint ||
       tour?.from ||
       "—",
+
     duration: tour?.duration || tour?.tour_details?.duration || "—",
+
     departureDates: tour?.departure_dates || tour?.departureDates || [],
+
     transport: tour?.transport || tour?.tour_details?.transport || "—",
     transportIcon:
       tour?.transport_icon || tour?.transportIcon || "bi-bus-front",
