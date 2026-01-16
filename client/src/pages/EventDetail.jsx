@@ -50,13 +50,52 @@ const mapTourToBigCardProps = (tour) => {
     imageUrl: pickImageUrl(tour),
     title: tour?.title || tour?.name || "Tour",
     tourCode: tour?.tour_code || tour?.code || tour?.sku || "N/A",
-    startPoint: tour?.start_point || tour?.startPoint || tour?.from || "—",
+    startPoint:
+      tour?.start_point ||
+      tour?.tour_details?.start_point ||
+      tour?.startPoint ||
+      tour?.from ||
+      "—",
     duration: tour?.duration || tour?.tour_details?.duration || "—",
     departureDates: tour?.departure_dates || tour?.departureDates || [],
     transport: tour?.transport || tour?.tour_details?.transport || "—",
     transportIcon:
       tour?.transport_icon || tour?.transportIcon || "bi-bus-front",
   };
+};
+
+const enrichToursWithInventory = async (tourList) => {
+  const now = new Date();
+
+  const enriched = await Promise.all(
+    (tourList || []).map(async (tour) => {
+      const productId = tour?._id || tour?.id;
+      if (!productId) return { ...tour, departure_dates: [] };
+
+      try {
+        const invRes = await inventoryApi.getInventoryForProduct(productId);
+        const invItems = Array.isArray(invRes?.data) ? invRes.data : [];
+
+        const departure_dates = invItems
+          .filter((it) => {
+            const d = new Date(it?.tour_details?.date);
+            const total = Number(it?.tour_details?.total_slots || 0);
+            const booked = Number(it?.tour_details?.booked_slots || 0);
+            const avail = total - booked;
+
+            return it?.is_active && d >= now && avail > 0;
+          })
+          .map((it) => it.tour_details.date)
+          .sort((a, b) => new Date(a) - new Date(b));
+
+        return { ...tour, departure_dates };
+      } catch (e) {
+        return { ...tour, departure_dates: [] };
+      }
+    })
+  );
+
+  return enriched;
 };
 
 export default function EventDetail() {
@@ -98,14 +137,22 @@ export default function EventDetail() {
         // 2) Lấy tours áp dụng từ inventory-service
         const toursRes = await inventoryApi.getPublicEventTours(id);
         const data = toursRes.data;
+
         const list = Array.isArray(data)
           ? data
+          : Array.isArray(data?.products)
+          ? data.products
           : Array.isArray(data?.tours)
           ? data.tours
           : Array.isArray(data?.items)
           ? data.items
+          : Array.isArray(data?.data)
+          ? data.data
           : [];
-        setTours(list);
+
+        const enriched = await enrichToursWithInventory(list);
+        if (!alive) return;
+        setTours(enriched);
       } catch (err) {
         if (!alive) return;
         setError("Không tải được Event. Vui lòng thử lại.");

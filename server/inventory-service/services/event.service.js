@@ -88,7 +88,14 @@ async function fetchToursFromCatalogByIds(ids) {
     const r = await axios.get(`${CATALOG_BASE_URL}/products`, {
       params: { ids: ids.join(",") },
     });
-    return r.data?.data || r.data?.items || r.data || [];
+
+    const data = r.data;
+    return (
+      data?.products ||
+      data?.data ||
+      data?.items ||
+      (Array.isArray(data) ? data : [])
+    );
   } catch (e) {
     // fallback: gọi từng id
     const results = await Promise.all(
