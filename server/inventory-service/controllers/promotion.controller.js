@@ -64,6 +64,15 @@ class PromotionController {
       res.status(400).json({ message: e.message });
     }
   }
+
+  async getActivePromotions(req, res) {
+    try {
+      const promos = await promotionService.getActivePromotions();
+      res.status(200).json(promos);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
 }
 
 module.exports = new PromotionController();

@@ -6,6 +6,7 @@ const authMiddleware = require("../middleware/auth.middleware");
 const checkRole = require("../middleware/checkRole.middleware");
 
 // --- Public Route (Cho Booking Service kiểm tra mã) ---
+router.get("/public/active", promotionController.getActivePromotions);
 router.get("/code/:code", promotionController.getPromotionByCode);
 
 // --- Admin Routes (Quản lý mã) ---

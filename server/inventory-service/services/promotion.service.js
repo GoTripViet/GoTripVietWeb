@@ -45,6 +45,12 @@ class PromotionService {
     await promo.save();
     return promo;
   }
+
+  async getActivePromotions() {
+    // Tối thiểu: chỉ lấy is_active=true
+    // (nếu schema có start/end date thì lọc thêm ở đây)
+    return Promotion.find({ is_active: true }).sort({ createdAt: -1 });
+  }
 }
 
 module.exports = new PromotionService();
