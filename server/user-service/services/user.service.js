@@ -55,20 +55,32 @@ class UserService {
    */
   async loginUser(email, password) {
     // 1. Tìm user
-    const user = await User.findOne({ email }).select("+password_hash"); // Phải +password_hash vì mặc định nó bị ẩn
+    const user = await User.findOne({ email }).select("+password_hash"); //
     if (!user) {
-      throw new Error("Invalid credentials"); // Lỗi chung (bảo mật)
+      throw new Error("Invalid credentials");
     }
 
-    // 2. So sánh mật khẩu (dùng method ta đã tạo trong model)
+    // 2. So sánh mật khẩu
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       throw new Error("Invalid credentials");
     }
 
+    // Kiểm tra trạng thái chung (Active/Banned/Locked)
     if (user.status && user.status !== "ACTIVE") {
       throw new Error("Account is not active");
     }
+
+    // --- [LOGIC MỚI] KIỂM TRA DUYỆT PARTNER ---
+    // Kiểm tra nếu user có role là 'partner'
+    if (user.roles.includes("partner")) {
+      // Kiểm tra trường is_approved trong partner_details
+      // Cấu trúc partner_details dựa trên model
+      if (!user.partner_details || !user.partner_details.is_approved) {
+        throw new Error("Your partner account is pending approval from Admin.");
+      }
+    }
+    // ------------------------------------------
 
     // 3. Tạo JWT
     const payload = {
@@ -79,14 +91,15 @@ class UserService {
 
     const token = jwt.sign(
       payload,
-      process.env.JWT_SECRET, // Secret key từ .env
-      { expiresIn: "1h" } // Token hết hạn sau 1 giờ
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
     );
+
     const safeUser = {
       id: user._id,
       email: user.email,
       fullName: user.fullName,
-      roles: user.roles, // mảng
+      roles: user.roles,
     };
 
     // 4. Trả về token

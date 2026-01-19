@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import inventoryApi from "../../api/inventoryApi";
-import "../../styles/admin/InventoryManager.css" // [QUAN TRỌNG] Import file CSS
+import "../../styles/admin/InventoryManager.css";
 
-export default function InventoryManager({ tourId, basePrice }) {
+export default function InventoryManager({ tourId, basePrice, readOnly = false }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+
   const [showModal, setShowModal] = useState(false);
   const [adding, setAdding] = useState(false);
 
@@ -42,17 +43,65 @@ export default function InventoryManager({ tourId, basePrice }) {
   useEffect(() => {
     if (tourId) {
       loadInventory();
-      if (basePrice) setForm(prev => ({ ...prev, price: basePrice }));
     }
-  }, [tourId, basePrice]);
+  }, [tourId]);
+
+  // Reset form về mặc định
+  const resetForm = () => {
+    setForm({
+      date: "",
+      price: basePrice || 0,
+      slots: 20,
+      departure_time: "08:00",
+      arrival_time: "",
+      return_time: "",
+      return_arrival_time: "",
+      airline: "",
+      depart_code: "",
+      return_code: "",
+      pickup_location: ""
+    });
+  };
+
+  // --- ACTIONS ---
+
+  // 1. Xem chi tiết (Dành cho Admin ReadOnly)
+  const handleViewDetail = (item) => {
+    const td = item.tour_details || {};
+    const ts = td.transport_schedule || {};
+
+    // Map dữ liệu từ item vào form để hiển thị
+    setForm({
+      date: td.date ? new Date(td.date).toISOString().split('T')[0] : "",
+      price: item.price || 0,
+      slots: td.total_slots || 0,
+
+      departure_time: ts.departure_time || "",
+      arrival_time: ts.arrival_time || "",
+      return_time: ts.return_time || "",
+      return_arrival_time: ts.return_arrival_time || "",
+      airline: ts.airline || "",
+      depart_code: ts.depart_code || "",
+      return_code: ts.return_code || "",
+      pickup_location: ts.pickup_location || ""
+    });
+
+    setShowModal(true);
+  };
+
+  const handleCreateNew = () => {
+    resetForm();
+    setShowModal(true);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // --- SUBMIT ---
   const handleAdd = async () => {
+    if (readOnly) return; // Chặn nếu là Admin
+
     if (!form.date) return alert("Vui lòng chọn ngày khởi hành!");
     if (form.slots <= 0) return alert("Số chỗ phải > 0");
 
@@ -83,8 +132,7 @@ export default function InventoryManager({ tourId, basePrice }) {
       alert("Thêm lịch thành công!");
       setShowModal(false);
       loadInventory();
-      // Reset ngày, giữ lại giờ & giá
-      setForm(prev => ({ ...prev, date: "" })); 
+      resetForm();
     } catch (e) {
       alert("Lỗi: " + (e.response?.data?.message || e.message));
     } finally {
@@ -93,6 +141,7 @@ export default function InventoryManager({ tourId, basePrice }) {
   };
 
   const handleRemove = async (id) => {
+    if (readOnly) return;
     if (!window.confirm("Xóa lịch này?")) return;
     try {
       await inventoryApi.remove(id);
@@ -106,13 +155,17 @@ export default function InventoryManager({ tourId, basePrice }) {
     <div className="im-container">
       <div className="im-header">
         <span className="im-title">📅 Lịch Khởi Hành & Tồn Kho</span>
-        <button className="im-add-btn" onClick={() => setShowModal(true)}>+ Thêm Lịch Mới</button>
+
+        {/* Chỉ hiện nút Thêm nếu KHÔNG PHẢI readOnly */}
+        {!readOnly && (
+          <button className="im-add-btn" onClick={handleCreateNew}>+ Thêm Lịch Mới</button>
+        )}
       </div>
 
       <div className="im-grid">
         {loading && <div className="im-loading">Đang tải...</div>}
         {!loading && items.length === 0 && <div className="im-empty">Chưa có lịch nào được tạo.</div>}
-        
+
         {items.map(item => {
           const td = item.tour_details || {};
           const ts = td.transport_schedule || {};
@@ -124,39 +177,53 @@ export default function InventoryManager({ tourId, basePrice }) {
               <div className="im-date">
                 {new Date(td.date).toLocaleDateString('vi-VN')}
               </div>
-              
+
               <div className="im-row">
-                <span className="im-label">Giá vé:</span> 
+                <span className="im-label">Giá vé:</span>
                 <span className="im-val">{item.price?.toLocaleString()}₫</span>
               </div>
               <div className="im-row">
-                <span className="im-label">Tổng chỗ:</span> 
+                <span className="im-label">Tổng chỗ:</span>
                 <span className="im-val">{td.total_slots}</span>
               </div>
               <div className="im-row">
-                <span className="im-label">Đã đặt:</span> 
+                <span className="im-label">Đã đặt:</span>
                 <span className="im-val">{td.booked_slots}</span>
               </div>
-              
-              {/* Thông tin vận chuyển */}
+
               <div className="im-transport-info">
-                <div>🛫 Đi: {ts.departure_time} {ts.depart_code ? `(${ts.depart_code})` : ''}</div>
-                {(ts.return_time || ts.return_code) && (
-                  <div>🛬 Về: {ts.return_time || '---'} {ts.return_code ? `(${ts.return_code})` : ''}</div>
-                )}
+                <div>🛫 Đi: {ts.departure_time}</div>
                 {ts.airline && <div>✈️ {ts.airline}</div>}
-                {ts.pickup_location && <div>📍 Đón: {ts.pickup_location}</div>}
               </div>
 
               <div className={`im-status ${isFull ? 'full' : ''}`}>
                 {isFull ? "HẾT CHỖ" : `✅ Còn ${avail} chỗ`}
               </div>
 
-              {td.booked_slots === 0 && (
-                <div className="im-del-btn" onClick={() => handleRemove(item._id)} title="Xóa lịch">
-                  ✕
-                </div>
-              )}
+              {/* FOOTER CỦA CARD */}
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {/* Nút Xem Chi Tiết (Luôn hiện) */}
+                <button
+                  onClick={() => handleViewDetail(item)}
+                  style={{
+                    background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8',
+                    padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600
+                  }}
+                >
+                  👁️ Xem chi tiết
+                </button>
+
+                {/* Nút Xóa (Chỉ hiện khi KHÔNG readOnly và chưa ai đặt) */}
+                {!readOnly && td.booked_slots === 0 && (
+                  <button
+                    onClick={() => handleRemove(item._id)}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}
+                    title="Xóa lịch"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
             </div>
           )
         })}
@@ -166,25 +233,28 @@ export default function InventoryManager({ tourId, basePrice }) {
       {showModal && (
         <div className="im-overlay">
           <div className="im-modal">
-            <div className="im-modal-title">Thêm Lịch Khởi Hành Mới</div>
-            
+            <div className="im-modal-title">
+              {readOnly ? "Chi Tiết Lịch Trình (Chỉ Xem)" : "Thêm Lịch Khởi Hành Mới"}
+            </div>
+
             <div className="im-section-header">1. Thông tin cơ bản</div>
             <div className="im-grid-2">
               <div className="im-field">
-                <label>Ngày khởi hành <span style={{color:'red'}}>*</span></label>
-                <input type="date" className="im-input" name="date" value={form.date} onChange={handleChange} />
+                <label>Ngày khởi hành</label>
+                {/* 👇 DISABLED NẾU READONLY */}
+                <input type="date" className="im-input" name="date" value={form.date} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
-                <label>Giá vé (VND) <span style={{color:'red'}}>*</span></label>
-                <input type="number" className="im-input" name="price" value={form.price} onChange={handleChange} />
+                <label>Giá vé (VND)</label>
+                <input type="number" className="im-input" name="price" value={form.price} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
                 <label>Số chỗ mở bán</label>
-                <input type="number" className="im-input" name="slots" value={form.slots} onChange={handleChange} />
+                <input type="number" className="im-input" name="slots" value={form.slots} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
-                 <label>Điểm đón (Xe/Tàu)</label>
-                 <input className="im-input" name="pickup_location" value={form.pickup_location} onChange={handleChange} placeholder="VD: Nhà hát lớn" />
+                <label>Điểm đón (Xe/Tàu)</label>
+                <input className="im-input" name="pickup_location" value={form.pickup_location} onChange={handleChange} disabled={readOnly} />
               </div>
             </div>
 
@@ -192,43 +262,49 @@ export default function InventoryManager({ tourId, basePrice }) {
             <div className="im-grid-2">
               <div className="im-field">
                 <label>Giờ đi (Departure)</label>
-                <input type="time" className="im-input" name="departure_time" value={form.departure_time} onChange={handleChange} />
+                <input type="time" className="im-input" name="departure_time" value={form.departure_time} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
                 <label>Giờ đến (Arrival)</label>
-                <input type="time" className="im-input" name="arrival_time" value={form.arrival_time} onChange={handleChange} />
+                <input type="time" className="im-input" name="arrival_time" value={form.arrival_time} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
-                <label>Hãng bay (Nếu có)</label>
-                <input className="im-input" name="airline" value={form.airline} onChange={handleChange} placeholder="VD: Vietnam Airlines" />
+                <label>Hãng bay</label>
+                <input className="im-input" name="airline" value={form.airline} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
                 <label>Mã chuyến bay đi</label>
-                <input className="im-input" name="depart_code" value={form.depart_code} onChange={handleChange} placeholder="VD: VN123" />
+                <input className="im-input" name="depart_code" value={form.depart_code} onChange={handleChange} disabled={readOnly} />
               </div>
             </div>
 
-            <div className="im-section-header">3. Chi tiết chuyến về (Nếu có)</div>
+            <div className="im-section-header">3. Chi tiết chuyến về</div>
             <div className="im-grid-2">
-               <div className="im-field">
+              <div className="im-field">
                 <label>Giờ về (Return)</label>
-                <input type="time" className="im-input" name="return_time" value={form.return_time} onChange={handleChange} />
+                <input type="time" className="im-input" name="return_time" value={form.return_time} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
                 <label>Giờ về đến nơi</label>
-                <input type="time" className="im-input" name="return_arrival_time" value={form.return_arrival_time} onChange={handleChange} />
+                <input type="time" className="im-input" name="return_arrival_time" value={form.return_arrival_time} onChange={handleChange} disabled={readOnly} />
               </div>
               <div className="im-field">
                 <label>Mã chuyến bay về</label>
-                <input className="im-input" name="return_code" value={form.return_code} onChange={handleChange} placeholder="VD: VN124" />
+                <input className="im-input" name="return_code" value={form.return_code} onChange={handleChange} disabled={readOnly} />
               </div>
             </div>
 
             <div className="im-footer">
-              <button className="im-btn im-btn-secondary" onClick={() => setShowModal(false)}>Hủy bỏ</button>
-              <button className="im-btn im-btn-primary" onClick={handleAdd} disabled={adding}>
-                {adding ? "Đang tạo..." : "Xác nhận thêm"}
+              <button className="im-btn im-btn-secondary" onClick={() => setShowModal(false)}>
+                {readOnly ? "Đóng" : "Hủy bỏ"}
               </button>
+
+              {/* 👇 ẨN NÚT LƯU NẾU READONLY */}
+              {!readOnly && (
+                <button className="im-btn im-btn-primary" onClick={handleAdd} disabled={adding}>
+                  {adding ? "Đang xử lý..." : "Xác nhận thêm"}
+                </button>
+              )}
             </div>
           </div>
         </div>

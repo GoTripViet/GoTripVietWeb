@@ -1,65 +1,89 @@
-// controllers/category.controller.js
 const categoryService = require('../services/category.service');
-const Category = require('../models/category.model'); // [QUAN TRỌNG] Import Model
+const Category = require('../models/category.model');
+
+// Hàm hỗ trợ tạo slug
+const createSlug = (text) => {
+  return text.toString().toLowerCase().trim()
+    .replace(/\s+/g, "-").replace(/[^\w\-]+/g, "").replace(/\-\-+/g, "-");
+};
 
 class CategoryController {
 
-  // [MỚI] Hàm xử lý yêu cầu tạo danh mục (Partner)
+  // [CẬP NHẬT] Request category (Full info)
   async requestCategory(req, res) {
     try {
-      const { name, parent } = req.body; // Có thể partner muốn request sub-category
+      // 1. Nhận đầy đủ dữ liệu
+      const { name, parent, description, image } = req.body;
       const userId = req.user?._id || req.user?.id;
 
-      // 1. Kiểm tra trùng tên (Case insensitive)
-      const existing = await Category.findOne({ 
-        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } 
+      if (!name) {
+        return res.status(400).json({ message: "Tên danh mục là bắt buộc." });
+      }
+
+      // 2. Check trùng
+      const existing = await Category.findOne({
+        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
       });
 
       if (existing) {
         return res.status(400).json({ message: "Danh mục này đã tồn tại." });
       }
 
-      // 2. Tạo mới với status 'pending'
+      // 3. Tạo slug
+      const slug = createSlug(name);
+
+      // 4. Tạo category với đầy đủ thông tin
       const newCategory = await Category.create({
         name: name.trim(),
-        parent: parent || null,
+        slug: slug,
+        description: description || "",
+        image: image || "",
+        parent: parent || null, // Nếu parent là chuỗi rỗng thì lưu là null
         status: 'pending',
         created_by: userId
       });
 
       res.status(201).json(newCategory);
     } catch (error) {
-      console.error(error);
+      console.error("Request Category Error:", error);
       res.status(500).json({ message: error.message });
     }
   }
 
-  // [CẬP NHẬT] Hàm lấy danh sách (Hỗ trợ lọc cho Partner)
   async getAllCategories(req, res) {
     try {
-      const { query_mode } = req.query;
       const userId = req.user?._id || req.user?.id;
+      const userRoles = req.user?.roles || [];
+      const isAdmin = userRoles.includes('admin');
+      const isPartner = userRoles.includes('partner');
 
-      // Nếu là Partner đang lấy danh sách để chọn
-      if (query_mode === 'partner' && userId) {
-        const categories = await Category.find({
-          $or: [
-            { status: 'active' }, // Lấy cái chung
-            { status: 'pending', created_by: userId } // Lấy cái mình đang request
-          ]
-        }).sort({ name: 1 });
-        
-        return res.status(200).json(categories);
+      let filter = {};
+
+      if (req.query.parent === "null") filter.parent = null;
+      else if (req.query.parent) filter.parent = req.query.parent;
+
+      if (!userId) {
+        filter.status = 'active';
+      } else {
+        if (isAdmin) {
+          // Admin xem hết
+        } else if (isPartner) {
+          const statusFilter = {
+            $or: [
+              { status: 'active' },
+              { created_by: userId }
+            ]
+          };
+          filter = { ...filter, ...statusFilter };
+        } else {
+          filter.status = 'active';
+        }
       }
 
-      // Mặc định: Giữ nguyên logic cũ (gọi qua service hoặc lấy active)
-      // Nếu service của bạn chưa lọc status='active', bạn có thể lọc ở đây hoặc trong service
-      const categories = await categoryService.getAllCategories(req.query);
-      
-      // Tùy chọn: Nếu muốn public API chỉ trả về active (để khách không thấy rác)
-      // const activeCats = categories.filter(c => c.status === 'active');
-      // res.status(200).json(activeCats);
-      
+      const categories = await Category.find(filter)
+        .populate("parent", "name slug")
+        .sort({ createdAt: -1 }); // Mới nhất lên đầu để dễ thấy cái mới tạo
+
       res.status(200).json(categories);
     } catch (error) {
       res.status(500).json({ message: error.message });

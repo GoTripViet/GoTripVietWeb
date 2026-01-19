@@ -115,8 +115,7 @@ export default function PaymentPage() {
     if (loading) return <div className="text-center py-5" style={{ minHeight: '60vh' }}><Spinner animation="border" variant="primary" /><p className="mt-2">Đang tải thông tin đơn hàng...</p></div>;
     if (!booking) return <div className="text-center py-5">Đơn hàng không tồn tại.</div>;
 
-    // Helper: Tính hạn thanh toán (Ví dụ: +24h từ lúc tạo)
-    const paymentDeadline = new Date(new Date(booking.createdAt).getTime() + 24 * 60 * 60 * 1000);
+
 
     // Lấy thông tin snapshot (dữ liệu tour lưu cứng lúc đặt) để hiển thị
     const mainItem = booking.items?.[0] || {};
@@ -191,16 +190,6 @@ export default function PaymentPage() {
                                 <span className="fw-bold">Số tiền phải thanh toán:</span>
                                 <span className="fw-bold text-danger fs-4">{formatCurrency(booking.pricing.final_price)}</span>
                             </div>
-
-                            <div className="alert alert-warning border-0 d-flex align-items-center gap-3 small mb-0 mt-3 rounded-3">
-                                <i className="bi bi-clock-history fs-3"></i>
-                                <div>
-                                    <strong>Thời hạn giữ chỗ: </strong>
-                                    <span className="text-danger fw-bold">{paymentDeadline.toLocaleString('vi-VN')}</span>
-                                    <br />
-                                    <i>(Vui lòng thanh toán trước thời hạn để đảm bảo chỗ của bạn)</i>
-                                </div>
-                            </div>
                         </Card.Body>
                     </Card>
 
@@ -265,13 +254,7 @@ export default function PaymentPage() {
                                 </div>
                             </div>
 
-                            {/* Thông tin mô tả (Ngày đi...) */}
-                            <div className="bg-light p-3 rounded mb-3 border border-dashed">
-                                <div className="fw-bold small mb-2 text-dark"><i className="bi bi-calendar-check me-1"></i> CHI TIẾT:</div>
-                                <div className="small text-secondary fw-bold" style={{ whiteSpace: 'pre-line' }}>
-                                    {tourDetails || "Chưa có thông tin chi tiết."}
-                                </div>
-                            </div>
+
 
                             <hr className="my-3" />
 
@@ -293,35 +276,6 @@ export default function PaymentPage() {
                                     <img src="https://vnpay.vn/s1/statics.vnpay.vn/2023/6/0oxhzjmxbksr1686814746087.png" alt="VNPay" style={{ height: '24px' }} />
                                 </div>
 
-                                {/* 2. THẺ ATM NỘI ĐỊA
-                                <div className={`payment-option mb-2 border rounded p-2 d-flex align-items-center cursor-pointer ${paymentMethod === 'atm' ? 'border-primary bg-primary bg-opacity-10' : ''}`}
-                                     onClick={() => setPaymentMethod('atm')}>
-                                    <Form.Check 
-                                        type="radio" 
-                                        name="paymentMethod" 
-                                        id="atm" 
-                                        label="Thẻ ATM / Internet Banking" 
-                                        className="fw-bold small flex-grow-1"
-                                        checked={paymentMethod === 'atm'}
-                                        onChange={() => setPaymentMethod('atm')}
-                                    />
-                                    <i className="bi bi-credit-card-2-front fs-4 text-primary"></i>
-                                </div>
-
-                                {/* 3. CHUYỂN KHOẢN */}
-                                {/* <div className={`payment-option mb-3 border rounded p-2 d-flex align-items-center cursor-pointer ${paymentMethod === 'transfer' ? 'border-primary bg-primary bg-opacity-10' : ''}`}
-                                     onClick={() => setPaymentMethod('transfer')}>
-                                    <Form.Check 
-                                        type="radio" 
-                                        name="paymentMethod" 
-                                        id="transfer" 
-                                        label="Chuyển khoản Ngân hàng" 
-                                        className="fw-bold small flex-grow-1"
-                                        checked={paymentMethod === 'transfer'}
-                                        onChange={() => setPaymentMethod('transfer')}
-                                    />
-                                    <i className="bi bi-bank fs-4 text-success"></i>
-                                </div>  */}
                             </Form>
 
                             <Button

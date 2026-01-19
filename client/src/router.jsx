@@ -359,14 +359,14 @@ const AppRouter = () => {
         />
 
         {/* --- ADMIN ROUTES --- */}
-        <Route
+        {/* <Route
           path="/admin/manage/partners"
           element={
             <ProtectedRoute roles={["admin"]}>
               <ManagePartners />
             </ProtectedRoute>
           }
-        />
+        /> */}
 
         <Route element={<ProtectedRoute roles={['partner']} />}>
           <Route path="/partner/dashboard" element={<PartnerDashboard />} />

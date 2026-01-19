@@ -1,199 +1,170 @@
 import React, { useEffect, useState, useMemo } from "react";
 import userApi from "../../api/userApi";
-import { Badge, Button, Card, Table, Spinner, Form, InputGroup } from "react-bootstrap";
+import { Badge, Button, Card, Table, Spinner, Form, InputGroup, Nav } from "react-bootstrap";
 
 export default function ManagePartners() {
   const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(null); // ID đang xử lý
-  const [searchTerm, setSearchTerm] = useState(""); // [MỚI] State tìm kiếm
+  const [processing, setProcessing] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("pending");
 
-  // --- 1. TẢI DỮ LIỆU ---
   const loadPartners = async () => {
     setLoading(true);
     try {
-      // Gọi API lấy danh sách user
-      const res = await userApi.getAllPartners({ limit: 1000 }); // Lấy nhiều để client filter
+      const res = await userApi.getAllPartners({ limit: 1000 });
       const list = res.users || res.data || [];
-      
-      // Lọc lấy role 'partner'
-      const partnerList = list.filter(u => u.roles?.includes('partner'));
-      setPartners(partnerList);
+      setPartners(list.filter(u => u.roles?.includes('partner')));
     } catch (error) {
-      console.error("Lỗi tải partner:", error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadPartners();
-  }, []);
+  useEffect(() => { loadPartners(); }, []);
 
-  // --- 2. XỬ LÝ DUYỆT ---
   const handleApprove = async (id) => {
-    if (!window.confirm("Xác nhận duyệt quyền đăng bài cho đối tác này?")) return;
-    
+    if (!window.confirm("Duyệt đối tác này?")) return;
     setProcessing(id);
     try {
       await userApi.approvePartner(id);
-      // alert("Đã duyệt thành công!"); // Có thể bỏ alert nếu muốn UX mượt hơn
-      await loadPartners(); // Reload lại danh sách để cập nhật trạng thái
-    } catch (error) {
-      alert("Lỗi: " + (error.response?.data?.message || error.message));
-    } finally {
-      setProcessing(null);
-    }
+      await loadPartners();
+      if (activeTab === 'pending') setActiveTab('approved');
+    } catch (e) { alert("Lỗi: " + e.message); }
+    finally { setProcessing(null); }
   };
 
-  // --- 3. LOGIC LỌC & SẮP XẾP (MEMO) ---
-  const filteredPartners = useMemo(() => {
-    let result = [...partners];
+  // Logic lọc dữ liệu
+  const filtered = useMemo(() => {
+    let result = partners;
+    if (activeTab === 'pending') result = result.filter(p => !p.partner_details?.is_approved);
+    else if (activeTab === 'approved') result = result.filter(p => p.partner_details?.is_approved);
 
-    // a. Lọc theo từ khóa
     if (searchTerm) {
-      const lowerTerm = searchTerm.toLowerCase();
-      result = result.filter(p => {
-        const company = p.partner_details?.company_name?.toLowerCase() || "";
-        const email = p.email?.toLowerCase() || "";
-        const name = p.fullName?.toLowerCase() || "";
-        return company.includes(lowerTerm) || email.includes(lowerTerm) || name.includes(lowerTerm);
-      });
+      const s = searchTerm.toLowerCase();
+      result = result.filter(p =>
+        (p.partner_details?.company_name || "").toLowerCase().includes(s) ||
+        (p.email || "").toLowerCase().includes(s)
+      );
     }
+    return result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [partners, searchTerm, activeTab]);
 
-    // b. Sắp xếp: Chưa duyệt lên đầu, Đã duyệt xuống dưới
-    result.sort((a, b) => {
-      const aApproved = a.partner_details?.is_approved ? 1 : 0;
-      const bApproved = b.partner_details?.is_approved ? 1 : 0;
-      // 0 (chưa duyệt) - 1 (đã duyệt) => âm => lên đầu
-      if (aApproved !== bApproved) return aApproved - bApproved;
-      
-      // Nếu cùng trạng thái, cái nào mới đăng ký lên đầu
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
-
-    return result;
-  }, [partners, searchTerm]);
+  const counts = {
+    pending: partners.filter(p => !p.partner_details?.is_approved).length,
+    approved: partners.filter(p => p.partner_details?.is_approved).length,
+    all: partners.length
+  };
 
   return (
-    <div className="p-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="fw-bold m-0">Quản lý Đối tác (Partner)</h2>
-        <Button variant="outline-primary" size="sm" onClick={loadPartners}>
+    <div className="container-fluid px-0">
+      {/* --- HEADER --- */}
+      <div className="d-flex justify-content-between align-items-end mb-4">
+        <div>
+          <h3 className="fw-bolder text-dark mb-1">Đối tác Du lịch</h3>
+          <p className="text-muted m-0 small">Quản lý và phê duyệt các nhà cung cấp dịch vụ</p>
+        </div>
+        <Button variant="white" className="border shadow-sm fw-bold text-primary" onClick={loadPartners}>
           <i className="bi bi-arrow-clockwise me-1"></i> Làm mới
         </Button>
       </div>
 
-      {/* --- THANH TÌM KIẾM --- */}
-      <Card className="shadow-sm border-0 rounded-4 mb-4">
-        <Card.Body>
-          <InputGroup>
-            <InputGroup.Text className="bg-white border-end-0">
-              <i className="bi bi-search text-muted"></i>
+      <Card className="border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+        {/* --- TABS NAVIGATION --- */}
+        <div className="px-4 pt-4 border-bottom bg-white">
+          <Nav variant="tabs" className="border-bottom-0 gap-3" activeKey={activeTab} onSelect={k => setActiveTab(k)}>
+            <Nav.Item>
+              <Nav.Link eventKey="pending" className={`px-0 py-2 border-0 bg-transparent fw-bold ${activeTab === 'pending' ? 'text-primary border-bottom border-primary border-3' : 'text-secondary'}`}>
+                Chờ duyệt <Badge bg="danger" pill className="ms-1">{counts.pending}</Badge>
+              </Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+              <Nav.Link eventKey="approved" className={`px-0 py-2 border-0 bg-transparent fw-bold ${activeTab === 'approved' ? 'text-primary border-bottom border-primary border-3' : 'text-secondary'}`}>
+                Đã duyệt <Badge bg="success" pill className="ms-1">{counts.approved}</Badge>
+              </Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+              <Nav.Link eventKey="all" className={`px-0 py-2 border-0 bg-transparent fw-bold ${activeTab === 'all' ? 'text-primary border-bottom border-primary border-3' : 'text-secondary'}`}>
+                Tất cả <Badge bg="secondary" pill className="ms-1">{counts.all}</Badge>
+              </Nav.Link>
+            </Nav.Item>
+          </Nav>
+        </div>
+
+        {/* --- TOOLBAR --- */}
+        <div className="p-3 bg-light d-flex border-bottom">
+          <InputGroup style={{ maxWidth: 350 }}>
+            <InputGroup.Text className="bg-white border-end-0 ps-3 rounded-start-pill text-muted">
+              <i className="bi bi-search"></i>
             </InputGroup.Text>
-            <Form.Control 
-              placeholder="Tìm kiếm theo tên công ty, email, người đại diện..." 
-              className="border-start-0 shadow-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+            <Form.Control
+              className="border-start-0 rounded-end-pill shadow-none"
+              placeholder="Tìm theo tên công ty, email..."
+              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
             />
           </InputGroup>
-        </Card.Body>
-      </Card>
-      
-      {/* --- BẢNG DANH SÁCH --- */}
-      <Card className="shadow-sm border-0 rounded-4">
-        <Card.Body className="p-0">
-          <Table hover responsive className="mb-0 align-middle">
+        </div>
+
+        {/* --- TABLE --- */}
+        <Card.Body className="p-0 table-responsive">
+          <Table hover className="mb-0 align-middle">
             <thead className="bg-light">
               <tr>
-                <th className="py-3 ps-4">Công ty / Thương hiệu</th>
-                <th>Người đại diện</th>
-                <th>Liên hệ</th>
-                <th>Trạng thái</th>
-                <th>Ngày đăng ký</th>
-                <th className="text-end pe-4">Hành động</th>
+                <th className="py-3 ps-4 text-secondary small text-uppercase fw-bold">Doanh nghiệp / Đại diện</th>
+                <th className="py-3 text-secondary small text-uppercase fw-bold">Liên hệ</th>
+                <th className="py-3 text-secondary small text-uppercase fw-bold">Trạng thái</th>
+                <th className="py-3 text-secondary small text-uppercase fw-bold text-end pe-4">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan="6" className="text-center py-5">
-                    <Spinner animation="border" variant="primary" />
-                    <p className="text-muted mt-2 small">Đang tải dữ liệu...</p>
-                  </td>
-                </tr>
-              ) : filteredPartners.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="text-center py-5 text-muted">
-                    <i className="bi bi-inbox display-4 d-block mb-2 opacity-50"></i>
-                    Không tìm thấy đối tác nào phù hợp.
-                  </td>
-                </tr>
-              ) : (
-                filteredPartners.map((p) => {
-                  const details = p.partner_details || {};
-                  const isApproved = details.is_approved;
-
-                  return (
-                    <tr key={p._id || p.id} className={!isApproved ? "bg-warning bg-opacity-10" : ""}>
-                      <td className="ps-4">
-                        <div className="fw-bold text-primary">{details.company_name || "Chưa cập nhật"}</div>
-                        <div className="small text-muted">
-                          <i className="bi bi-card-heading me-1"></i> MST: {details.business_license || "N/A"}
+                <tr><td colSpan={4} className="text-center py-5"><Spinner animation="border" variant="primary" /></td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={4} className="text-center py-5 text-muted">Không có dữ liệu</td></tr>
+              ) : filtered.map(p => {
+                const d = p.partner_details || {};
+                const isApproved = d.is_approved;
+                return (
+                  <tr key={p._id || p.id}>
+                    <td className="ps-4 py-3">
+                      <div className="d-flex align-items-center gap-3">
+                        <div className="rounded-3 d-flex align-items-center justify-content-center text-primary fw-bold"
+                          style={{ width: 48, height: 48, background: '#eff6ff', fontSize: '1.2rem' }}>
+                          {(d.company_name?.[0] || "P").toUpperCase()}
                         </div>
-                      </td>
-                      <td>
-                        <div className="fw-semibold">{p.fullName}</div>
-                        <div className="small text-muted">ID: {(p._id || p.id).slice(-6).toUpperCase()}</div>
-                      </td>
-                      <td>
-                        <div className="d-flex flex-column small">
-                          <span><i className="bi bi-envelope me-1"></i> {p.email}</span>
-                          <span className="text-muted"><i className="bi bi-telephone me-1"></i> {details.contact_phone || p.phone}</span>
+                        <div>
+                          <div className="fw-bold text-dark fs-6">{d.company_name || "Chưa cập nhật tên"}</div>
+                          <div className="text-muted small">Đại diện: {p.fullName}</div>
                         </div>
-                      </td>
-                      <td>
-                        {isApproved ? (
-                          <Badge bg="success" pill className="px-3 py-2">
-                            <i className="bi bi-check-circle-fill me-1"></i> Đã duyệt
-                          </Badge>
-                        ) : (
-                          <Badge bg="warning" text="dark" pill className="px-3 py-2">
-                            <i className="bi bi-hourglass-split me-1"></i> Chờ duyệt
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="text-muted small">
-                        {new Date(p.createdAt).toLocaleDateString("vi-VN")}
-                      </td>
-                      <td className="text-end pe-4">
-                        {!isApproved ? (
-                          <Button 
-                            variant="primary" 
-                            size="sm" 
-                            className="rounded-pill px-4 fw-bold shadow-sm"
-                            onClick={() => handleApprove(p._id || p.id)}
-                            disabled={processing === (p._id || p.id)}
-                          >
-                            {processing === (p._id || p.id) ? (
-                              <Spinner as="span" animation="border" size="sm" />
-                            ) : (
-                              <>
-                                <i className="bi bi-check-lg me-1"></i> Duyệt
-                              </>
-                            )}
-                          </Button>
-                        ) : (
-                           <Button variant="outline-secondary" size="sm" className="rounded-pill px-3 opacity-75" disabled>
-                             Đã kích hoạt
-                           </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="d-flex flex-column small">
+                        <span className="text-dark mb-1"><i className="bi bi-envelope me-2 text-muted"></i>{p.email}</span>
+                        <span className="text-dark"><i className="bi bi-telephone me-2 text-muted"></i>{d.contact_phone || p.phone}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {isApproved ?
+                        <Badge bg="success" className="bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill">Đã duyệt</Badge> :
+                        <Badge bg="warning" className="bg-opacity-10 text-warning border border-warning border-opacity-25 px-3 py-2 rounded-pill">Chờ duyệt</Badge>
+                      }
+                      <div className="text-muted mt-1" style={{ fontSize: 10 }}>{new Date(p.createdAt).toLocaleDateString()}</div>
+                    </td>
+                    <td className="text-end pe-4">
+                      {!isApproved ? (
+                        <Button size="sm" variant="primary" className="px-3 rounded-pill fw-bold shadow-sm"
+                          onClick={() => handleApprove(p._id || p.id)} disabled={processing === (p._id || p.id)}>
+                          {processing === (p._id || p.id) ? "..." : "✓ Duyệt ngay"}
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="light" className="px-3 rounded-pill text-muted border" disabled>Đã kích hoạt</Button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </Table>
         </Card.Body>

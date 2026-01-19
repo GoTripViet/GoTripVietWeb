@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import authApi from "../../api/authApi";
 import logoOutlineBesideUrl from "../../assets/logos/logo_outline_beside.png";
@@ -141,11 +141,9 @@ export default function NavbarAdmin() {
         >
           Tổng quan
         </div>
-        <NavLink to="/admin/dashboard/basic" style={linkStyle}>
-          Dashboard cơ bản
-        </NavLink>
+
         <NavLink to="/admin/dashboard/advanced" style={linkStyle}>
-          Dashboard nâng cao
+          Dashboard
         </NavLink>
 
         <div
@@ -173,9 +171,6 @@ export default function NavbarAdmin() {
         <NavLink to="/admin/manage/events" style={linkStyle}>
           Quản lý events
         </NavLink>
-        <NavLink to="/admin/manage/orders" style={linkStyle}>
-          Quản lý đơn hàng
-        </NavLink>
 
         <div
           style={{
@@ -193,22 +188,10 @@ export default function NavbarAdmin() {
         <NavLink to="/admin/manage/admins" style={linkStyle}>
           Quản lý admin
         </NavLink>
+
+        {/* 👇 LINK QUẢN LÝ ĐỐI TÁC 👇 */}
         <NavLink to="/admin/manage/partners" style={linkStyle}>
           Quản lý đối tác
-        </NavLink>
-
-        <div
-          style={{
-            color: "#6b7280",
-            fontSize: 12,
-            fontWeight: 700,
-            padding: "10px 6px 0",
-          }}
-        >
-          Tài chính
-        </div>
-        <NavLink to="/admin/expenses" style={linkStyle}>
-          Quản lý chi tiêu
         </NavLink>
       </div>
 

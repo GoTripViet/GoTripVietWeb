@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import locationApi from "../../api/locationApi";
+import "../../styles/admin/ManageLocation.css";
 
 // --- HELPERS ---
 
@@ -33,7 +34,6 @@ function toRow(x) {
     tags_csv: tags.join(", "),
     lng,
     lat,
-    // Ensure status exists (default to active for old data)
     status: x?.status || "active",
     created_by: x?.created_by,
   };
@@ -43,9 +43,9 @@ function toPayload(form) {
   const tags =
     typeof form?.tags_csv === "string"
       ? form.tags_csv
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
       : [];
 
   const lng = Number(form?.lng ?? 0);
@@ -68,192 +68,26 @@ function toPayload(form) {
     images: Array.isArray(form.images) ? form.images : [],
     tags,
     coordinates: { type: "Point", coordinates: [lng, lat] },
-    // Admin can update status manually
-    status: form.status, 
+    status: form.status,
   };
 }
 
-// --- STYLES ---
-
-const styles = {
-  page: { display: "grid", gap: 12 },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  h1: { fontWeight: 900, fontSize: 22 },
-  sub: { color: "#6b7280", fontSize: 12, lineHeight: 1.5 },
-
-  btn: {
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    background: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  primaryBtn: {
-    borderRadius: 12,
-    border: "1px solid rgba(11,95,255,0.35)",
-    padding: "10px 12px",
-    cursor: "pointer",
-    background: "rgba(11,95,255,0.08)",
-    fontWeight: 900,
-    color: "#0b5fff",
-  },
-  successBtn: {
-    borderRadius: 12,
-    border: "1px solid #bbf7d0",
-    padding: "10px 12px",
-    cursor: "pointer",
-    background: "#f0fdf4",
-    fontWeight: 900,
-    color: "#16a34a",
-    marginRight: 6,
-  },
-  dangerBtn: {
-    borderRadius: 12,
-    border: "1px solid #fecaca",
-    padding: "10px 12px",
-    cursor: "pointer",
-    background: "#fff",
-    fontWeight: 900,
-    color: "#b91c1c",
-  },
-
-  tableWrap: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    textAlign: "left",
-    fontSize: 12,
-    color: "#6b7280",
-    padding: 10,
-    borderBottom: "1px solid #e5e7eb",
-    background: "#fafafa",
-    whiteSpace: "nowrap",
-  },
-  td: { padding: 10, borderBottom: "1px solid #f3f4f6", verticalAlign: "middle" },
-  empty: { color: "#9ca3af", fontSize: 12 },
-
-  // Badges
-  badgePending: {
-    background: "#fffbeb",
-    color: "#b45309",
-    border: "1px solid #fcd34d",
-    padding: "2px 8px",
-    borderRadius: 20,
-    fontSize: 11,
-    fontWeight: 900,
-    marginLeft: 6,
-  },
-  badgeActive: {
-    background: "#dcfce7",
-    color: "#166534",
-    border: "1px solid #86efac",
-    padding: "2px 8px",
-    borderRadius: 20,
-    fontSize: 11,
-    fontWeight: 900,
-  },
-
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.35)",
-    display: "grid",
-    placeItems: "center",
-    zIndex: 50,
-  },
-  modal: {
-    width: "min(860px, calc(100vw - 24px))",
-    background: "#fff",
-    borderRadius: 16,
-    border: "1px solid #e5e7eb",
-    overflow: "hidden",
-    maxHeight: "calc(100vh - 24px)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  modalHeader: {
-    padding: 12,
-    borderBottom: "1px solid #e5e7eb",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    background: "linear-gradient(180deg,#fff,#fafafa)",
-    gap: 10,
-  },
-  modalBody: {
-    padding: 12,
-    display: "grid",
-    gap: 10,
-    overflowY: "auto",
-    flex: "1 1 auto",
-    minHeight: 0,
-  },
-  modalFooter: {
-    padding: 12,
-    borderTop: "1px solid #e5e7eb",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-
-  label: { fontSize: 12, fontWeight: 900, color: "#374151" },
-  input: {
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    outline: "none",
-    width: "100%",
-  },
-  select: {
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    outline: "none",
-    width: "100%",
-    background: "#fff",
-  },
-  textarea: {
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    outline: "none",
-    width: "100%",
-    minHeight: 90,
-    resize: "vertical",
-    lineHeight: 1.5,
-  },
-};
-
+// --- MODAL COMPONENT ---
 function Modal({ open, title, onClose, children }) {
   if (!open) return null;
   return (
     <div
-      style={styles.overlay}
+      className="loc-overlay"
       onMouseDown={onClose}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => e.preventDefault()}
     >
       <div
-        style={styles.modal}
+        className="loc-modal"
         onMouseDown={(e) => e.stopPropagation()}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => e.preventDefault()}
       >
-        <div style={styles.modalHeader}>
-          <div style={{ fontWeight: 900 }}>{title}</div>
-          <button style={styles.btn} onClick={onClose} type="button">
-            Đóng
+        <div className="loc-modal-header">
+          <div className="loc-modal-title">{title}</div>
+          <button className="loc-btn loc-btn-default" style={{ padding: '4px 8px' }} onClick={onClose} type="button">
+            ✕
           </button>
         </div>
         {children}
@@ -268,6 +102,11 @@ export default function ManageLocation() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(10);
+
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
@@ -279,7 +118,7 @@ export default function ManageLocation() {
     images: [],
     lng: 0,
     lat: 0,
-    status: "active", // Default status
+    status: "active",
   });
 
   const [uploadingImg, setUploadingImg] = useState(false);
@@ -294,23 +133,40 @@ export default function ManageLocation() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await locationApi.getAll();
-      const list = normalizeList(res).map(toRow);
+      // 1. Call API with page/limit params
+      const res = await locationApi.getManage();
 
-      // Sorting: Pending requests first, then by date (implied or name)
+      // 2. Normalize raw data
+      let list = normalizeList(res).map(toRow);
+
+      // 3. Check for Server-side vs Client-side pagination
+      const isServerPaginated = res.totalPages !== undefined;
+
+      if (isServerPaginated) {
+        setTotalPages(res.totalPages);
+        // Server already sliced the data
+      } else {
+        // --- CLIENT-SIDE SLICING LOGIC ---
+        // If server returned ALL items, we calculate pages and slice here
+        const totalItems = list.length;
+        setTotalPages(Math.ceil(totalItems / limit) || 1);
+
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+
+        list = list.slice(startIndex, endIndex);
+      }
+
+      // Sort: Pending items on top
       list.sort((a, b) => {
         if (a.status === "pending" && b.status !== "pending") return -1;
         if (a.status !== "pending" && b.status === "pending") return 1;
-        // Optional: Sort by created date if available, else by name
         return 0;
       });
 
       setRows(list);
     } catch (e) {
       console.error(e);
-      alert(
-        e?.response?.data?.message || e?.message || "Không tải được địa điểm"
-      );
     } finally {
       setLoading(false);
     }
@@ -318,7 +174,7 @@ export default function ManageLocation() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [page]);
 
   const openCreate = () => {
     setEditing(null);
@@ -364,20 +220,17 @@ export default function ManageLocation() {
       await load();
     } catch (e) {
       console.error(e);
-      alert(
-        e?.response?.data?.message || e?.message || "Lưu địa điểm thất bại"
-      );
+      alert(e?.response?.data?.message || e?.message || "Lưu địa điểm thất bại");
     }
   };
 
-  // Quick Approve Function
   const approve = async (row) => {
     if (!confirm(`Duyệt địa điểm "${row.name}"?`)) return;
     try {
-        await locationApi.update(row.id, { status: 'active' });
-        await load();
+      await locationApi.update(row.id, { status: 'active' });
+      await load();
     } catch (e) {
-        alert("Lỗi duyệt: " + e.message);
+      alert("Lỗi duyệt: " + e.message);
     }
   };
 
@@ -388,9 +241,7 @@ export default function ManageLocation() {
       await load();
     } catch (e) {
       console.error(e);
-      alert(
-        e?.response?.data?.message || e?.message || "Xóa địa điểm thất bại"
-      );
+      alert(e?.response?.data?.message || e?.message || "Xóa địa điểm thất bại");
     }
   };
 
@@ -405,8 +256,6 @@ export default function ManageLocation() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-
-      // axiosClient unwrap => res = {url,...}
       const res = await locationApi.uploadLocationImage(fd);
       const url = res?.url;
       const public_id = res?.public_id || "";
@@ -436,144 +285,186 @@ export default function ManageLocation() {
     await pickAndUploadMany(e.dataTransfer.files);
   };
 
-  const imagesPreview = useMemo(() => {
-    return Array.isArray(form.images)
-      ? form.images.map((img) => img?.url).filter(Boolean)
-      : [];
-  }, [form.images]);
-
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
+    <div className="loc-page">
+      <div className="loc-header">
         <div>
-          <div style={styles.h1}>Quản lý địa điểm</div>
-          <div style={styles.sub}>
+          <h1 className="loc-title">Quản lý địa điểm</h1>
+          <div className="loc-subtitle">
             Duyệt các địa điểm Pending từ Partner và quản lý dữ liệu gốc.
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={load} style={styles.btn} disabled={loading}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={load} className="loc-btn loc-btn-default" disabled={loading}>
             {loading ? "Đang tải..." : "↻ Tải lại"}
           </button>
-          <button onClick={openCreate} style={styles.primaryBtn}>
-            + Thêm địa điểm
+          <button onClick={openCreate} className="loc-btn loc-btn-primary">
+            + Thêm mới
           </button>
         </div>
       </div>
 
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
+      <div className="loc-table-card">
+        <table className="loc-table">
           <thead>
             <tr>
-              <th style={styles.th}>Tên / Trạng thái</th>
-              <th style={styles.th}>Slug</th>
-              <th style={styles.th}>Quốc gia</th>
-              <th style={styles.th}>Ảnh</th>
-              <th style={styles.th}>Tọa độ</th>
-              <th style={styles.th}>Hành động</th>
+              <th className="loc-th">Địa điểm / Trạng thái</th>
+              <th className="loc-th">Slug</th>
+              <th className="loc-th">Quốc gia</th>
+              <th className="loc-th">Ảnh</th>
+              <th className="loc-th">Tọa độ</th>
+              <th className="loc-th" style={{ textAlign: 'right' }}>Hành động</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((x) => {
+            {loading ? (
+              <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Đang tải dữ liệu...</td></tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                  Chưa có địa điểm nào.
+                </td>
+              </tr>
+            ) : (
+              rows.map((x) => {
                 const isPending = x.status === 'pending';
                 return (
-                  <tr key={x.id || x._id} style={isPending ? {background: '#fffbf0'} : {}}>
-                    <td style={styles.td}>
-                        <div style={{fontWeight: 600, color: '#111'}}>{x.name}</div>
-                        {isPending && <span style={styles.badgePending}>⏳ Chờ duyệt</span>}
-                        {x.created_by && isPending && <div style={{fontSize: 11, color: '#666', marginTop: 4}}>Từ Partner</div>}
+                  <tr key={x.id || x._id} className={`loc-tr ${isPending ? 'loc-tr-pending' : ''}`}>
+                    <td className="loc-td">
+                      <div style={{ fontWeight: 700, color: '#1e293b' }}>{x.name}</div>
+                      {isPending && <span className="loc-badge loc-badge-pending">⏳ Chờ duyệt</span>}
+                      {x.created_by && isPending && <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Từ Partner</div>}
                     </td>
-                    <td style={styles.td}>
+                    <td className="loc-td">
                       {x.slug ? (
-                        <code>{x.slug}</code>
+                        <code className="loc-slug">{x.slug}</code>
                       ) : (
-                        <span style={styles.empty}>Tự động</span>
+                        <span style={{ color: '#94a3b8' }}>—</span>
                       )}
                     </td>
-                    <td style={styles.td}>
-                      {x.country || <span style={styles.empty}>—</span>}
+                    <td className="loc-td">
+                      {x.country || <span style={{ color: '#94a3b8' }}>—</span>}
                     </td>
-                    <td style={styles.td}>
+                    <td className="loc-td">
                       {Array.isArray(x.images) && x.images.length ? (
-                        <span>{x.images.length} ảnh</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <img
+                            src={x.images[0].url}
+                            alt="thumb"
+                            style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                          />
+                          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>+{x.images.length}</span>
+                        </div>
                       ) : (
-                        <span style={styles.empty}>—</span>
+                        <span style={{ color: '#94a3b8' }}>—</span>
                       )}
                     </td>
-                    <td style={styles.td}>
-                      <code>{Number(x.lng).toFixed(4)}</code>,{" "}
-                      <code>{Number(x.lat).toFixed(4)}</code>
+                    <td className="loc-td">
+                      <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#64748b' }}>
+                        <div>{Number(x.lng).toFixed(4)},</div>
+                        <div>{Number(x.lat).toFixed(4)}</div>
+                      </div>
                     </td>
-                    <td
-                      style={{
-                        ...styles.td,
-                        textAlign: "right",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {/* Approve Button for Pending Items */}
+                    <td className="loc-td" style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       {isPending && (
-                        <button style={styles.successBtn} onClick={() => approve(x)}>
-                            ✓ Duyệt
+                        <button className="loc-btn loc-btn-success" onClick={() => approve(x)} style={{ marginRight: 6 }}>
+                          ✓ Duyệt
                         </button>
                       )}
 
-                      <button style={styles.btn} onClick={() => openEdit(x)}>
+                      <button className="loc-btn loc-btn-default" onClick={() => openEdit(x)} style={{ marginRight: 6 }}>
                         Sửa
-                      </button>{" "}
-                      <button style={styles.dangerBtn} onClick={() => remove(x.id)}>
+                      </button>
+                      <button className="loc-btn loc-btn-danger" onClick={() => remove(x.id)}>
                         Xóa
                       </button>
                     </td>
                   </tr>
                 );
-            })}
-            {!loading && rows.length === 0 ? (
-              <tr>
-                <td style={styles.td} colSpan={6}>
-                  Chưa có địa điểm nào.
-                </td>
-              </tr>
-            ) : null}
+              })
+            )}
           </tbody>
         </table>
+
+        {/* PAGINATION CONTROLS */}
+        {!loading && (rows.length > 0 || totalPages > 1) && (
+          <div className="loc-pagination">
+            <span className="loc-page-info">
+              Trang {page} / {totalPages}
+            </span>
+            <button
+              className="loc-page-btn"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              &lt;
+            </button>
+
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pNum = i + 1;
+              if (totalPages > 5) {
+                if (page > 3) pNum = page - 2 + i;
+                if (pNum > totalPages) pNum = totalPages - 4 + i;
+              }
+              if (pNum > totalPages || pNum < 1) return null;
+
+              return (
+                <button
+                  key={pNum}
+                  className={`loc-page-btn ${page === pNum ? 'active' : ''}`}
+                  onClick={() => setPage(pNum)}
+                >
+                  {pNum}
+                </button>
+              )
+            })}
+
+            <button
+              className="loc-page-btn"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              &gt;
+            </button>
+          </div>
+        )}
       </div>
 
       <Modal
         open={editOpen}
-        title={editing ? "Chỉnh sửa địa điểm" : "Thêm địa điểm"}
+        title={editing ? "Chỉnh sửa địa điểm" : "Thêm địa điểm mới"}
         onClose={() => setEditOpen(false)}
       >
-        <div style={styles.modalBody}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-             <div>
-                <div style={styles.label}>Tên</div>
-                <input
-                  style={styles.input}
-                  value={form.name}
-                  onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-                  placeholder="Ví dụ: Đà Lạt"
-                />
-             </div>
-             <div>
-                <div style={styles.label}>Trạng thái</div>
-                <select 
-                    style={styles.select}
-                    value={form.status}
-                    onChange={(e) => setForm(s => ({...s, status: e.target.value}))}
-                >
-                    <option value="active">Active (Hoạt động)</option>
-                    <option value="pending">Pending (Chờ duyệt)</option>
-                    <option value="rejected">Rejected (Từ chối)</option>
-                </select>
-             </div>
+        <div className="loc-modal-body">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div className="loc-form-group">
+              <label className="loc-label">Tên địa điểm</label>
+              <input
+                className="loc-input"
+                value={form.name}
+                onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
+                placeholder="Ví dụ: Đà Lạt..."
+              />
+            </div>
+            <div className="loc-form-group">
+              <label className="loc-label">Trạng thái</label>
+              <select
+                className="loc-select"
+                value={form.status}
+                onChange={(e) => setForm(s => ({ ...s, status: e.target.value }))}
+              >
+                <option value="active">Active (Hoạt động)</option>
+                <option value="pending">Pending (Chờ duyệt)</option>
+                <option value="rejected">Rejected (Từ chối)</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <div style={styles.label}>Quốc gia</div>
+          <div className="loc-form-group">
+            <label className="loc-label">Quốc gia</label>
             <input
-              style={styles.input}
+              className="loc-input"
               value={form.country}
               onChange={(e) =>
                 setForm((s) => ({ ...s, country: e.target.value }))
@@ -582,144 +473,78 @@ export default function ManageLocation() {
             />
           </div>
 
-          <div>
-            <div style={styles.label}>Mô tả</div>
+          <div className="loc-form-group">
+            <label className="loc-label">Mô tả ngắn</label>
             <textarea
-              style={styles.textarea}
+              className="loc-textarea"
               value={form.description}
               onChange={(e) =>
                 setForm((s) => ({ ...s, description: e.target.value }))
               }
-              placeholder="Mô tả ngắn..."
+              placeholder="Nhập mô tả về địa điểm này..."
             />
           </div>
 
-          <div>
-            <div style={styles.label}>Thẻ</div>
+          <div className="loc-form-group">
+            <label className="loc-label">Thẻ (Tags)</label>
             <input
-              style={styles.input}
+              className="loc-input"
               value={form.tags_csv}
               onChange={(e) =>
                 setForm((s) => ({ ...s, tags_csv: e.target.value }))
               }
               placeholder="Ví dụ: biển, nghỉ dưỡng, check-in"
             />
-            <div style={styles.sub}>
-              Nhập nhiều thẻ, ngăn cách bằng dấu phẩy.
-            </div>
+            <small style={{ color: '#64748b', fontSize: 12 }}>Nhập nhiều thẻ, ngăn cách bằng dấu phẩy.</small>
           </div>
 
-          <div>
-            <div style={styles.label}>Ảnh</div>
+          <div className="loc-form-group">
+            <label className="loc-label">Hình ảnh</label>
             <div
+              className="loc-upload-area"
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDropImage}
-              style={{
-                marginTop: 10,
-                border: "2px dashed #e5e7eb",
-                borderRadius: 12,
-                padding: 12,
-                display: "grid",
-                gap: 10,
-                background: "#fafafa",
-              }}
             >
-              <div style={{ fontWeight: 900 }}>
-                Kéo & thả ảnh vào đây, hoặc bấm chọn ảnh từ máy
+              <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
+                Kéo & thả ảnh vào đây, hoặc bấm nút dưới
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <label
-                  style={{ ...styles.primaryBtn, display: "inline-block" }}
-                >
-                  {uploadingImg ? "Đang tải ảnh lên..." : "Chọn ảnh"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    multiple
-                    onChange={(e) => pickAndUploadMany(e.target.files)}
-                    disabled={uploadingImg}
-                  />
-                </label>
-                <span style={styles.sub}>
-                  {uploadingImg ? "Vui lòng chờ..." : "Tối đa 5MB mỗi ảnh"}
-                </span>
-              </div>
+              <label className="loc-btn loc-btn-primary">
+                {uploadingImg ? "Đang tải ảnh lên..." : "⬆ Chọn ảnh từ máy"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  multiple
+                  onChange={(e) => pickAndUploadMany(e.target.files)}
+                  disabled={uploadingImg}
+                />
+              </label>
 
-              {(localPreview ||
-                (Array.isArray(form.images) && form.images.length > 0)) && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {localPreview ? (
-                    <img
-                      src={localPreview}
-                      alt="preview"
-                      style={{
-                        width: 120,
-                        height: 90,
-                        objectFit: "cover",
-                        borderRadius: 12,
-                        border: "1px solid #e5e7eb",
-                        background: "#fff",
-                      }}
-                      onError={(e) => (e.currentTarget.style.display = "none")}
-                    />
-                  ) : null}
+              {(localPreview || (Array.isArray(form.images) && form.images.length > 0)) && (
+                <div className="loc-img-grid">
+                  {localPreview && (
+                    <div className="loc-img-item">
+                      <img src={localPreview} alt="preview" className="loc-img-preview" />
+                    </div>
+                  )}
 
                   {(form.images || []).map((img) => (
-                    <div
-                      key={img.public_id || img.url}
-                      style={{ position: "relative" }}
-                    >
-                      <img
-                        src={img.url}
-                        alt="location"
-                        style={{
-                          width: 120,
-                          height: 90,
-                          objectFit: "cover",
-                          borderRadius: 12,
-                          border: "1px solid #e5e7eb",
-                          background: "#fff",
-                          display: "block",
-                        }}
-                        onError={(e) =>
-                          (e.currentTarget.style.display = "none")
-                        }
-                      />
+                    <div key={img.public_id || img.url} className="loc-img-item">
+                      <img src={img.url} alt="loc" className="loc-img-preview" />
                       <button
                         type="button"
+                        className="loc-img-remove"
                         onClick={() =>
                           setForm((s) => ({
                             ...s,
                             images: (s.images || []).filter(
-                              (x) =>
-                                (x.public_id || x.url) !==
-                                (img.public_id || img.url)
+                              (x) => (x.public_id || x.url) !== (img.public_id || img.url)
                             ),
                           }))
                         }
-                        style={{
-                          position: "absolute",
-                          top: 6,
-                          right: 6,
-                          border: "1px solid #fecaca",
-                          background: "#fff",
-                          color: "#b91c1c",
-                          borderRadius: 10,
-                          padding: "4px 8px",
-                          cursor: "pointer",
-                          fontWeight: 900,
-                        }}
                       >
-                        Xóa
+                        ✕
                       </button>
                     </div>
                   ))}
@@ -728,46 +553,36 @@ export default function ManageLocation() {
             </div>
           </div>
 
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
-          >
-            <div>
-              <div style={styles.label}>Kinh độ</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div className="loc-form-group">
+              <label className="loc-label">Kinh độ (Lng)</label>
               <input
-                style={styles.input}
+                className="loc-input"
                 type="number"
                 value={form.lng}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, lng: e.target.value }))
-                }
+                onChange={(e) => setForm((s) => ({ ...s, lng: e.target.value }))}
                 placeholder="Ví dụ: 108.4583"
               />
             </div>
-            <div>
-              <div style={styles.label}>Vĩ độ</div>
+            <div className="loc-form-group">
+              <label className="loc-label">Vĩ độ (Lat)</label>
               <input
-                style={styles.input}
+                className="loc-input"
                 type="number"
                 value={form.lat}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, lat: e.target.value }))
-                }
+                onChange={(e) => setForm((s) => ({ ...s, lat: e.target.value }))}
                 placeholder="Ví dụ: 11.9404"
               />
             </div>
           </div>
         </div>
 
-        <div style={styles.modalFooter}>
-          <button style={styles.btn} onClick={() => setEditOpen(false)}>
-            Hủy
+        <div className="loc-modal-footer">
+          <button className="loc-btn loc-btn-default" onClick={() => setEditOpen(false)}>
+            Hủy bỏ
           </button>
-          <button
-            style={styles.primaryBtn}
-            onClick={save}
-            disabled={uploadingImg}
-          >
-            Lưu
+          <button className="loc-btn loc-btn-primary" onClick={save} disabled={uploadingImg}>
+            Lưu địa điểm
           </button>
         </div>
       </Modal>

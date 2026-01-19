@@ -10,6 +10,7 @@ import Badge from "react-bootstrap/Badge";
 import Spinner from "react-bootstrap/Spinner";
 import Form from "react-bootstrap/Form";
 import Accordion from "react-bootstrap/Accordion";
+import Carousel from "react-bootstrap/Carousel";
 import catalogApi from "../api/catalogApi";
 import inventoryApi from "../api/inventoryApi";
 import BigCard from "../components/home/BigCard";
@@ -30,10 +31,18 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [relatedTours, setRelatedTours] = useState([]);
 
+  // Image Gallery State
+  const [index, setIndex] = useState(0); // [MỚI] Theo dõi ảnh đang hiển thị
+
   // Inventory States
   const [inventoryItems, setInventoryItems] = useState([]);
   const [selectedInventory, setSelectedInventory] = useState(null);
   const [selectedDate, setSelectedDate] = useState("");
+
+  // Hàm xử lý khi slide chuyển động (để cập nhật thumbnail active)
+  const handleSelect = (selectedIndex) => {
+    setIndex(selectedIndex);
+  };
 
   // --- 1. GỌI API LẤY CHI TIẾT ---
   useEffect(() => {
@@ -43,6 +52,9 @@ export default function ProductDetail() {
         const res = await catalogApi.getById(id);
         const data = res.data || res;
         setProduct(data);
+
+        // Reset gallery index về 0 khi load tour mới
+        setIndex(0);
 
         // Mặc định chọn ngày đầu tiên
         if (data.tour_details?.departure_times?.length > 0) {
@@ -92,7 +104,7 @@ export default function ProductDetail() {
     fetchRelated();
   }, [product]);
 
-  // --- 3. GỌI API LẤY INVENTORY (LỊCH KHỞI HÀNH) ---
+  // --- 3. GỌI API LẤY INVENTORY ---
   useEffect(() => {
     if (!id) return;
     const fetchInventory = async () => {
@@ -101,7 +113,6 @@ export default function ProductDetail() {
         const items = res.data || res;
         setInventoryItems(items);
 
-        // Mặc định chọn Inventory đầu tiên
         if (items.length > 0) {
           setSelectedInventory(items[0]);
           setSelectedDate(items[0].tour_details.date);
@@ -113,38 +124,29 @@ export default function ProductDetail() {
     fetchInventory();
   }, [id]);
 
-  // --- 4. XỬ LÝ NÚT ĐẶT TOUR (LOGIC MỚI) ---
+  // --- 4. XỬ LÝ ĐẶT TOUR ---
   const handleBookingClick = () => {
-    // 1. Validate ngày
     if (!selectedDate) {
       alert("Vui lòng chọn ngày khởi hành!");
       return;
     }
 
-    // 2. Lấy thông tin vận chuyển
     const transportType =
       product.tour_details?.transport_type || "Đang cập nhật";
-
-    // Lấy lịch chi tiết từ Inventory (Dữ liệu thật theo ngày)
     const schedule = selectedInventory?.tour_details?.transport_schedule || {};
 
     let transportInfoData = null;
 
-    // --- TRƯỜNG HỢP A: MÁY BAY ---
     if (transportType === "Máy bay") {
       transportInfoData = {
         type: "flight",
         details: {
-          // Ưu tiên lấy Airline từ Inventory, không có thì lấy Catalog
           airline: schedule.airline || "Đang cập nhật",
-
           depart: {
             date: formatDateWithWeekday(selectedDate),
-            // Giờ đi: Lấy từ Inventory -> Nếu không có thì hiện "Đang cập nhật"
             time: schedule.departure_time || "Đang cập nhật",
             code: schedule.depart_code || "Đang cập nhật",
           },
-
           return: {
             date: "Theo lịch trình",
             time: schedule.return_time || "Đang cập nhật",
@@ -152,18 +154,14 @@ export default function ProductDetail() {
           },
         },
       };
-    }
-    // --- TRƯỜNG HỢP B: XE DU LỊCH / XE GIƯỜNG NẰM ---
-    else if (["Xe du lịch", "Xe giường nằm", "Ô tô"].includes(transportType)) {
+    } else if (["Xe du lịch", "Xe giường nằm", "Ô tô"].includes(transportType)) {
       transportInfoData = {
         type: "bus",
         details: {
           vehicle: "Xe du lịch đời mới",
           depart: {
             date: formatDateWithWeekday(selectedDate),
-            // Giờ đi: Lấy từ Inventory -> Mặc định 05:30
             time: schedule.departure_time || "Đang cập nhật",
-            // Điểm đón: Lấy từ Inventory -> Mặc định lấy Start Point của tour
             location:
               schedule.pickup_location ||
               product.tour_details?.start_point ||
@@ -171,9 +169,7 @@ export default function ProductDetail() {
           },
         },
       };
-    }
-    // --- TRƯỜNG HỢP C: KHÁC ---
-    else {
+    } else {
       transportInfoData = {
         type: "other",
         details: {
@@ -183,7 +179,6 @@ export default function ProductDetail() {
       };
     }
 
-    // 3. Chuyển hướng sang trang Order
     navigate("/order", {
       state: {
         product: {
@@ -193,22 +188,16 @@ export default function ProductDetail() {
             product.images?.[0]?.url ??
             product.images?.[0] ??
             "https://placehold.co/600x400",
-          // Logic lấy mã tour: Product Code -> Hoặc cắt ID
           code:
             product.product_code ||
             `TOUR-${product._id.slice(-6).toUpperCase()}`,
-
-          // [QUAN TRỌNG] Giá lấy từ Inventory (Giá chính xác theo ngày)
           basePrice: selectedInventory
             ? selectedInventory.price
             : product.base_price,
-
-          // Gửi cục dữ liệu vận chuyển đã xử lý ở trên
           transportInfo: transportInfoData,
-
           bookingInfo: {
-            inventoryId: selectedInventory._id, // ID kho để trừ chỗ
-            adults: 1, // Mặc định 1 người lớn
+            inventoryId: selectedInventory._id,
+            adults: 1,
             children: 0,
             date: selectedDate,
           },
@@ -217,7 +206,6 @@ export default function ProductDetail() {
     });
   };
 
-  // --- HELPER ---
   const renderMeals = (meals) => {
     if (!meals || meals.length === 0) return "Tự túc";
     const count = String(meals.length).padStart(2, "0");
@@ -239,9 +227,6 @@ export default function ProductDetail() {
     );
 
   const t = product.tour_details || {};
-  const sortedDates = t.departure_times
-    ? [...t.departure_times].sort((a, b) => new Date(a) - new Date(b))
-    : [];
   const policies = t.policy_notes || [];
   const midIndex = Math.ceil(policies.length / 2);
   const leftPolicies = policies.slice(0, midIndex);
@@ -249,7 +234,7 @@ export default function ProductDetail() {
 
   return (
     <Container className="py-5">
-      {/* Header & Ảnh (Giữ nguyên) */}
+      {/* HEADER & GALLERY */}
       <div className="mb-4">
         <h1 className="fw-bold text-dark mb-2">{product.title}</h1>
         <div className="d-flex flex-wrap align-items-center gap-3 text-muted mb-3 small">
@@ -266,25 +251,80 @@ export default function ProductDetail() {
             MÃ: {product._id.slice(-6).toUpperCase()}
           </span>
         </div>
-        <div
-          className="rounded-4 overflow-hidden position-relative shadow-sm"
-          style={{ height: "450px" }}
-        >
-          <img
-            src={
-              product.images?.[0]?.url ??
-              product.images?.[0] ??
-              "https://placehold.co/1200x600"
-            }
-            alt={product.title}
-            className="w-100 h-100 object-fit-cover hover-zoom"
-          />
+
+        {/* --- [MỚI] IMAGE GALLERY SECTION --- */}
+        <div>
+          {/* 1. Ảnh lớn (Main Carousel) */}
+          <div
+            className="rounded-4 overflow-hidden position-relative shadow-sm mb-3"
+            style={{ height: "480px", background: "#f0f0f0" }}
+          >
+            {product.images && product.images.length > 0 ? (
+              <Carousel
+                activeIndex={index}
+                onSelect={handleSelect}
+                interval={null} // Tắt tự động chạy để người dùng dễ xem
+                indicators={false} // Ẩn chấm tròn mặc định cho đỡ rối
+              >
+                {product.images.map((img, idx) => (
+                  <Carousel.Item key={idx} style={{ height: "480px" }}>
+                    <img
+                      src={img.url ?? img}
+                      alt={`${product.title} - ${idx + 1}`}
+                      className="w-100 h-100 object-fit-cover"
+                      onError={(e) => { e.target.src = "https://placehold.co/1200x600?text=No+Image"; }}
+                    />
+                  </Carousel.Item>
+                ))}
+              </Carousel>
+            ) : (
+              <img
+                src="https://placehold.co/1200x600?text=No+Image"
+                alt={product.title}
+                className="w-100 h-100 object-fit-cover"
+              />
+            )}
+          </div>
+
+          {/* 2. Hàng Thumbnail (Ảnh nhỏ bên dưới) */}
+          {product.images && product.images.length > 1 && (
+            <div
+              className="d-flex gap-2 overflow-auto pb-2"
+              style={{ whiteSpace: 'nowrap', scrollBehavior: 'smooth' }}
+            >
+              {product.images.map((img, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => setIndex(idx)} // Bấm vào để chuyển ảnh lớn
+                  style={{
+                    width: '100px',
+                    height: '70px',
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: index === idx ? '2px solid #0d6efd' : '2px solid transparent', // Viền xanh khi active
+                    opacity: index === idx ? 1 : 0.7,
+                    transition: 'all 0.2s ease'
+                  }}
+                  className="thumbnail-item"
+                >
+                  <img
+                    src={img.url ?? img}
+                    alt="thumb"
+                    className="w-100 h-100 object-fit-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+        {/* --- HẾT PHẦN IMAGE GALLERY --- */}
       </div>
 
       <Row>
         <Col lg={8}>
-          {/* 1. THÔNG TIN TÓM TẮT (Giữ nguyên) */}
+          {/* 1. THÔNG TIN TÓM TẮT */}
           <Card className="border-0 shadow-sm mb-5 bg-light bg-opacity-50">
             <Card.Body className="d-flex justify-content-between align-items-center flex-wrap gap-3 py-4">
               <div className="d-flex align-items-center gap-3">
@@ -292,10 +332,7 @@ export default function ProductDetail() {
                   <i className="bi bi-clock-history fs-4"></i>
                 </div>
                 <div>
-                  <small
-                    className="text-muted d-block text-uppercase"
-                    style={{ fontSize: "11px" }}
-                  >
+                  <small className="text-muted d-block text-uppercase" style={{ fontSize: "11px" }}>
                     Thời gian
                   </small>
                   <strong>{formatDuration(t.duration_days)}</strong>
@@ -306,10 +343,7 @@ export default function ProductDetail() {
                   <i className="bi bi-bus-front-fill fs-4"></i>
                 </div>
                 <div>
-                  <small
-                    className="text-muted d-block text-uppercase"
-                    style={{ fontSize: "11px" }}
-                  >
+                  <small className="text-muted d-block text-uppercase" style={{ fontSize: "11px" }}>
                     Phương tiện
                   </small>
                   <strong>{t.transport_type}</strong>
@@ -320,10 +354,7 @@ export default function ProductDetail() {
                   <i className="bi bi-building-check fs-4"></i>
                 </div>
                 <div>
-                  <small
-                    className="text-muted d-block text-uppercase"
-                    style={{ fontSize: "11px" }}
-                  >
+                  <small className="text-muted d-block text-uppercase" style={{ fontSize: "11px" }}>
                     Khách sạn
                   </small>
                   <strong>{t.hotel_rating} sao</strong>
@@ -334,10 +365,7 @@ export default function ProductDetail() {
                   <i className="bi bi-geo-alt fs-4"></i>
                 </div>
                 <div>
-                  <small
-                    className="text-muted d-block text-uppercase"
-                    style={{ fontSize: "11px" }}
-                  >
+                  <small className="text-muted d-block text-uppercase" style={{ fontSize: "11px" }}>
                     Khởi hành
                   </small>
                   <strong>{t.start_point}</strong>
@@ -346,7 +374,7 @@ export default function ProductDetail() {
             </Card.Body>
           </Card>
 
-          {/* 2. LỊCH KHỞI HÀNH (Giữ nguyên) */}
+          {/* 2. LỊCH KHỞI HÀNH */}
           <div className="mb-5" id="schedule-section">
             <h4 className="fw-bold mb-4 text-uppercase border-start border-4 border-primary ps-3">
               Lịch khởi hành & Giá vé
@@ -380,7 +408,6 @@ export default function ProductDetail() {
                               {formatDateWithWeekday(dateStr)}
                             </div>
                           </td>
-                          {/* GIÁ TỪ INVENTORY */}
                           <td className="fw-bold text-danger fs-5">
                             {formatCurrency(item.price)}
                           </td>
@@ -395,9 +422,7 @@ export default function ProductDetail() {
                           </td>
                           <td className="text-end pe-4">
                             <Button
-                              variant={
-                                isSelected ? "primary" : "outline-primary"
-                              }
+                              variant={isSelected ? "primary" : "outline-primary"}
                               size="sm"
                               className="rounded-pill px-3 fw-bold"
                               disabled={availableSlots <= 0}
@@ -426,7 +451,7 @@ export default function ProductDetail() {
             )}
           </div>
 
-          {/* 3. LỊCH TRÌNH (Giữ nguyên) */}
+          {/* 3. LỊCH TRÌNH */}
           <div className="mb-5">
             <h4 className="fw-bold mb-4 text-uppercase border-start border-4 border-primary ps-3">
               Lịch trình chi tiết
@@ -473,7 +498,7 @@ export default function ProductDetail() {
             </Accordion>
           </div>
 
-          {/* 4. THÔNG TIN THÊM VỀ CHUYẾN ĐI (GRID ICON) */}
+          {/* 4. THÔNG TIN THÊM */}
           {t.trip_highlights && (
             <div className="mb-5">
               <h4 className="text-center fw-bold mb-4 text-uppercase border-bottom pb-2">
@@ -538,14 +563,13 @@ export default function ProductDetail() {
             </div>
           )}
 
-          {/* 5. NHỮNG THÔNG TIN CẦN LƯU Ý (Accordion 2 cột) */}
+          {/* 5. THÔNG TIN CẦN LƯU Ý */}
           {policies.length > 0 && (
             <div className="mb-5">
               <h4 className="text-center fw-bold mb-4 text-uppercase border-bottom pb-2">
                 NHỮNG THÔNG TIN CẦN LƯU Ý
               </h4>
               <Row>
-                {/* Cột Trái */}
                 <Col md={6}>
                   <Accordion className="mb-3">
                     {leftPolicies.map((policy, idx) => (
@@ -555,10 +579,7 @@ export default function ProductDetail() {
                         className="mb-2 border rounded overflow-hidden"
                       >
                         <Accordion.Header className="fw-bold small bg-white">
-                          <span
-                            className="fw-bold"
-                            style={{ fontSize: "0.95rem" }}
-                          >
+                          <span className="fw-bold" style={{ fontSize: "0.95rem" }}>
                             {policy.title}
                           </span>
                         </Accordion.Header>
@@ -571,7 +592,6 @@ export default function ProductDetail() {
                     ))}
                   </Accordion>
                 </Col>
-                {/* Cột Phải */}
                 <Col md={6}>
                   <Accordion>
                     {rightPolicies.map((policy, idx) => (
@@ -581,10 +601,7 @@ export default function ProductDetail() {
                         className="mb-2 border rounded overflow-hidden"
                       >
                         <Accordion.Header className="fw-bold small bg-white">
-                          <span
-                            className="fw-bold"
-                            style={{ fontSize: "0.95rem" }}
-                          >
+                          <span className="fw-bold" style={{ fontSize: "0.95rem" }}>
                             {policy.title}
                           </span>
                         </Accordion.Header>
@@ -602,7 +619,7 @@ export default function ProductDetail() {
           )}
         </Col>
 
-        {/* --- CỘT PHẢI: FORM ĐẶT TOUR (ĐÃ SỬA: LOAD GIÁ TỪ INVENTORY) --- */}
+        {/* --- CỘT PHẢI: FORM ĐẶT TOUR --- */}
         <Col lg={4}>
           <div className="sticky-top" style={{ top: "20px", zIndex: 10 }}>
             <Card className="border-0 shadow-lg rounded-4 overflow-hidden">
@@ -612,7 +629,6 @@ export default function ProductDetail() {
                 </h5>
               </div>
               <Card.Body className="p-4">
-                {/* Chọn ngày */}
                 <div className="mb-4">
                   <label className="fw-bold small mb-2 text-muted">
                     NGÀY KHỞI HÀNH
@@ -654,13 +670,11 @@ export default function ProductDetail() {
                   </Form.Select>
                 </div>
 
-                {/* [SỬA QUAN TRỌNG] CHỈ HIỆN GIÁ TỪ INVENTORY */}
                 <div className="mb-4 text-center">
                   <div className="small text-muted mb-1">
                     Giá tour trọn gói / khách
                   </div>
                   <div className="fs-1 fw-bold text-danger lh-1">
-                    {/* Ưu tiên lấy giá từ inventory đã chọn, nếu chưa load xong thì mới lấy base_price */}
                     {formatCurrency(
                       selectedInventory
                         ? selectedInventory.price

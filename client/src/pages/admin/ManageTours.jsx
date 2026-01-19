@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import catalogApi from "../../api/catalogApi";
-import "../../styles/admin/ManageTours.css"  // [QUAN TRỌNG] Import file CSS mới
+import "../../styles/admin/ManageTours.css";
 
 // --- HELPERS ---
 function pickFirstImage(images) {
@@ -24,23 +24,41 @@ function normalizeListResponse(res) {
   return [];
 }
 
+// Map status sang hiển thị đẹp
+const STATUS_MAP = {
+  pending: { label: "⏳ Chờ duyệt", color: "#d97706", bg: "#fef3c7" },
+  active: { label: "✅ Đang bán", color: "#059669", bg: "#d1fae5" },
+  rejected: { label: "⛔ Từ chối", color: "#dc2626", bg: "#fee2e2" },
+  hidden: { label: "👁️ Đang ẩn", color: "#4b5563", bg: "#f3f4f6" },
+  draft: { label: "📝 Bản nháp", color: "#6b7280", bg: "#e5e7eb" },
+};
+
 export default function ManageTours() {
   const nav = useNavigate();
 
   // State
-  const [q, setQ] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); // all | active | inactive
-  const [items, setItems] = useState([]);
+  const [allTours, setAllTours] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+
+  // Filters
+  const [q, setQ] = useState("");
+  // [NEW] Default filter là 'pending' để Admin tập trung duyệt bài
+  const [filterStatus, setFilterStatus] = useState("pending");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
   // Load Data
   const loadTours = async () => {
     setLoading(true);
     setErr("");
     try {
-      const res = await catalogApi.getAll({ product_type: "tour", limit: 100 }); // Lấy 100 tour mới nhất
-      setItems(normalizeListResponse(res));
+      // [NEW] Gọi API dành riêng cho Admin (getManageTours) để lấy hết status
+      // Lấy limit lớn để filter client-side cho mượt (hoặc có thể phân trang server nếu muốn)
+      const res = await catalogApi.getManageTours({ limit: 1000 });
+      setAllTours(normalizeListResponse(res));
     } catch (e) {
       console.error(e);
       setErr(e?.response?.data?.message || "Không thể tải danh sách tour.");
@@ -53,14 +71,17 @@ export default function ManageTours() {
     loadTours();
   }, []);
 
-  // Filter Logic (Client-side)
-  const filtered = useMemo(() => {
-    let result = items;
+  useEffect(() => {
+    setPage(1);
+  }, [q, filterStatus]);
+
+  // Logic Filter
+  const filteredTours = useMemo(() => {
+    let result = allTours;
 
     // 1. Filter by Status
     if (filterStatus !== "all") {
-      const isActive = filterStatus === "active";
-      result = result.filter(x => !!x.is_active === isActive);
+      result = result.filter((x) => x.status === filterStatus);
     }
 
     // 2. Filter by Search Query
@@ -71,164 +92,234 @@ export default function ManageTours() {
           x.product_code,
           x.title,
           x.slug,
-          x.tour_details?.start_point
-        ].filter(Boolean).join(" ").toLowerCase();
+          x.tour_details?.start_point,
+          x.partner_id,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         return hay.includes(keyword);
       });
     }
 
+    // [NEW] Sort: Pending luôn lên đầu nếu đang xem All
+    if (filterStatus === 'all') {
+      result.sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (a.status !== 'pending' && b.status === 'pending') return 1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+    }
+
     return result;
-  }, [items, q, filterStatus]);
+  }, [allTours, q, filterStatus]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredTours.length / limit) || 1;
+  const visibleTours = useMemo(() => {
+    const startIndex = (page - 1) * limit;
+    return filteredTours.slice(startIndex, startIndex + limit);
+  }, [filteredTours, page, limit]);
 
   // Actions
-  const createTour = () => nav("/admin/manage/tours/create");
   const openDetail = (id) => nav(`/admin/manage/tours/${id}`);
-  const openInventory = (id) => nav(`/admin/manage/tours/${id}/inventory`); // [MỚI] Nút nhanh vào Inventory
-
-  const deleteTour = async (id, title) => {
-    if (!window.confirm(`Xóa vĩnh viễn tour: "${title}"?`)) return;
-    try {
-      await catalogApi.remove(id);
-      loadTours(); // Reload list
-    } catch (e) {
-      alert("Xóa thất bại: " + e.message);
-    }
-  };
+  const openInventory = (id) => nav(`/admin/manage/tours/${id}/inventory`);
 
   return (
-    <div className="mt-container">
+    <div className="tour-page">
       {/* HEADER */}
-      <div className="mt-header">
-        <div className="mt-title-group">
-          <h1>Quản lý Tour</h1>
-          <p>Danh sách tất cả các tour du lịch hiện có trên hệ thống.</p>
+      <div className="tour-header">
+        <div>
+          <h1 className="tour-title">Quản lý & Duyệt Tour</h1>
+          <div className="tour-subtitle">
+            Hệ thống có <b>{allTours.filter(t => t.status === 'pending').length}</b> tour đang chờ duyệt.
+          </div>
         </div>
-        <button className="mt-btn-create" onClick={createTour}>
-          <span>+</span> Tạo Tour Mới
-        </button>
       </div>
 
       {/* TOOLBAR */}
-      <div className="mt-toolbar">
-        <div className="mt-search-box">
-          <span className="mt-search-icon">🔍</span>
+      <div className="tour-toolbar">
+        <div className="tour-search-box">
+          <span className="tour-search-icon">🔍</span>
           <input
-            className="mt-input"
+            className="tour-search-input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm theo tên, mã tour, điểm đi..."
+            placeholder="Tìm tên, mã tour..."
           />
         </div>
 
-        <select 
-          className="mt-select" 
-          value={filterStatus} 
+        <select
+          className="tour-select"
+          value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
+          style={{ minWidth: 200 }}
         >
-          <option value="all">Tất cả trạng thái</option>
-          <option value="active">Đang hoạt động</option>
-          <option value="inactive">Đang ẩn</option>
+          <option value="pending">⏳ Chờ duyệt (Ưu tiên)</option>
+          <option value="active">✅ Đang bán (Active)</option>
+          <option value="rejected">⛔ Đã từ chối</option>
+          <option value="hidden">👁️ Đang ẩn</option>
+          <option value="all">-- Tất cả --</option>
         </select>
 
-        <button className="mt-btn-icon" onClick={loadTours} title="Tải lại">
+        <button className="tour-btn-refresh" onClick={loadTours} title="Tải lại">
           ↻
         </button>
       </div>
 
       {/* TABLE */}
-      {err && <div style={{color: 'red', padding: 10, background: '#fee2e2', borderRadius: 8}}>{err}</div>}
-      
-      <div className="mt-table-wrapper">
-        <table className="mt-table">
+      {err && (
+        <div style={{ color: "#b91c1c", padding: 12, background: "#fee2e2", borderRadius: 12, marginBottom: 16 }}>
+          {err}
+        </div>
+      )}
+
+      <div className="tour-table-container">
+        <table className="tour-table">
           <thead>
             <tr>
-              <th style={{width: '40%'}}>Thông tin Tour</th>
+              <th style={{ width: "35%" }}>Thông tin Tour</th>
+              <th>Người đăng</th>
               <th>Vận hành</th>
-              <th>Giá cơ bản</th>
+              <th>Giá niêm yết</th>
               <th>Trạng thái</th>
-              <th style={{textAlign: 'right'}}>Hành động</th>
+              <th style={{ textAlign: "right" }}>Hành động</th>
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr><td colSpan="5" style={{textAlign:'center', padding: 20}}>Đang tải dữ liệu...</td></tr>
-            )}
-            
-            {!loading && filtered.length === 0 && (
-              <tr><td colSpan="5" className="mt-empty">Không tìm thấy tour nào phù hợp.</td></tr>
-            )}
+            {loading ? (
+              <tr>
+                <td colSpan="6" style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>
+                  Đang tải dữ liệu...
+                </td>
+              </tr>
+            ) : visibleTours.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="tour-empty">
+                  Không tìm thấy tour nào.
+                </td>
+              </tr>
+            ) : (
+              visibleTours.map((tour) => {
+                const id = tour._id || tour.id;
+                const img = pickFirstImage(tour.images);
+                const statusInfo = STATUS_MAP[tour.status] || STATUS_MAP.draft;
 
-            {filtered.map((tour) => {
-              const id = tour._id || tour.id;
-              const img = pickFirstImage(tour.images);
-              const isActive = !!tour.is_active;
-              const price = Number(tour.base_price || 0).toLocaleString('vi-VN');
-              const duration = tour.tour_details?.duration_days || 1;
-              const startPoint = tour.tour_details?.start_point || "—";
-              const transport = tour.tour_details?.transport_type || "—";
+                const price = Number(tour.base_price || 0).toLocaleString("vi-VN");
+                const duration = tour.tour_details?.duration_days || 1;
+                const startPoint = tour.tour_details?.start_point || "—";
+                const partnerInfo = tour.partner_id
+                  ? `ID: ...${tour.partner_id.slice(-4)}`
+                  : "N/A";
 
-              return (
-                <tr key={id}>
-                  <td>
-                    <div className="mt-tour-info">
-                      <img src={img} alt="thumb" className="mt-thumb" />
-                      <div>
-                        <span className="mt-tour-name" title={tour.title}>{tour.title}</span>
-                        <span className="mt-tour-code">
-                          {tour.product_code || id.slice(-6).toUpperCase()}
-                        </span>
+                return (
+                  <tr key={id} className={tour.status === 'pending' ? 'tour-tr-pending' : ''}>
+                    <td>
+                      <div className="tour-info">
+                        <img src={img} alt="thumb" className="tour-thumb" />
+                        <div className="tour-name-group">
+                          <span className="tour-name" title={tour.title}>
+                            {tour.title}
+                          </span>
+                          <span className="tour-code">
+                            {tour.product_code || id.slice(-6).toUpperCase()}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{fontSize: 13}}>
-                      <div>📍 {startPoint}</div>
-                      <div style={{color:'#6b7280'}}>⏳ {duration} ngày • 🚌 {transport}</div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="mt-price">{price} ₫</span>
-                  </td>
-                  <td>
-                    <span className={`mt-badge ${isActive ? 'mt-badge-active' : 'mt-badge-inactive'}`}>
-                      {isActive ? 'Hoạt động' : 'Tạm ẩn'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="mt-actions">
-                      <button 
-                        className="mt-btn-action"
-                        onClick={() => openInventory(id)} 
-                        title="Quản lý lịch & chỗ"
-                        style={{color: '#0b5fff', borderColor: '#bfdbfe', background: '#eff6ff'}}
+                    </td>
+
+                    <td>
+                      <code className="tour-code" style={{ fontSize: 11 }}>
+                        {partnerInfo}
+                      </code>
+                    </td>
+
+                    <td>
+                      <div style={{ fontSize: 13, color: "#374151" }}>
+                        <div>📍 {startPoint}</div>
+                        <div style={{ color: "#6b7280", marginTop: 2 }}>⏳ {duration} ngày</div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="tour-price">{price} ₫</span>
+                    </td>
+                    <td>
+                      <span
+                        className="tour-badge"
+                        style={{
+                          color: statusInfo.color,
+                          backgroundColor: statusInfo.bg,
+                          border: `1px solid ${statusInfo.color}30`
+                        }}
                       >
-                        📦 Lịch & Chỗ
-                      </button>
-                      <button 
-                        className="mt-btn-action" 
-                        onClick={() => openDetail(id)}
-                      >
-                        Sửa
-                      </button>
-                      <button 
-                        className="mt-btn-action mt-btn-danger" 
-                        onClick={() => deleteTour(id, tour.title)}
-                      >
-                        Xóa
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                        {statusInfo.label}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="tour-actions">
+                        <button
+                          className="tour-btn-action tour-btn-inv"
+                          onClick={() => openInventory(id)}
+                          title="Xem lịch khởi hành"
+                        >
+                          📦 Lịch
+                        </button>
+                        <button
+                          className="tour-btn-action tour-btn-review"
+                          onClick={() => openDetail(id)}
+                          style={tour.status === 'pending' ? { backgroundColor: '#2563eb', color: 'white' } : {}}
+                        >
+                          {tour.status === 'pending' ? '🛡️ Duyệt ngay' : '✏️ Chi tiết'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
-      
-      {/* Footer text */}
-      <div style={{textAlign: 'right', fontSize: 12, color: '#9ca3af', paddingRight: 10}}>
-        Hiển thị {filtered.length} / {items.length} tour
-      </div>
+
+      {/* PAGINATION */}
+      {!loading && (allTours.length > 0) && (
+        <div className="tour-pagination">
+          <span className="tour-page-info">
+            Trang <b>{page}</b> / {totalPages}
+          </span>
+          <button
+            className="tour-page-btn"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            &lt;
+          </button>
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pNum = i + 1;
+            if (totalPages > 5) {
+              if (page > 3) pNum = page - 2 + i;
+              if (pNum > totalPages) pNum = totalPages - 4 + i;
+            }
+            if (pNum > totalPages || pNum < 1) return null;
+            return (
+              <button
+                key={pNum}
+                className={`tour-page-btn ${page === pNum ? "active" : ""}`}
+                onClick={() => setPage(pNum)}
+              >
+                {pNum}
+              </button>
+            );
+          })}
+          <button
+            className="tour-page-btn"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            &gt;
+          </button>
+        </div>
+      )}
     </div>
   );
 }

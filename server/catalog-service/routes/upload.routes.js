@@ -43,7 +43,7 @@ router.post(
 router.post(
   "/location-image",
   authMiddleware,
-  checkRole(["admin"]),
+  checkRole(["admin", "partner"]),
   upload.single("file"),
   async (req, res) => {
     try {

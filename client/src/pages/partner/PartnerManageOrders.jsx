@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { Container, Card, Table, Badge, Button, Form, InputGroup } from "react-bootstrap";
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import bookingApi from "../../api/bookingApi"; // [CHANGED] Use bookingApi
+import bookingApi from "../../api/bookingApi";
+import "../../styles/partner/PartnerManageOrders.css"; // Sử dụng file CSS mới
 
 const formatCurrency = (val) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 
@@ -19,7 +19,6 @@ export default function PartnerManageOrders() {
     try {
       setLoading(true);
       const res = await bookingApi.getPartnerBookings();
-      // Logic: backend returns { bookings: [], total: ... } or just []
       setOrders(res.bookings || res.data || []);
     } catch (error) {
       console.error("Error loading bookings:", error);
@@ -28,93 +27,161 @@ export default function PartnerManageOrders() {
     }
   };
 
-  // Filter
-  const filtered = orders.filter(o => filterStatus === 'ALL' || o.status?.toUpperCase() === filterStatus);
+  // Logic Lọc
+  const filtered = useMemo(() => {
+    return orders.filter(o => filterStatus === 'ALL' || o.status?.toUpperCase() === filterStatus);
+  }, [orders, filterStatus]);
 
-  // Helper to render Status
+  // Logic Thống kê
+  const stats = useMemo(() => {
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+    const totalRevenue = orders
+      .filter(o => o.status === 'completed' || o.status === 'confirmed')
+      .reduce((acc, curr) => acc + (curr.pricing?.final_price || 0), 0);
+    return { totalOrders, pendingOrders, totalRevenue };
+  }, [orders]);
+
+  // Render Badge trạng thái
   const renderStatus = (st) => {
     const s = st?.toLowerCase();
-    if (s === 'pending') return <Badge bg="warning" text="dark">Chờ xác nhận</Badge>;
-    if (s === 'confirmed') return <Badge bg="primary">Đã xác nhận</Badge>;
-    if (s === 'completed') return <Badge bg="success">Hoàn thành</Badge>;
-    if (s === 'cancelled') return <Badge bg="danger">Đã hủy</Badge>;
-    return <Badge bg="secondary">{st}</Badge>;
+    let badgeClass = "pmo-badge";
+    let label = st;
+
+    if (s === 'pending') { badgeClass += " pmo-badge-pending"; label = "⏳ Chờ xác nhận"; }
+    else if (s === 'confirmed') { badgeClass += " pmo-badge-confirmed"; label = "✅ Đã xác nhận"; }
+    else if (s === 'completed') { badgeClass += " pmo-badge-completed"; label = "🏁 Hoàn thành"; }
+    else if (s === 'cancelled') { badgeClass += " pmo-badge-cancelled"; label = "❌ Đã hủy"; }
+    else { badgeClass += " pmo-badge-pending"; }
+
+    return <span className={badgeClass}>{label}</span>;
   };
 
   return (
-    <Container className="py-4">
-      <div className="d-flex justify-content-between mb-4">
-        <h2 className="fw-bold">Quản lý Booking</h2>
-        <Button variant="outline-primary" onClick={fetchData}>↻ Tải lại</Button>
+    <div className="pmo-container">
+      
+      {/* 1. HEADER */}
+      <div className="pmo-header">
+        <div>
+          <h1 className="pmo-title">Quản lý Đơn hàng</h1>
+          <div className="pmo-subtitle">Theo dõi và xử lý booking từ khách hàng</div>
+        </div>
+        <button className="pmo-btn-refresh" onClick={fetchData}>
+          <span>↻</span> Tải lại dữ liệu
+        </button>
       </div>
 
-      <Card className="border-0 shadow-sm mb-4">
-        <Card.Body>
-          <div className="d-flex gap-2">
-            {['ALL', 'PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map(st => (
-              <Button key={st} variant={filterStatus === st ? "primary" : "light"} onClick={() => setFilterStatus(st)} className="rounded-pill fw-bold text-uppercase" size="sm">
-                {st === 'ALL' ? 'Tất cả' : st}
-              </Button>
-            ))}
-          </div>
-        </Card.Body>
-      </Card>
+      {/* 2. STATS GRID (KHỐI THỐNG KÊ) */}
+      <div className="pmo-stats-grid">
+        <div className="pmo-stat-card">
+          <div className="pmo-stat-label">Tổng đơn hàng</div>
+          <div className="pmo-stat-value">{stats.totalOrders}</div>
+        </div>
+        <div className="pmo-stat-card orange">
+          <div className="pmo-stat-label">Chờ xử lý</div>
+          <div className="pmo-stat-value">{stats.pendingOrders}</div>
+        </div>
+        <div className="pmo-stat-card green">
+          <div className="pmo-stat-label">Doanh thu tạm tính</div>
+          <div className="pmo-stat-value">{formatCurrency(stats.totalRevenue)}</div>
+        </div>
+      </div>
 
-      <Card className="border-0 shadow-sm rounded-4">
-        <Table responsive hover className="mb-0 align-middle">
-          <thead className="bg-light text-secondary small">
+      {/* 3. FILTER TABS */}
+      <div>
+        <div className="pmo-tabs-wrapper">
+          {[
+            { key: 'ALL', label: 'Tất cả' },
+            { key: 'PENDING', label: 'Chờ xác nhận' },
+            { key: 'CONFIRMED', label: 'Đã xác nhận' },
+            { key: 'COMPLETED', label: 'Hoàn thành' },
+            { key: 'CANCELLED', label: 'Đã hủy' }
+          ].map(tab => (
+            <button 
+              key={tab.key} 
+              className={`pmo-tab ${filterStatus === tab.key ? 'active' : ''}`}
+              onClick={() => setFilterStatus(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 4. TABLE */}
+      <div className="pmo-table-card">
+        <table className="pmo-table">
+          <thead>
             <tr>
-              <th className="ps-4 py-3">Mã Đơn</th>
+              <th style={{ paddingLeft: 24 }}>Mã Đơn / Ngày</th>
               <th>Sản phẩm</th>
               <th>Khách hàng</th>
-              <th>Ngày đặt</th>
               <th>Tổng tiền</th>
               <th>Trạng thái</th>
-              <th>Hành động</th>
+              <th style={{ textAlign: 'right', paddingRight: 24 }}>Hành động</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan="7" className="text-center py-4">Đang tải...</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan="7" className="text-center py-4 text-muted">Không có đơn hàng nào.</td></tr>}
+            {loading && (
+              <tr><td colSpan="6" style={{ textAlign: 'center', padding: 60, color: '#6b7280' }}>Đang tải dữ liệu...</td></tr>
+            )}
+            
+            {!loading && filtered.length === 0 && (
+              <tr>
+                <td colSpan="6" className="pmo-empty">
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                    <div style={{ fontSize: 40, opacity: 0.5 }}>📭</div>
+                    <div>Chưa có đơn hàng nào ở trạng thái này.</div>
+                  </div>
+                </td>
+              </tr>
+            )}
 
             {filtered.map(booking => {
-              // Booking Model has an array of items. We show the first one.
               const firstItem = booking.items?.[0];
-              const title = firstItem?.snapshot?.title || "Sản phẩm đã xóa";
+              const title = firstItem?.snapshot?.title || "Sản phẩm không khả dụng";
               const itemCount = booking.items?.length || 0;
               const customerName = booking.customer_details?.fullName || "Khách vãng lai";
               const customerPhone = booking.customer_details?.phone || "";
 
               return (
                 <tr key={booking._id}>
-                  <td className="ps-4 fw-bold text-primary">#{booking._id.slice(-6).toUpperCase()}</td>
-                  <td>
-                    <div className="fw-bold text-dark">{title}</div>
-                    {itemCount > 1 && <small className="text-muted">+ {itemCount - 1} sản phẩm khác</small>}
+                  <td style={{ paddingLeft: 24 }}>
+                    <div className="pmo-code">#{booking._id.slice(-6).toUpperCase()}</div>
+                    <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>
+                      {new Date(booking.createdAt).toLocaleDateString('vi-VN')}
+                    </div>
                   </td>
                   <td>
-                    <div>{customerName}</div>
-                    <small className="text-muted">{customerPhone}</small>
+                    <div className="pmo-product-name" title={title}>{title}</div>
+                    {itemCount > 1 && <div style={{ fontSize: 12, color: '#0b5fff', fontWeight: 600 }}>+ {itemCount - 1} dịch vụ khác</div>}
                   </td>
-                  <td>{new Date(booking.createdAt).toLocaleDateString('vi-VN')}</td>
-                  <td className="fw-bold">{formatCurrency(booking.pricing?.final_price || 0)}</td>
-                  <td>{renderStatus(booking.status)}</td>
                   <td>
-                    <Button
-                      size="sm"
-                      variant="light"
-                      className="text-primary fw-bold"
+                    <div style={{ fontWeight: 600 }}>{customerName}</div>
+                    <div style={{ fontSize: 13, color: '#6b7280' }}>{customerPhone}</div>
+                  </td>
+                  <td>
+                    <div className="pmo-price">
+                      {formatCurrency(booking.pricing?.final_price || 0)}
+                    </div>
+                  </td>
+                  <td>
+                    {renderStatus(booking.status)}
+                  </td>
+                  <td style={{ textAlign: 'right', paddingRight: 24 }}>
+                    <button 
+                      className="pmo-btn-detail"
                       onClick={() => navigate(`/partner/orders/${booking._id}`)}
                     >
-                      Chi tiết
-                    </Button>
+                      Xem chi tiết
+                    </button>
                   </td>
                 </tr>
               )
             })}
           </tbody>
-        </Table>
-      </Card>
-    </Container>
+        </table>
+      </div>
+    </div>
   );
 }

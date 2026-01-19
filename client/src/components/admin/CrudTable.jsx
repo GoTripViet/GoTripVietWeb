@@ -1,61 +1,44 @@
 import React, { useMemo, useState } from "react";
+import { Badge } from "react-bootstrap";
+
+// Helper: Lấy chữ cái đầu làm Avatar
+const getInitials = (name) => {
+  if (!name) return "U";
+  return name.trim().charAt(0).toUpperCase();
+};
+
+// Helper: Rút gọn ID
+const shortId = (id) => {
+  if (!id) return "";
+  return "#" + id.slice(-6).toUpperCase();
+};
 
 function Modal({ open, title, children, onClose }) {
   if (!open) return null;
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.35)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 50,
-      }}
-      onMouseDown={onClose}
-    >
-      <div
-        style={{
-          width: "min(920px, 92vw)",
-          background: "#fff",
-          borderRadius: 16,
-          padding: 16,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontWeight: 900, fontSize: 16, flex: 1 }}>{title}</div>
-          <button
-            onClick={onClose}
-            style={{
-              border: 0,
-              background: "transparent",
-              cursor: "pointer",
-              fontSize: 18,
-            }}
-          >
-            ✕
-          </button>
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1050,
+      background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)",
+      display: "flex", alignItems: "center", justifyContent: "center"
+    }} onClick={onClose}>
+      <div style={{
+        background: "#fff", width: "600px", maxWidth: "90vw",
+        borderRadius: "16px", padding: "24px",
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+      }} onClick={e => e.stopPropagation()}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h4 className="fw-bold m-0 text-dark">{title}</h4>
+          <button onClick={onClose} className="btn-close"></button>
         </div>
-        <div style={{ height: 1, background: "#e5e7eb", margin: "10px 0" }} />
         {children}
       </div>
     </div>
   );
 }
 
-// schema: [{ key, label, type: "text"|"number"|"textarea"|"boolean" }]
 export default function CrudTable({
-  title,
-  data,
-  schema,
-  onAdd,
-  onUpdate,
-  onDelete,
-  onToggleStatus,
-  statusKey = "status",
-  renderRowActions,
+  title, data, schema, onAdd, onUpdate, onDelete, onToggleStatus,
+  statusKey = "status", renderRowActions,
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -67,17 +50,7 @@ export default function CrudTable({
     return data.filter((x) => JSON.stringify(x).toLowerCase().includes(s));
   }, [data, q]);
 
-  const startAdd = () => {
-    setEditing(null);
-    setOpen(true);
-  };
-
-  const startEdit = (row) => {
-    setEditing(row);
-    setOpen(true);
-  };
-
-  const submit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const obj = {};
@@ -86,256 +59,144 @@ export default function CrudTable({
       else if (f.type === "number") obj[f.key] = Number(fd.get(f.key) || 0);
       else obj[f.key] = String(fd.get(f.key) || "");
     });
-
     if (editing?.id) onUpdate(editing.id, obj);
     else onAdd({ ...obj, [statusKey]: obj[statusKey] || "ACTIVE" });
-
     setOpen(false);
   };
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 16,
-        padding: 16,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ fontWeight: 900, fontSize: 18, flex: 1 }}>{title}</div>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="tìm nhanh..."
-          style={{
-            width: 220,
-            borderRadius: 10,
-            border: "1px solid #e5e7eb",
-            padding: "8px 10px",
-            fontSize: 13,
-            outline: "none",
-          }}
-        />
+    <div className="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+      {/* --- HEADER --- */}
+      <div className="card-header bg-white border-bottom-0 p-4 d-flex flex-wrap align-items-center gap-3">
+        <div className="flex-grow-1">
+          <h4 className="fw-bolder text-dark mb-1">{title}</h4>
+          <div className="text-muted small">Quản lý danh sách {filtered.length} bản ghi</div>
+        </div>
+
+        {/* Search Box */}
+        <div className="position-relative" style={{ minWidth: 250 }}>
+          <i className="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary"></i>
+          <input
+            className="form-control rounded-pill border-0 bg-light ps-5 py-2"
+            placeholder="Tìm kiếm nhanh..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ fontSize: '0.95rem' }}
+          />
+        </div>
+
         <button
-          onClick={startAdd}
-          style={{
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: 0,
-            background: "#0b5fff",
-            color: "#fff",
-            cursor: "pointer",
-            fontWeight: 800,
-          }}
+          onClick={() => { setEditing(null); setOpen(true); }}
+          className="btn btn-primary rounded-pill px-4 fw-bold shadow-sm"
         >
-          + Thêm
+          <i className="bi bi-plus-lg me-1"></i> Thêm mới
         </button>
       </div>
 
-      <div style={{ overflowX: "hidden", marginTop: 12 }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "separate",
-            borderSpacing: 0,
-            tableLayout: "fixed",
-          }}
-        >
-          <thead>
+      {/* --- TABLE --- */}
+      <div className="table-responsive">
+        <table className="table table-hover align-middle mb-0" style={{ borderCollapse: 'separate', borderSpacing: '0' }}>
+          <thead className="bg-light">
             <tr>
-              <th style={th}>#</th>
-              {schema.map((f) => (
-                <th key={f.key} style={th}>
-                  {f.label}
-                </th>
+              <th className="py-3 ps-4 text-secondary fw-bold text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.5px' }}>Thông tin</th>
+              {schema.filter(f => f.key !== 'id' && f.key !== 'fullName').map((f) => (
+                <th key={f.key} className="py-3 text-secondary fw-bold text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.5px' }}>{f.label}</th>
               ))}
-              <th style={th}>Trạng thái</th>
-              <th style={th}>Hành động</th>
+              <th className="py-3 text-secondary fw-bold text-uppercase" style={{ fontSize: '0.75rem' }}>Trạng thái</th>
+              <th className="py-3 pe-4 text-end text-secondary fw-bold text-uppercase" style={{ fontSize: '0.75rem' }}>Hành động</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row, idx) => (
+            {filtered.length === 0 ? (
+              <tr><td colSpan={10} className="text-center py-5 text-muted">Không tìm thấy dữ liệu</td></tr>
+            ) : filtered.map((row, idx) => (
               <tr key={row.id || idx}>
-                <td style={td}>{idx + 1}</td>
-                {schema.map((f) => (
-                  <td key={f.key} style={td}>
-                    {f.type === "boolean"
-                      ? row[f.key]
-                        ? "✓"
-                        : "—"
-                      : String(row[f.key] ?? "")}
+                {/* Custom User Info Cell (Avatar + Name + ID) */}
+                <td className="ps-4 py-3">
+                  <div className="d-flex align-items-center gap-3">
+                    <div className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold shadow-sm"
+                      style={{
+                        width: 40, height: 40,
+                        background: `hsl(${(idx * 50) % 360}, 70%, 60%)`, // Random màu đẹp
+                        fontSize: '1rem'
+                      }}
+                    >
+                      {getInitials(row.fullName || row.email)}
+                    </div>
+                    <div>
+                      <div className="fw-bold text-dark">{row.fullName || "No Name"}</div>
+                      <div className="text-muted" style={{ fontSize: '0.75rem' }}>ID: {shortId(row.id)}</div>
+                    </div>
+                  </div>
+                </td>
+
+                {/* Các cột khác */}
+                {schema.filter(f => f.key !== 'id' && f.key !== 'fullName').map((f) => (
+                  <td key={f.key} className="text-dark">
+                    {f.key === 'createdAt' ? (
+                      <span className="text-muted small">{new Date(row[f.key]).toLocaleDateString('vi-VN')}</span>
+                    ) : f.type === "boolean" ? (
+                      row[f.key] ? <i className="bi bi-check-circle-fill text-success"></i> : <span className="text-muted">-</span>
+                    ) : (
+                      <span style={{ fontSize: '0.9rem' }}>{String(row[f.key] ?? "")}</span>
+                    )}
                   </td>
                 ))}
-                <td style={td}>
-                  <button
+
+                {/* Status Badge */}
+                <td>
+                  <span
                     onClick={() => onToggleStatus?.(row.id, row[statusKey])}
-                    style={{
-                      borderRadius: 999,
-                      border: "1px solid #e5e7eb",
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                      background:
-                        row[statusKey] === "ACTIVE"
-                          ? "rgba(16,185,129,0.12)"
-                          : "rgba(239,68,68,0.10)",
-                      fontWeight: 800,
-                    }}
-                    title="bấm để đổi trạng thái"
+                    className={`badge rounded-pill px-3 py-2 cursor-pointer border ${row[statusKey] === "ACTIVE"
+                      ? "bg-success bg-opacity-10 text-success border-success border-opacity-25"
+                      : "bg-danger bg-opacity-10 text-danger border-danger border-opacity-25"
+                      }`}
                   >
-                    {row[statusKey] || "—"}
-                  </button>
+                    {row[statusKey] === "ACTIVE" ? "Hoạt động" : "Đã khóa"}
+                  </span>
                 </td>
-                <td style={td}>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {renderRowActions ? renderRowActions(row) : null}
-                    <button onClick={() => startEdit(row)} style={btn}>
-                      Sửa
+
+                {/* Actions */}
+                <td className="text-end pe-4">
+                  <div className="d-flex justify-content-end gap-2">
+                    {renderRowActions?.(row)}
+                    <button onClick={() => { setEditing(row); setOpen(true); }} className="btn btn-sm btn-light text-primary border rounded-3" title="Sửa">
+                      <i className="bi bi-pencil-fill"></i>
                     </button>
-                    <button
-                      onClick={() => onDelete(row.id)}
-                      style={{ ...btn, borderColor: "#fecaca" }}
-                    >
-                      Xóa
+                    <button onClick={() => onDelete(row.id)} className="btn btn-sm btn-light text-danger border rounded-3" title="Xóa">
+                      <i className="bi bi-trash-fill"></i>
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td style={td} colSpan={schema.length + 3}>
-                  Không có dữ liệu
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
 
-      <Modal
-        open={open}
-        title={editing?.id ? "Sửa dữ liệu" : "Thêm dữ liệu"}
-        onClose={() => setOpen(false)}
-      >
-        <form
-          onSubmit={submit}
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-        >
-          {schema
-            .filter((f) => !f.hideOnForm)
-            .map((f) => (
-              <label
-                key={f.key}
-                style={{ display: "flex", flexDirection: "column", gap: 6 }}
-              >
-                <span style={{ fontWeight: 800, fontSize: 13 }}>{f.label}</span>
-                {f.type === "textarea" ? (
-                  <textarea
-                    name={f.key}
-                    defaultValue={editing?.[f.key] ?? ""}
-                    rows={3}
-                    style={input}
-                  />
-                ) : f.type === "boolean" ? (
-                  <input
-                    type="checkbox"
-                    name={f.key}
-                    defaultChecked={Boolean(editing?.[f.key])}
-                    style={{ width: 18, height: 18 }}
-                  />
-                ) : f.type === "select" ? (
-                  <select
-                    name={f.key}
-                    defaultValue={
-                      editing?.[f.key] ?? f.options?.[0]?.value ?? ""
-                    }
-                    style={input}
-                  >
-                    {(f.options || []).map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    name={f.key}
-                    type={f.type === "number" ? "number" : "text"}
-                    defaultValue={editing?.[f.key] ?? ""}
-                    style={input}
-                  />
-                )}
-              </label>
-            ))}
-
-          <div
-            style={{
-              gridColumn: "1 / -1",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 10,
-              marginTop: 4,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              style={{ ...btn, padding: "10px 14px" }}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              style={{
-                ...btn,
-                padding: "10px 14px",
-                background: "#0b5fff",
-                color: "#fff",
-                border: 0,
-              }}
-            >
-              Lưu
-            </button>
+      {/* Modal Form */}
+      <Modal open={open} title={editing?.id ? "Cập nhật dữ liệu" : "Thêm dữ liệu mới"} onClose={() => setOpen(false)}>
+        <form onSubmit={handleSubmit} className="row g-3">
+          {schema.filter(f => !f.hideOnForm).map((f) => (
+            <div key={f.key} className="col-12">
+              <label className="form-label fw-bold text-secondary small text-uppercase">{f.label}</label>
+              {f.type === "textarea" ? (
+                <textarea name={f.key} defaultValue={editing?.[f.key] ?? ""} rows={3} className="form-control bg-light" />
+              ) : f.type === "select" ? (
+                <select name={f.key} defaultValue={editing?.[f.key] ?? f.options?.[0]?.value} className="form-select bg-light">
+                  {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              ) : (
+                <input name={f.key} type={f.type === "number" ? "number" : "text"} defaultValue={editing?.[f.key] ?? ""} className="form-control bg-light" />
+              )}
+            </div>
+          ))}
+          <div className="col-12 text-end mt-4">
+            <button type="button" onClick={() => setOpen(false)} className="btn btn-light fw-bold me-2">Hủy bỏ</button>
+            <button type="submit" className="btn btn-primary fw-bold px-4">Lưu thay đổi</button>
           </div>
         </form>
       </Modal>
     </div>
   );
 }
-
-const th = {
-  textAlign: "left",
-  padding: "8px 10px",
-  fontSize: 11,
-  color: "#6b7280",
-  borderBottom: "1px solid #e5e7eb",
-  whiteSpace: "nowrap",
-};
-
-const td = {
-  padding: "8px 10px",
-  borderBottom: "1px solid #f1f5f9",
-  verticalAlign: "top",
-  fontSize: 12,
-
-  // quan trọng: bẻ chuỗi dài (url) để không tràn ngang
-  whiteSpace: "normal",
-  overflowWrap: "anywhere",
-  wordBreak: "break-word",
-};
-
-const input = {
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  padding: "10px 12px",
-  outline: "none",
-};
-const btn = {
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  padding: "8px 10px",
-  cursor: "pointer",
-  background: "#fff",
-  fontWeight: 800,
-};

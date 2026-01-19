@@ -4,8 +4,8 @@ import catalogApi from "../../api/catalogApi";
 import locationApi from "../../api/locationApi";
 import categoryApi from "../../api/categoryApi";
 import LocationRequestModal from "../../components/partner/LocationRequestModal";
-import CategoryRequestModal from "../../components/partner/CategoryRequestModal"; // [MỚI] Import Modal Category
-import "../../styles/admin/CreateTour.css";
+import CategoryRequestModal from "../../components/partner/CategoryRequestModal";
+import "../../styles/admin/CreateTour.css"; // Sử dụng file CSS mới
 
 export default function PartnerCreateTour() {
   const nav = useNavigate();
@@ -18,7 +18,7 @@ export default function PartnerCreateTour() {
 
   // State for Modals
   const [showLocModal, setShowLocModal] = useState(false);
-  const [showCatModal, setShowCatModal] = useState(false); // [MỚI] State cho Modal Category
+  const [showCatModal, setShowCatModal] = useState(false);
 
   // --- INITIAL STATE ---
   const [form, setForm] = useState({
@@ -26,7 +26,7 @@ export default function PartnerCreateTour() {
     title: "",
     product_code: "",
     base_price: 0,
-    sustainability_score: 3,
+    sustainability_score: 3, // Mặc định trung bình
     is_active: true,
     location_ids: [],
     category_ids: [],
@@ -64,11 +64,14 @@ export default function PartnerCreateTour() {
   useEffect(() => {
     const fetchResources = async () => {
       try {
-        // [CẬP NHẬT] query_mode='partner' để lấy cả active + pending
+        // [THAY ĐỔI TẠI ĐÂY]
+        // Sử dụng .getManage() thay vì .getAll() với query_mode
+        // Backend route /manage đã tự động nhận diện Partner qua token để trả về Pending items của họ
         const [locs, cats] = await Promise.all([
-          locationApi.getAll({ query_mode: 'partner' }),
-          categoryApi.getAll({ query_mode: 'partner' }), // [MỚI] Gọi API category có filter
+          locationApi.getManage(),
+          categoryApi.getManage(),
         ]);
+
         const locData = locs.data || locs;
         const catData = cats.data || cats;
         setLocations(Array.isArray(locData) ? locData : locData.data || []);
@@ -93,7 +96,7 @@ export default function PartnerCreateTour() {
     alert(`Đã thêm địa điểm "${newLocation.name}". Đang chờ Admin duyệt.`);
   };
 
-  // [MỚI] Callback khi thêm danh mục thành công
+  // Callback khi thêm danh mục thành công
   const handleCategoryAdded = (newCategory) => {
     setCategories((prev) => [...prev, newCategory]);
     const newId = newCategory._id || newCategory.id;
@@ -180,11 +183,12 @@ export default function PartnerCreateTour() {
   };
 
   const handleSubmit = async () => {
-    // 1. Validate cơ bản ở Client
-    if (!form.title.trim()) return alert("Vui lòng nhập tên Tour");
-    if (form.base_price < 0) return alert("Giá không hợp lệ");
-    if (form.location_ids.length === 0) return alert("Vui lòng chọn ít nhất 1 Địa điểm");
-    if (form.category_ids.length === 0) return alert("Vui lòng chọn ít nhất 1 Danh mục");
+    // --- 1. VALIDATE CLIENT SIDE ---
+    if (!form.title.trim()) return alert("⚠️ Vui lòng nhập tên Tour!");
+    if (form.base_price <= 0) return alert("⚠️ Giá tour phải lớn hơn 0!");
+    if (form.location_ids.length === 0) return alert("⚠️ Vui lòng chọn ít nhất 1 Địa điểm!");
+    if (form.category_ids.length === 0) return alert("⚠️ Vui lòng chọn ít nhất 1 Danh mục!");
+    if (form.images.length === 0) return alert("⚠️ Vui lòng tải lên ít nhất 1 hình ảnh!");
 
     setLoading(true);
     try {
@@ -222,12 +226,10 @@ export default function PartnerCreateTour() {
       };
 
       await catalogApi.create(payload);
-      alert("Đăng tour thành công! Vui lòng chờ duyệt.");
+      alert("✅ Đăng tour thành công! Vui lòng chờ Admin duyệt.");
       nav("/partner/tours");
     } catch (err) {
       console.error("Full Error:", err);
-
-      // 2. Lấy thông báo lỗi chi tiết từ Backend
       const serverMessage =
         err.response?.data?.message ||
         err.response?.data?.error ||
@@ -235,59 +237,59 @@ export default function PartnerCreateTour() {
         err.message ||
         "Lỗi không xác định";
 
-      alert("Lỗi tạo tour: " + serverMessage);
+      alert("❌ Lỗi tạo tour: " + serverMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  // --- RENDER SECTIONS ---
   const renderContent = () => {
     switch (activeTab) {
       case "general":
         return (
           <div className="ct-card">
-            <div className="ct-section-title">Thông tin cơ bản</div>
+            <div className="ct-section-title">1. Thông tin cơ bản</div>
+
             <div className="ct-field">
-              <div className="ct-label">
-                Tên Tour <span style={{ color: "red" }}>*</span>
-              </div>
+              <label className="ct-label">Tên Tour <span style={{ color: "red" }}>*</span></label>
               <input
                 className="ct-input"
                 name="title"
                 value={form.title}
                 onChange={handleChange}
-                placeholder="VD: Tour Đà Lạt 3N2Đ - Săn Mây"
+                placeholder="VD: Tour Đà Lạt 3N2Đ - Săn Mây Đại Ngàn"
+                autoFocus
               />
             </div>
 
             <div className="ct-grid-2">
               <div className="ct-field">
-                <div className="ct-label">Mã Tour (Tự động in hoa)</div>
+                <label className="ct-label">Mã Tour (Tự động in hoa)</label>
                 <input
                   className="ct-input"
                   name="product_code"
                   value={form.product_code}
                   onChange={handleChange}
-                  placeholder="VD: DL-001"
+                  placeholder="VD: DL-001 (Nếu bỏ trống hệ thống tự sinh)"
                 />
               </div>
               <div className="ct-field">
-                <div className="ct-label">
-                  Giá cơ bản (VND) <span style={{ color: "red" }}>*</span>
-                </div>
+                <label className="ct-label">Giá cơ bản (VND) <span style={{ color: "red" }}>*</span></label>
                 <input
                   type="number"
                   className="ct-input"
                   name="base_price"
                   value={form.base_price}
                   onChange={handleChange}
+                  placeholder="0"
                 />
               </div>
             </div>
 
             <div className="ct-grid-3">
               <div className="ct-field">
-                <div className="ct-label">Điểm bền vững (0-5)</div>
+                <label className="ct-label">Điểm bền vững</label>
                 <input
                   type="number"
                   min={0}
@@ -297,26 +299,24 @@ export default function PartnerCreateTour() {
                   value={form.sustainability_score}
                   onChange={handleChange}
                   disabled
-                  title="Điểm này do Admin đánh giá"
-                  style={{ backgroundColor: "#f3f4f6" }}
+                  title="Chỉ Admin mới có quyền đánh giá lại"
+                  style={{ backgroundColor: "#f3f4f6", cursor: 'not-allowed' }}
                 />
               </div>
               <div className="ct-field">
-                <div className="ct-label">Trạng thái</div>
+                <label className="ct-label">Trạng thái ban đầu</label>
                 <select
                   className="ct-select"
                   name="is_active"
                   value={form.is_active}
-                  onChange={(e) =>
-                    setForm({ ...form, is_active: e.target.value === "true" })
-                  }
+                  onChange={(e) => setForm({ ...form, is_active: e.target.value === "true" })}
                 >
-                  <option value="true">Hoạt động</option>
-                  <option value="false">Tạm ẩn</option>
+                  <option value="true">Hoạt động ngay</option>
+                  <option value="false">Tạm ẩn (Nháp)</option>
                 </select>
               </div>
               <div className="ct-field">
-                <div className="ct-label">Tags (cách nhau dấu phẩy)</div>
+                <label className="ct-label">Tags (Từ khóa tìm kiếm)</label>
                 <input
                   className="ct-input"
                   name="tags"
@@ -327,24 +327,19 @@ export default function PartnerCreateTour() {
               </div>
             </div>
 
-            {/* --- LOCATIONS & CATEGORIES --- */}
             <div className="ct-grid-2">
               {/* LOCATIONS */}
               <div className="ct-field">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <div className="ct-label">Địa điểm (Giữ Ctrl chọn nhiều)</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label className="ct-label mb-0">Địa điểm (Giữ Ctrl chọn nhiều)</label>
                   <button
                     type="button"
                     onClick={() => setShowLocModal(true)}
-                    style={{
-                      background: 'none', border: 'none', color: '#0b5fff',
-                      fontSize: 12, fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline'
-                    }}
+                    style={{ background: 'none', border: 'none', color: '#0b5fff', fontSize: 13, fontWeight: '600', cursor: 'pointer' }}
                   >
-                    + Đề xuất địa điểm mới
+                    + Đề xuất địa điểm
                   </button>
                 </div>
-
                 <select
                   multiple
                   className="ct-select"
@@ -352,35 +347,26 @@ export default function PartnerCreateTour() {
                   onChange={(e) => handleMultiSelect(e, "location_ids")}
                   value={form.location_ids}
                 >
-                  {locations.map((l) => {
-                    if (!l) return null;
-                    const isPending = l.status === 'pending';
-                    return (
-                      <option key={l._id || l.id} value={l._id || l.id}>
-                        {l.name} {isPending ? "(⏳ Chờ duyệt)" : ""}
-                      </option>
-                    );
-                  })}
+                  {locations.map((l) => (
+                    <option key={l._id || l.id} value={l._id || l.id}>
+                      {l.name} {l.status === 'pending' ? "(⏳ Chờ duyệt)" : ""}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               {/* CATEGORIES */}
               <div className="ct-field">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <div className="ct-label">Danh mục (Giữ Ctrl chọn nhiều)</div>
-                  {/* [MỚI] Nút Đề xuất Danh mục */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label className="ct-label mb-0">Danh mục (Giữ Ctrl chọn nhiều)</label>
                   <button
                     type="button"
                     onClick={() => setShowCatModal(true)}
-                    style={{
-                      background: 'none', border: 'none', color: '#0b5fff',
-                      fontSize: 12, fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline'
-                    }}
+                    style={{ background: 'none', border: 'none', color: '#0b5fff', fontSize: 13, fontWeight: '600', cursor: 'pointer' }}
                   >
-                    + Đề xuất danh mục mới
+                    + Đề xuất danh mục
                   </button>
                 </div>
-
                 <select
                   multiple
                   className="ct-select"
@@ -388,37 +374,35 @@ export default function PartnerCreateTour() {
                   onChange={(e) => handleMultiSelect(e, "category_ids")}
                   value={form.category_ids}
                 >
-                  {categories.map((c) => {
-                    if (!c) return null;
-                    // [MỚI] Check status danh mục
-                    const isPending = c.status === 'pending';
-                    return (
-                      <option key={c._id || c.id} value={c._id || c.id}>
-                        {c.name} {isPending ? "(⏳ Chờ duyệt)" : ""}
-                      </option>
-                    );
-                  })}
+                  {categories.map((c) => (
+                    <option key={c._id || c.id} value={c._id || c.id}>
+                      {c.name} {c.status === 'pending' ? "(⏳ Chờ duyệt)" : ""}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
             <div className="ct-field">
-              <div className="ct-label">Mô tả ngắn</div>
+              <label className="ct-label">Mô tả ngắn (Hiển thị trên card tour)</label>
               <textarea
                 className="ct-textarea"
                 style={{ minHeight: 80 }}
                 name="description_short"
                 value={form.description_short}
                 onChange={handleChange}
+                placeholder="Tóm tắt những điểm hấp dẫn nhất của tour..."
               />
             </div>
             <div className="ct-field">
-              <div className="ct-label">Mô tả chi tiết</div>
+              <label className="ct-label">Mô tả chi tiết</label>
               <textarea
                 className="ct-textarea"
+                style={{ minHeight: 150 }}
                 name="description_long"
                 value={form.description_long}
                 onChange={handleChange}
+                placeholder="Giới thiệu chi tiết về hành trình, trải nghiệm..."
               />
             </div>
           </div>
@@ -427,19 +411,20 @@ export default function PartnerCreateTour() {
       case "operation":
         return (
           <div className="ct-card">
-            <div className="ct-section-title">Vận hành & Lưu trú</div>
+            <div className="ct-section-title">2. Vận hành & Lưu trú</div>
             <div className="ct-grid-3">
               <div className="ct-field">
-                <div className="ct-label">Điểm khởi hành</div>
+                <label className="ct-label">Điểm khởi hành</label>
                 <input
                   className="ct-input"
                   name="start_point"
                   value={form.start_point}
                   onChange={handleChange}
+                  placeholder="VD: Sân bay Tân Sơn Nhất"
                 />
               </div>
               <div className="ct-field">
-                <div className="ct-label">Thời lượng (ngày)</div>
+                <label className="ct-label">Thời lượng (ngày)</label>
                 <input
                   type="number"
                   className="ct-input"
@@ -449,7 +434,7 @@ export default function PartnerCreateTour() {
                 />
               </div>
               <div className="ct-field">
-                <div className="ct-label">Phương tiện</div>
+                <label className="ct-label">Phương tiện di chuyển</label>
                 <select
                   className="ct-select"
                   name="transport_type"
@@ -460,6 +445,7 @@ export default function PartnerCreateTour() {
                   <option value="Máy bay">Máy bay</option>
                   <option value="Tàu hỏa">Tàu hỏa</option>
                   <option value="Du thuyền">Du thuyền</option>
+                  <option value="Xe máy">Xe máy</option>
                   <option value="Tự túc">Tự túc</option>
                 </select>
               </div>
@@ -467,14 +453,14 @@ export default function PartnerCreateTour() {
 
             <div className="ct-grid-2">
               <div className="ct-field">
-                <div className="ct-label">Khách sạn (Sao)</div>
+                <label className="ct-label">Tiêu chuẩn Khách sạn</label>
                 <select
                   className="ct-select"
                   name="hotel_rating"
                   value={form.hotel_rating}
                   onChange={handleChange}
                 >
-                  <option value="0">Không có</option>
+                  <option value="0">Không có (Về trong ngày / Ngủ lều)</option>
                   <option value="1">1 Sao</option>
                   <option value="2">2 Sao</option>
                   <option value="3">3 Sao</option>
@@ -483,21 +469,22 @@ export default function PartnerCreateTour() {
                 </select>
               </div>
               <div className="ct-field">
-                <div className="ct-label">Tên Khách sạn (Dự kiến)</div>
+                <label className="ct-label">Tên Khách sạn (Dự kiến)</label>
                 <input
                   className="ct-input"
                   name="hotel_name"
                   value={form.hotel_name}
                   onChange={handleChange}
+                  placeholder="VD: Mường Thanh Luxury"
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: 20 }}>
+            <div style={{ marginTop: 24 }}>
               <div className="ct-section-title">Điểm nổi bật (Highlights)</div>
               <div className="ct-grid-2">
                 <div className="ct-field">
-                  <div className="ct-label">Điểm tham quan</div>
+                  <label className="ct-label">Điểm tham quan chính</label>
                   <input
                     className="ct-input"
                     name="highlight_attractions"
@@ -507,7 +494,7 @@ export default function PartnerCreateTour() {
                   />
                 </div>
                 <div className="ct-field">
-                  <div className="ct-label">Ẩm thực</div>
+                  <label className="ct-label">Ẩm thực đặc sắc</label>
                   <input
                     className="ct-input"
                     name="highlight_cuisine"
@@ -517,17 +504,17 @@ export default function PartnerCreateTour() {
                   />
                 </div>
                 <div className="ct-field">
-                  <div className="ct-label">Đối tượng thích hợp</div>
+                  <label className="ct-label">Đối tượng thích hợp</label>
                   <input
                     className="ct-input"
                     name="highlight_suitable"
                     value={form.highlight_suitable}
                     onChange={handleChange}
-                    placeholder="Gia đình, Cặp đôi..."
+                    placeholder="Gia đình, Cặp đôi, Nhóm bạn..."
                   />
                 </div>
                 <div className="ct-field">
-                  <div className="ct-label">Thời gian lý tưởng</div>
+                  <label className="ct-label">Thời gian lý tưởng</label>
                   <input
                     className="ct-input"
                     name="highlight_ideal_time"
@@ -544,81 +531,61 @@ export default function PartnerCreateTour() {
       case "itinerary":
         return (
           <div className="ct-card">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <div className="ct-section-title">Lịch trình chi tiết</div>
-              <button onClick={addItineraryDay} className="ct-btn ct-btn-sm">
-                + Thêm ngày
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, paddingBottom: 10, borderBottom: '1px solid #eee' }}>
+              <div className="ct-section-title" style={{ marginBottom: 0, border: 'none' }}>3. Lịch trình chi tiết</div>
+              <button onClick={addItineraryDay} className="ct-btn ct-btn-primary" style={{ padding: '8px 16px' }}>
+                + Thêm Ngày {form.itinerary.length + 1}
               </button>
             </div>
 
             {form.itinerary.map((day, idx) => (
               <div key={idx} className="ct-list-box">
                 <div className="ct-list-header">
-                  <span>Ngày {day.day}</span>
+                  <span style={{ fontSize: 16 }}>🗓️ Ngày {day.day}</span>
                   <button
-                    onClick={() =>
-                      setForm((s) => ({
-                        ...s,
-                        itinerary: s.itinerary.filter((_, i) => i !== idx),
-                      }))
-                    }
+                    onClick={() => setForm((s) => ({ ...s, itinerary: s.itinerary.filter((_, i) => i !== idx) }))}
                     className="ct-btn-danger"
-                    style={{ cursor: "pointer", border: "none", fontSize: 13 }}
+                    style={{ cursor: "pointer", border: "none", fontSize: 13, padding: '4px 10px', borderRadius: 6 }}
                   >
-                    Xóa
+                    Xóa ngày này
                   </button>
                 </div>
                 <div className="ct-field">
-                  <div className="ct-label">Tiêu đề ngày</div>
+                  <label className="ct-label">Tiêu đề ngày</label>
                   <input
                     className="ct-input"
                     value={day.title}
-                    onChange={(e) =>
-                      updateItinerary(idx, "title", e.target.value)
-                    }
+                    onChange={(e) => updateItinerary(idx, "title", e.target.value)}
                     placeholder="VD: Đón sân bay - Check in khách sạn"
                   />
                 </div>
                 <div className="ct-field">
-                  <div className="ct-label">Chi tiết hoạt động</div>
+                  <label className="ct-label">Chi tiết hoạt động</label>
                   <textarea
                     className="ct-textarea"
                     style={{ minHeight: 80 }}
                     value={day.details}
-                    onChange={(e) =>
-                      updateItinerary(idx, "details", e.target.value)
-                    }
+                    onChange={(e) => updateItinerary(idx, "details", e.target.value)}
+                    placeholder="- 08:00: Ăn sáng tại khách sạn..."
                   />
                 </div>
                 <div className="ct-grid-2">
                   <div className="ct-field">
-                    <div className="ct-label">
-                      Ăn uống (Gõ tay: Sáng, Trưa, Tối)
-                    </div>
+                    <label className="ct-label">Các bữa ăn (Gõ tay)</label>
                     <input
                       className="ct-input"
                       value={day.meals?.join(", ")}
-                      onChange={(e) =>
-                        updateItinerary(idx, "meals", e.target.value.split(","))
-                      }
-                      placeholder="Sáng, Trưa"
+                      onChange={(e) => updateItinerary(idx, "meals", e.target.value.split(","))}
+                      placeholder="Sáng, Trưa, Tối"
                     />
                   </div>
                   <div className="ct-field">
-                    <div className="ct-label">Nơi nghỉ</div>
+                    <label className="ct-label">Nơi nghỉ đêm</label>
                     <input
                       className="ct-input"
                       value={day.accommodation}
-                      onChange={(e) =>
-                        updateItinerary(idx, "accommodation", e.target.value)
-                      }
+                      onChange={(e) => updateItinerary(idx, "accommodation", e.target.value)}
+                      placeholder="Tên khách sạn hoặc 'Trên xe/tàu'"
                     />
                   </div>
                 </div>
@@ -630,52 +597,38 @@ export default function PartnerCreateTour() {
       case "policies":
         return (
           <div className="ct-card">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <div className="ct-section-title">Chính sách & Lưu ý</div>
-              <button onClick={addPolicy} className="ct-btn ct-btn-sm">
-                + Thêm mục
-              </button>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div className="ct-section-title" style={{ marginBottom: 0 }}>4. Chính sách & Điều khoản</div>
+              <button onClick={addPolicy} className="ct-btn ct-btn-sm" style={{ border: '1px solid #ccc' }}>+ Thêm điều khoản</button>
             </div>
             {form.policies.map((pol, idx) => (
               <div key={idx} className="ct-list-box">
                 <div className="ct-field">
-                  <div className="ct-label">Tiêu đề</div>
+                  <label className="ct-label">Tiêu đề mục</label>
                   <input
                     className="ct-input"
                     value={pol.title}
                     onChange={(e) => updatePolicy(idx, "title", e.target.value)}
+                    placeholder="VD: Chính sách hoàn hủy"
                   />
                 </div>
                 <div className="ct-field">
-                  <div className="ct-label">Nội dung</div>
+                  <label className="ct-label">Nội dung chi tiết</label>
                   <textarea
                     className="ct-textarea"
                     style={{ minHeight: 60 }}
                     value={pol.content}
-                    onChange={(e) =>
-                      updatePolicy(idx, "content", e.target.value)
-                    }
+                    onChange={(e) => updatePolicy(idx, "content", e.target.value)}
                   />
                 </div>
-                <button
-                  onClick={() =>
-                    setForm((s) => ({
-                      ...s,
-                      policies: s.policies.filter((_, i) => i !== idx),
-                    }))
-                  }
-                  className="ct-btn-danger"
-                  style={{ cursor: "pointer", border: "none", fontSize: 12 }}
-                >
-                  Xóa mục này
-                </button>
+                <div style={{ textAlign: 'right' }}>
+                  <button
+                    onClick={() => setForm((s) => ({ ...s, policies: s.policies.filter((_, i) => i !== idx) }))}
+                    style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}
+                  >
+                    Xóa mục này
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -684,11 +637,17 @@ export default function PartnerCreateTour() {
       case "media":
         return (
           <div className="ct-card">
-            <div className="ct-section-title">Hình ảnh</div>
+            <div className="ct-section-title">5. Hình ảnh quảng bá</div>
+
             <div className="ct-upload-box">
-              <p style={{ fontWeight: 700, color: "#374151" }}>
-                Kéo thả hoặc bấm để chọn ảnh
+              <div style={{ fontSize: 40, marginBottom: 10 }}>📷</div>
+              <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                Kéo thả hình ảnh vào đây
               </p>
+              <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+                Hỗ trợ JPG, PNG. Tối đa 5MB mỗi ảnh.
+              </p>
+
               <input
                 type="file"
                 multiple
@@ -700,15 +659,15 @@ export default function PartnerCreateTour() {
               <label
                 htmlFor="upload-btn"
                 className="ct-btn-primary"
-                style={{ display: "inline-block", marginTop: 10 }}
+                style={{ display: "inline-block", padding: '10px 24px' }}
               >
-                Chọn ảnh
+                Chọn ảnh từ máy tính
               </label>
             </div>
 
             {loading && (
-              <div style={{ marginTop: 10, color: "#0b5fff" }}>
-                Đang tải ảnh lên...
+              <div style={{ marginTop: 20, textAlign: 'center', color: "#0b5fff", fontWeight: 600 }}>
+                ⏳ Đang tải ảnh lên máy chủ...
               </div>
             )}
 
@@ -717,15 +676,11 @@ export default function PartnerCreateTour() {
                 <div key={idx} className="ct-img-wrapper">
                   <img src={img.url} alt="Tour" className="ct-img-thumb" />
                   <button
-                    onClick={() =>
-                      setForm((s) => ({
-                        ...s,
-                        images: s.images.filter((_, i) => i !== idx),
-                      }))
-                    }
+                    onClick={() => setForm((s) => ({ ...s, images: s.images.filter((_, i) => i !== idx) }))}
                     className="ct-img-remove"
+                    title="Xóa ảnh"
                   >
-                    x
+                    ×
                   </button>
                 </div>
               ))}
@@ -741,22 +696,14 @@ export default function PartnerCreateTour() {
   return (
     <div className="create-tour-container">
       {/* RENDER MODALS */}
-      <LocationRequestModal
-        show={showLocModal}
-        onHide={() => setShowLocModal(false)}
-        onSuccess={handleLocationAdded}
-      />
-      <CategoryRequestModal
-        show={showCatModal}
-        onHide={() => setShowCatModal(false)}
-        onSuccess={handleCategoryAdded}
-      />
+      <LocationRequestModal show={showLocModal} onHide={() => setShowLocModal(false)} onSuccess={handleLocationAdded} />
+      <CategoryRequestModal show={showCatModal} onHide={() => setShowCatModal(false)} onSuccess={handleCategoryAdded} />
 
       <div className="ct-header">
         <div>
-          <h1 className="ct-h1">Tạo Tour Mới (Partner)</h1>
+          <h1 className="ct-h1">Tạo Tour Mới</h1>
           <div className="ct-sub">
-            Nhập đầy đủ thông tin để thu hút khách hàng
+            Hoàn tất 5 bước dưới đây để đăng tải sản phẩm của bạn.
           </div>
         </div>
         <button className="ct-btn" onClick={() => nav("/partner/tours")}>
@@ -765,36 +712,20 @@ export default function PartnerCreateTour() {
       </div>
 
       <div className="ct-tabs">
-        <div
-          className={`ct-tab ${activeTab === "general" ? "active" : ""}`}
-          onClick={() => setActiveTab("general")}
-        >
-          1. Tổng quan
-        </div>
-        <div
-          className={`ct-tab ${activeTab === "operation" ? "active" : ""}`}
-          onClick={() => setActiveTab("operation")}
-        >
-          2. Vận hành
-        </div>
-        <div
-          className={`ct-tab ${activeTab === "itinerary" ? "active" : ""}`}
-          onClick={() => setActiveTab("itinerary")}
-        >
-          3. Lịch trình
-        </div>
-        <div
-          className={`ct-tab ${activeTab === "policies" ? "active" : ""}`}
-          onClick={() => setActiveTab("policies")}
-        >
-          4. Chính sách
-        </div>
-        <div
-          className={`ct-tab ${activeTab === "media" ? "active" : ""}`}
-          onClick={() => setActiveTab("media")}
-        >
-          5. Hình ảnh
-        </div>
+        {['general', 'operation', 'itinerary', 'policies', 'media'].map((tabKey, index) => (
+          <div
+            key={tabKey}
+            className={`ct-tab ${activeTab === tabKey ? "active" : ""}`}
+            onClick={() => setActiveTab(tabKey)}
+          >
+            {index + 1}. {
+              tabKey === 'general' ? 'Tổng quan' :
+                tabKey === 'operation' ? 'Vận hành' :
+                  tabKey === 'itinerary' ? 'Lịch trình' :
+                    tabKey === 'policies' ? 'Chính sách' : 'Hình ảnh'
+            }
+          </div>
+        ))}
       </div>
 
       {renderContent()}
@@ -808,7 +739,7 @@ export default function PartnerCreateTour() {
           onClick={handleSubmit}
           disabled={loading}
         >
-          {loading ? "Đang xử lý..." : "Hoàn tất & Đăng"}
+          {loading ? "Đang xử lý..." : "Hoàn tất & Đăng Tour"}
         </button>
       </div>
     </div>

@@ -19,7 +19,7 @@ router.post(
 router.get(
   "/",
   authMiddleware,
-  checkRole(["admin"]),
+  checkRole(["admin", "user"]),
   promotionController.getAllPromotions
 );
 

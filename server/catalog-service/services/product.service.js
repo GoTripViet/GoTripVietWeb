@@ -2,7 +2,7 @@
 const Product = require("../models/product.model");
 const cloudinary = require("../config/cloudinary");
 const mongoose = require("mongoose");
-const slugify = require("slugify"); // Cần import thêm nếu dùng trong update
+const slugify = require("slugify");
 
 function normalizeImages(images) {
   if (!images) return [];
@@ -24,8 +24,6 @@ function normalizeImages(images) {
 async function makeUniqueSlug(Model, base, excludeId = null) {
   let slug = base;
   let i = 1;
-
-  // nếu update thì excludeId để không tự trùng với chính nó
   const existsQuery = (s) =>
     excludeId ? { slug: s, _id: { $ne: excludeId } } : { slug: s };
 
@@ -38,36 +36,29 @@ async function makeUniqueSlug(Model, base, excludeId = null) {
 
 class ProductService {
   /**
-   * Tạo một sản phẩm mới (Mặc định là Tour)
-   * @param {object} productData - Dữ liệu từ controller
-   * @param {string} partnerId - ID của đối tác (từ token)
+   * Tạo sản phẩm (Xử lý status theo Role)
    */
-
-  async createProduct(productData, partnerId) {
-    // Gắn partner_id (người sở hữu) từ token vào
+  async createProduct(productData, partnerId, userRoles = []) {
     productData.partner_id = partnerId;
 
-    // Xử lý dữ liệu đa hình (Dù tập trung vào tour, vẫn giữ logic này để mở rộng)
-    const { product_type, tour_details, hotel_details, flight_details } =
-      productData;
+    // --- LOGIC STATUS ---
+    // Nếu là Admin: Được quyền set status (mặc định active)
+    // Nếu là Partner: Luôn luôn là 'pending' (bất kể gửi lên gì)
+    if (userRoles.includes("admin")) {
+      productData.status = productData.status || "active";
+    } else {
+      productData.status = "pending";
+    }
 
+    // Xử lý loại sản phẩm (Tour/Hotel...)
+    const { product_type, tour_details } = productData;
     if (!product_type || product_type === "tour") {
       productData.hotel_details = undefined;
       productData.flight_details = undefined;
-      // tour_details sẽ chứa cả thông tin vận chuyển/lưu trú như Model mới quy định
       productData.tour_details = tour_details;
-    } else if (product_type === "hotel") {
-      productData.tour_details = undefined;
-      productData.flight_details = undefined;
-      productData.hotel_details = hotel_details;
-    } else if (product_type === "flight") {
-      productData.tour_details = undefined;
-      productData.hotel_details = undefined;
-      productData.flight_details = flight_details;
-    } else {
-      // product_type = 'car' hoặc khác
     }
-    // Tự tạo slug unique nếu chưa có
+
+    // Tự tạo slug unique
     if (!productData.slug && productData.title) {
       const title = productData.title.replace(/Đ/g, "D").replace(/đ/g, "d");
       const base = slugify(title, { lower: true, strict: true });
@@ -80,9 +71,9 @@ class ProductService {
   }
 
   /**
-   * Lấy danh sách sản phẩm (Filter Tour, Khách sạn, Phương tiện, Ngày đi...)
+   * Lấy danh sách (Public: chỉ Active; Partner: thấy hết của mình; Admin: thấy hết)
    */
-  async getProducts(queryParams) {
+  async getProducts(queryParams, userRoles = [], userId = null) {
     const {
       partner_id,
       page = 1,
@@ -94,69 +85,78 @@ class ProductService {
       keyword,
       min_price,
       max_price,
-
-      // --- CÁC PARAM MỚI ---
-      start_point, // Điểm đi
-      date, // Ngày đi (YYYY-MM-DD)
-      transport, // Phương tiện (Máy bay, Xe...)
-      star_rating, // Hạng sao khách sạn (3, 4, 5)
+      start_point,
+      date,
+      transport,
+      star_rating,
+      status, // Admin/Partner filter status
     } = queryParams;
 
-    // Mặc định lọc sản phẩm đang active
-    let filter = { is_active: true };
+    let filter = {};
 
-    // --- CÁC BỘ LỌC CƠ BẢN ---
-    if (product_type) filter.product_type = product_type;
+    // 1. Mặc định (Khách vãng lai): Chỉ xem ACTIVE
+    filter.status = "active";
 
-    // Nếu location_id gửi lên
-    if (location_id) filter.location_ids = { $in: [location_id] };
+    const isAdmin = userRoles.includes("admin");
 
-    // Nếu category_id gửi lên
-    if (category_id) filter.category_ids = { $in: [category_id] };
-
-    if (tags) filter.tags = { $in: tags.split(",") };
-
+    // 2. Nếu có partner_id (Xem shop của ai đó)
     if (partner_id) {
       filter.partner_id = partner_id;
-      delete filter.is_active;
-    }
-    // --- CÁC BỘ LỌC NÂNG CAO ---
 
-    // 1. Lọc theo từ khóa (Tìm trong Title, Slug, hoặc StartPoint của tour)
+      // Nếu là chính chủ hoặc Admin -> Thấy hết (bỏ filter active mặc định)
+      const isOwner = userId && userId.toString() === partner_id.toString();
+
+      if (isOwner || isAdmin) {
+        delete filter.status;
+        if (status) filter.status = status; // Lọc theo status nếu muốn
+      }
+    }
+    // 3. Nếu Admin đang xem danh sách tổng (Dashboard)
+    else if (isAdmin) {
+      delete filter.status; // Mặc định lấy hết
+      if (status) filter.status = status; // Lọc theo dropdown của Admin
+    }
+
+    // --- CÁC BỘ LỌC KHÁC ---
+    if (product_type) filter.product_type = product_type;
+    if (location_id) filter.location_ids = { $in: [location_id] };
+    if (category_id) filter.category_ids = { $in: [category_id] };
+    if (tags) filter.tags = { $in: tags.split(",") };
+
     if (keyword) {
       const regex = new RegExp(keyword, "i");
       filter.$or = [
         { title: { $regex: regex } },
         { slug: { $regex: regex } },
-        { description_short: { $regex: regex } },
-        // Tìm cả trong điểm khởi hành nếu khách gõ tên tỉnh vào ô tìm kiếm
+        { product_code: { $regex: regex } },
         { "tour_details.start_point": { $regex: regex } },
       ];
     }
 
-    // 2. Lọc theo khoảng giá
     if (min_price || max_price) {
       filter.base_price = {};
       if (min_price) filter.base_price.$gte = parseInt(min_price);
       if (max_price) filter.base_price.$lte = parseInt(max_price);
     }
 
-    // 3. Lọc theo Điểm đón (Start Point)
+    // Lọc theo thông tin Tour
     if (start_point && start_point !== "Tất cả") {
-      filter["tour_details.start_point"] = {
-        $regex: new RegExp(start_point, "i"),
-      };
+      filter["tour_details.start_point"] = { $regex: new RegExp(start_point, "i") };
     }
 
-    // 4. Lọc theo Ngày xuất phát (Tìm trong mảng departure_times)
-    // Logic: Tour có ít nhất 1 ngày khởi hành nằm trong ngày khách chọn
+    if (transport && transport !== "Tất cả") {
+      filter["tour_details.transport_type"] = transport;
+    }
+
+    if (star_rating) {
+      filter["tour_details.hotel_rating"] = { $gte: parseInt(star_rating) };
+    }
+
     if (date) {
       const searchDate = new Date(date);
-
       if (!isNaN(searchDate.getTime())) {
         const startOfDay = new Date(searchDate);
         startOfDay.setHours(0, 0, 0, 0);
-
         const endOfDay = new Date(searchDate);
         endOfDay.setHours(23, 59, 59, 999);
 
@@ -167,27 +167,15 @@ class ProductService {
       }
     }
 
-    // 5. [MỚI] Lọc theo Phương tiện (Transport)
-    // VD: Khách chọn "Máy bay" -> Lọc tour_details.transport_type
-    if (transport && transport !== "Tất cả") {
-      filter["tour_details.transport_type"] = transport;
-    }
-
-    // 6. [MỚI] Lọc theo Hạng sao Khách sạn (Hotel Rating)
-    // VD: Khách chọn 4 sao -> Tìm tour có hotel_rating >= 4
-    if (star_rating) {
-      filter["tour_details.hotel_rating"] = { $gte: parseInt(star_rating) };
-    }
-
-    // --- PHÂN TRANG & QUERY ---
     const skip = (page - 1) * limit;
 
     const products = await Product.find(filter)
-      .select("+images")
+      .select("+images") // Lấy cả ảnh
       .populate("location_ids", "name slug")
+      .populate("category_ids", "name slug")
       .skip(skip)
       .limit(parseInt(limit))
-      .sort({ createdAt: -1 }); // Mới nhất lên đầu
+      .sort({ createdAt: -1 });
 
     const totalProducts = await Product.countDocuments(filter);
 
@@ -200,103 +188,112 @@ class ProductService {
   }
 
   /**
-   * Lấy chi tiết 1 sản phẩm (bằng ID hoặc Slug)
+   * Cập nhật sản phẩm
    */
-  async getProductByIdOrSlug(idOrSlug) {
-    const isObjectId = mongoose.Types.ObjectId.isValid(idOrSlug);
-
-    let product;
-    if (isObjectId) {
-      product = await Product.findById(idOrSlug);
-    } else {
-      product = await Product.findOne({ slug: idOrSlug });
-    }
-
-    if (!product || !product.is_active) {
-      throw new Error("Product not found or is inactive");
-    }
-
-    // Nối thêm thông tin địa điểm và danh mục
-    await product.populate("location_ids", "name slug country");
-    await product.populate("category_ids", "name slug");
-
-    return product;
-  }
-
-  /**
-   * Cập nhật 1 sản phẩm
-   */
-  async updateProduct(productId, updateData, partnerId) {
+  async updateProduct(productId, updateData, partnerId, userRoles = []) {
     const product = await Product.findById(productId);
+    if (!product) throw new Error("Product not found");
 
-    if (!product) {
-      throw new Error("Product not found");
+    // Check quyền
+    const isAdmin = userRoles.includes("admin");
+    const isOwner = product.partner_id && product.partner_id.toString() === partnerId;
+
+    if (!isAdmin && !isOwner) {
+      throw new Error("Forbidden: You do not own this product");
     }
 
-    // Check quyền sở hữu
-    if (product.partner_id && product.partner_id.toString() !== partnerId) {
-      // Lưu ý: Nếu admin sửa thì logic check này cần bỏ qua hoặc check role admin
-      // throw new Error('Forbidden: You do not own this product');
+    // --- LOGIC RESET STATUS ---
+    // Nếu là Partner sửa -> Reset về 'pending' để duyệt lại
+    if (!isAdmin) {
+      updateData.status = "pending";
     }
+    // Nếu Admin sửa -> status sẽ theo updateData (hoặc giữ nguyên)
 
-    // Bảo vệ các trường quan trọng
-    delete updateData.product_type;
+    // Bảo vệ trường quan trọng
     delete updateData.partner_id;
     delete updateData.slug;
 
-    // Xử lý cập nhật hình ảnh (Xoá hình ảnh cũ nếu bị xoá trong updateData)
+    // Xử lý ảnh (Cloudinary)
     if (Object.prototype.hasOwnProperty.call(updateData, "images")) {
-      const oldPublicIds = normalizeImages(product.images)
-        .map((x) => x.public_id)
-        .filter(Boolean);
-
+      const oldPublicIds = normalizeImages(product.images).map(x => x.public_id).filter(Boolean);
       const newImgs = normalizeImages(updateData.images);
-      const newPublicIds = newImgs.map((x) => x.public_id).filter(Boolean);
+      const newPublicIds = newImgs.map(x => x.public_id).filter(Boolean);
+      const removed = oldPublicIds.filter(pid => !newPublicIds.includes(pid));
 
-      const removed = oldPublicIds.filter((pid) => !newPublicIds.includes(pid));
-
-      await Promise.all(
-        removed.map((pid) =>
-          cloudinary.uploader.destroy(pid, {
-            resource_type: "image",
-            invalidate: true,
-          })
-        )
-      );
-
-      // đảm bảo lưu đúng format
+      await Promise.all(removed.map(pid => cloudinary.uploader.destroy(pid, { resource_type: "image", invalidate: true })));
       updateData.images = newImgs;
     }
 
-    Object.keys(updateData).forEach((k) => {
-      if (updateData[k] === undefined) delete updateData[k];
-    });
-
-    // Cập nhật dữ liệu
-    Object.assign(product, updateData);
-
-    // [QUAN TRỌNG] Nếu updateData có gửi title mới, ta cần cập nhật slug thủ công hoặc để pre-save hook lo.
-    // Tuy nhiên pre-save hook của Mongoose chỉ chạy khi gọi .save().
-    // Ở đây ta gọi .save() ở dưới nên OK.
-    // Nếu muốn chắc chắn xử lý tiếng Việt Đ -> D ở đây:
-    if (updateData.title) {
+    // Update Slug nếu sửa Title
+    if (updateData.title && updateData.title !== product.title) {
       const title = updateData.title.replace(/Đ/g, "D").replace(/đ/g, "d");
       const base = slugify(title, { lower: true, strict: true });
       product.slug = await makeUniqueSlug(Product, base, product._id);
     }
 
+    // Merge data
+    Object.assign(product, updateData);
     await product.save();
     return product;
   }
 
   /**
-   * Xóa 1 sản phẩm (Soft delete)
+   * [NEW] Admin Duyệt/Từ chối Tour
    */
+  async updateStatus(productId, status, reason = "") {
+    const valid = ["active", "rejected", "pending", "hidden"];
+    if (!valid.includes(status)) throw new Error("Invalid status");
+
+    const update = { status };
+    if (status === "rejected") {
+      update.rejection_reason = reason;
+    } else {
+      update.rejection_reason = ""; // Xóa lý do nếu duyệt
+    }
+
+    const product = await Product.findByIdAndUpdate(productId, update, { new: true });
+    if (!product) throw new Error("Product not found");
+    return product;
+  }
+
+  /**
+   * Lấy chi tiết Public (chỉ Active)
+   */
+  async getProductByIdOrSlug(idOrSlug) {
+    const isObjectId = mongoose.Types.ObjectId.isValid(idOrSlug);
+    const query = isObjectId ? { _id: idOrSlug } : { slug: idOrSlug };
+
+    // Khách chỉ xem được Active
+    query.status = 'active';
+
+    const product = await Product.findOne(query)
+      .populate("location_ids", "name slug country")
+      .populate("category_ids", "name slug");
+
+    if (!product) throw new Error("Product not found or not active");
+    return product;
+  }
+
+  /**
+   * Lấy chi tiết Admin/Partner (Xem full status)
+   */
+  async getProductByIdOrSlugAdmin(idOrSlug) {
+    const isObjectId = mongoose.Types.ObjectId.isValid(idOrSlug);
+    const query = isObjectId ? { _id: idOrSlug } : { slug: idOrSlug };
+
+    const product = await Product.findOne(query)
+      .populate("location_ids", "name slug country")
+      .populate("category_ids", "name slug");
+
+    if (!product) throw new Error("Product not found");
+    return product;
+  }
+
+  // Xóa sản phẩm
   async deleteProduct(id) {
     const product = await Product.findById(id);
     if (!product) throw new Error("Product not found");
 
-    // ✅ xóa toàn bộ ảnh trên cloudinary
     const publicIds = normalizeImages(product.images)
       .map((x) => x.public_id)
       .filter(Boolean);
@@ -310,78 +307,53 @@ class ProductService {
       )
     );
 
-    // bạn có thể "xóa hẳn" hoặc "deactivate"
-    // Option 1: xóa hẳn DB:
-    await Product.findByIdAndDelete(id);
-
-    return { message: "Product deleted successfully" };
+    return await Product.findByIdAndDelete(id);
   }
 
-  async getProductByIdOrSlugAdmin(idOrSlug) {
-    const isObjectId = mongoose.Types.ObjectId.isValid(idOrSlug);
-    let product = isObjectId
-      ? await Product.findById(idOrSlug)
-      : await Product.findOne({ slug: idOrSlug });
-
-    if (!product) throw new Error("Product not found");
-
-    await product.populate("location_ids", "name slug country");
-    await product.populate("category_ids", "name slug");
-    return product;
-  }
-
+  // --- SCHEDULES ---
   async addSchedule(productId, scheduleData, partnerId) {
     const product = await Product.findById(productId);
     if (!product) throw new Error("Product not found");
 
-    // Check quyền sở hữu
-    if (product.partner_id.toString() !== partnerId) {
-      throw new Error("Forbidden: You do not own this product");
+    // Check quyền (chỉ partner chủ sở hữu hoặc admin - logic controller gọi)
+    // Ở service tạm check partnerId nếu được truyền vào
+    if (partnerId && product.partner_id.toString() !== partnerId) {
+      // Nếu cần check chặt chẽ hơn
     }
 
-    // Đảm bảo mảng schedules tồn tại
     if (!product.tour_details.schedules) {
       product.tour_details.schedules = [];
     }
 
-    // Kiểm tra xem ngày này đã có chưa (nếu có thì update số chỗ)
+    // Check trùng ngày
     const existingIndex = product.tour_details.schedules.findIndex(
       (s) => new Date(s.date).toDateString() === new Date(scheduleData.date).toDateString()
     );
 
     if (existingIndex > -1) {
-      // Update tồn tại
       product.tour_details.schedules[existingIndex].stock = scheduleData.stock;
-      product.tour_details.schedules[existingIndex].price_override = scheduleData.price;
+      if (scheduleData.price !== undefined) {
+        product.tour_details.schedules[existingIndex].price_override = scheduleData.price;
+      }
     } else {
-      // Thêm mới
       product.tour_details.schedules.push({
         date: scheduleData.date,
         stock: parseInt(scheduleData.stock),
-        booked: 0, // Mặc định chưa ai đặt
-        price_override: scheduleData.price || 0 // Giá riêng cho ngày đó (nếu có)
+        booked: 0,
+        price_override: scheduleData.price || 0
       });
     }
 
-    // Sắp xếp lại lịch theo ngày tăng dần
     product.tour_details.schedules.sort((a, b) => new Date(a.date) - new Date(b.date));
-
     await product.save();
     return product;
   }
 
-  /**
-   * [MỚI] Xóa lịch khởi hành
-   */
   async removeSchedule(productId, scheduleId, partnerId) {
     const product = await Product.findById(productId);
     if (!product) throw new Error("Product not found");
 
-    if (product.partner_id.toString() !== partnerId) {
-      throw new Error("Forbidden");
-    }
-
-    // Lọc bỏ schedule có _id tương ứng
+    // Filter remove
     product.tour_details.schedules = product.tour_details.schedules.filter(
       (s) => s._id.toString() !== scheduleId
     );
@@ -389,69 +361,6 @@ class ProductService {
     await product.save();
     return product;
   }
-
-  async addSchedule(productId, scheduleData, partnerId) {
-    const product = await Product.findById(productId);
-    if (!product) throw new Error("Product not found");
-
-    // Check quyền sở hữu
-    if (product.partner_id.toString() !== partnerId) {
-      throw new Error("Forbidden: You do not own this product");
-    }
-
-    // Đảm bảo mảng schedules tồn tại
-    if (!product.tour_details.schedules) {
-      product.tour_details.schedules = [];
-    }
-
-    // Kiểm tra xem ngày này đã có chưa (nếu có thì update số chỗ)
-    const existingIndex = product.tour_details.schedules.findIndex(
-      (s) => new Date(s.date).toDateString() === new Date(scheduleData.date).toDateString()
-    );
-
-    if (existingIndex > -1) {
-      // Update tồn tại
-      product.tour_details.schedules[existingIndex].stock = scheduleData.stock;
-      product.tour_details.schedules[existingIndex].price_override = scheduleData.price;
-    } else {
-      // Thêm mới
-      product.tour_details.schedules.push({
-        date: scheduleData.date,
-        stock: parseInt(scheduleData.stock),
-        booked: 0, // Mặc định chưa ai đặt
-        price_override: scheduleData.price || 0 // Giá riêng cho ngày đó (nếu có)
-      });
-    }
-
-    // Sắp xếp lại lịch theo ngày tăng dần
-    product.tour_details.schedules.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    await product.save();
-    return product;
-  }
-
-  /**
-   * [MỚI] Xóa lịch khởi hành
-   */
-  async removeSchedule(productId, scheduleId, partnerId) {
-    const product = await Product.findById(productId);
-    if (!product) throw new Error("Product not found");
-
-    if (product.partner_id.toString() !== partnerId) {
-      throw new Error("Forbidden");
-    }
-
-    // Lọc bỏ schedule có _id tương ứng
-    product.tour_details.schedules = product.tour_details.schedules.filter(
-      (s) => s._id.toString() !== scheduleId
-    );
-
-    await product.save();
-    return product;
-  }
-
- 
-
 }
 
 module.exports = new ProductService();

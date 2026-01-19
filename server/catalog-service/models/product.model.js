@@ -7,22 +7,36 @@ const productSchema = new mongoose.Schema(
     // --- 1. THÔNG TIN CHUNG ---
     product_code: {
       type: String,
-      unique: true, // Không trùng nhau
-      uppercase: true, // Tự viết hoa (ví dụ: tour-01 -> TOUR-01)
+      unique: true,
+      uppercase: true,
       trim: true,
-      index: true, // Đánh index để tìm kiếm nhanh theo mã
-      required: true, // Tạm thời chưa để required để tránh lỗi dữ liệu cũ
+      index: true,
+      required: false, // Để hệ thống tự sinh nếu không nhập
     },
     product_type: {
       type: String,
-      default: "tour", // Mặc định là tour
-      enum: ["tour"], // Giữ enum để mở rộng sau này nếu cần
+      default: "tour",
+      enum: ["tour"],
     },
     partner_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      // required: true, // Có thể bỏ comment nếu bắt buộc phải có người tạo
+      required: true,
     },
+
+    // --- [QUAN TRỌNG] TRẠNG THÁI DUYỆT ---
+    status: {
+      type: String,
+      enum: ["draft", "pending", "active", "rejected", "hidden"],
+      default: "pending", // Mặc định chờ duyệt
+      index: true,
+    },
+    // Lưu lý do từ chối (nếu có) để Partner biết đường sửa
+    rejection_reason: {
+      type: String,
+      default: ""
+    },
+
     location_ids: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -67,58 +81,52 @@ const productSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    is_active: {
-      type: Boolean,
-      default: true,
-    },
 
-    // --- 2. CHI TIẾT TOUR (TRÁI TIM CỦA PRODUCT) ---
-    // Bây giờ chứa cả thông tin vận chuyển, lưu trú và các chính sách
+    // --- 2. CHI TIẾT TOUR ---
     tour_details: {
-      // a. Thông tin khởi hành
       start_point: { type: String, trim: true, default: "Hồ Chí Minh" },
-      departure_times: [{ type: Date }], // Mảng các ngày/giờ khởi hành
-      duration_days: { type: Number }, // VD: 3 (3 ngày 2 đêm)
+      departure_times: [{ type: Date }],
 
-      // b. Thuộc tính PHƯƠNG TIỆN (Di chuyển bằng gì?)
+      // Lịch khởi hành cụ thể (Inventory)
+      schedules: [{
+        date: Date,
+        stock: { type: Number, default: 0 },
+        booked: { type: Number, default: 0 },
+        price_override: Number
+      }],
+
+      duration_days: { type: Number },
+
       transport_type: {
         type: String,
-        enum: ["Máy bay", "Xe du lịch", "Tàu hỏa", "Du thuyền", "Tự túc"],
+        enum: ["Máy bay", "Xe du lịch", "Tàu hỏa", "Du thuyền", "Xe máy", "Tự túc"],
         default: "Xe du lịch",
       },
 
-      // c. Thuộc tính KHÁCH SẠN (Ở đâu?)
-      hotel_rating: { type: Number, default: 0 }, // 3, 4, 5 sao
-      hotel_name: { type: String }, // VD: Mường Thanh Luxury
+      hotel_rating: { type: Number, default: 0 },
+      hotel_name: { type: String },
 
-      // d. Lịch trình chi tiết
       itinerary: [
         {
           day: Number,
           title: String,
           details: String,
-          meals: [String], // VD: ['Sáng', 'Trưa', 'Tối']
+          meals: [String],
           accommodation: String,
         },
       ],
 
-      // e. [MỚI] THÔNG TIN THÊM VỀ CHUYẾN ĐI (Grid Icon)
-      // Tương ứng với ảnh: Điểm tham quan, Ẩm thực, Đối tượng...
       trip_highlights: {
-        attractions: String, // Điểm tham quan
-        cuisine: String, // Ẩm thực
-        suitable_for: String, // Đối tượng thích hợp
-        ideal_time: String, // Thời gian lý tưởng
-        transport: String, // Phương tiện (chi tiết text)
-        promotion: String, // Khuyến mãi
+        attractions: String,
+        cuisine: String,
+        suitable_for: String,
+        ideal_time: String,
       },
 
-      // f. [MỚI] NHỮNG THÔNG TIN CẦN LƯU Ý (Accordion)
-      // Tương ứng với ảnh: Giá bao gồm, Điều kiện hủy tour, Visa...
       policy_notes: [
         {
-          title: String, // VD: "Giá tour bao gồm"
-          content: String, // Nội dung chi tiết
+          title: String,
+          content: String,
         },
       ],
     },
@@ -138,12 +146,11 @@ productSchema.pre("save", function (next) {
   next();
 });
 
-// Tạo chỉ mục (Index)
-productSchema.index({ product_type: 1 });
+// Index
+productSchema.index({ status: 1 });
 productSchema.index({ base_price: 1 });
 productSchema.index({ location_ids: 1 });
 productSchema.index({ category_ids: 1 });
-productSchema.index({ "tour_details.start_point": 1 }); // Index cho tìm kiếm điểm đi
-productSchema.index({ "tour_details.departure_times": 1 }); // Index cho tìm kiếm ngày
+productSchema.index({ "tour_details.start_point": 1 });
 
 module.exports = mongoose.model("Product", productSchema);

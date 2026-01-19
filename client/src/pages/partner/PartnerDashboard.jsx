@@ -1,118 +1,109 @@
 import React from "react";
-import { Container, Row, Col, Card, Button, Badge } from "react-bootstrap";
+import { Container, Row, Col } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import "../../styles/partner/PartnerDashboard.css";
 
 export default function PartnerDashboard() {
   const navigate = useNavigate();
 
-  // Mock data thống kê (Sau này thay bằng API)
+  // Mock Stats
   const stats = [
-    { label: "Doanh thu tháng này", value: "12.500.000 ₫", icon: "bi-cash-stack", color: "success", trend: "+15%" },
-    { label: "Booking mới", value: "8", icon: "bi-ticket-perforated", color: "primary", trend: "+2" },
-    { label: "Tour đang chạy", value: "3", icon: "bi-geo-alt", color: "info", trend: "Ổn định" },
-    { label: "Đánh giá trung bình", value: "4.8 ⭐", icon: "bi-star", color: "warning", trend: "Cao" },
+    { label: "Doanh thu tháng", value: "12.500.000 ₫", icon: "bi-wallet2", color: "#10b981", bg: "#d1fae5", trend: "+15% so với tháng trước" },
+    { label: "Đơn hàng mới", value: "8", icon: "bi-ticket-perforated", color: "#3b82f6", bg: "#dbeafe", trend: "+2 hôm nay" },
+    { label: "Tour đang chạy", value: "3", icon: "bi-map", color: "#f59e0b", bg: "#fef3c7", trend: "Hoạt động ổn định" },
+    { label: "Đánh giá", value: "4.8 ⭐", icon: "bi-star-fill", color: "#8b5cf6", bg: "#ede9fe", trend: "Tuyệt vời" },
   ];
 
   const menuItems = [
     {
+      title: "Đăng Tour Mới",
+      icon: "bi-plus-lg",
+      desc: "Tạo sản phẩm du lịch mới để tiếp cận khách hàng.",
+      link: "/partner/tours/create",
+      color: "#ffffff",
+      bg: "#0b5fff" // Primary Action
+    },
+    {
       title: "Quản lý Tour",
-      icon: "bi-map",
-      desc: "Đăng tour mới, cập nhật lịch trình & giá",
+      icon: "bi-list-ul",
+      desc: "Chỉnh sửa, cập nhật giá và lịch trình tour.",
       link: "/partner/tours",
       color: "#0b5fff",
       bg: "#eff6ff"
     },
     {
-      title: "Quản lý Đơn hàng",
+      title: "Đơn hàng Booking",
       icon: "bi-receipt",
-      desc: "Xử lý booking và danh sách khách hàng",
+      desc: "Xử lý đơn đặt chỗ và thông tin khách hàng.",
       link: "/partner/orders",
       color: "#f59e0b",
       bg: "#fffbeb"
     },
     {
-      title: "Ví Doanh Thu",
-      icon: "bi-wallet2",
-      desc: "Lịch sử giao dịch và yêu cầu rút tiền",
+      title: "Ví & Doanh thu",
+      icon: "bi-cash-coin",
+      desc: "Xem lịch sử thu nhập và yêu cầu rút tiền.",
       link: "/partner/wallet",
       color: "#10b981",
       bg: "#ecfdf5"
     },
-    {
-      title: "Hồ sơ & Cài đặt",
-      icon: "bi-gear",
-      desc: "Thông tin doanh nghiệp và liên hệ",
-      link: "/profile",
-      color: "#6b7280",
-      bg: "#f3f4f6"
-    },
   ];
 
   return (
-    <div className="dashboard-wrapper">
-      {/* --- HEADER SECTION --- */}
-      <div className="dashboard-header py-5 mb-4">
+    <div className="partner-dash">
+      {/* HERO SECTION */}
+      <div className="dash-hero">
         <Container>
-          <div className="d-flex justify-content-between align-items-center mb-4">
+          <div className="d-flex justify-content-between align-items-center">
             <div>
-              <h2 className="fw-bolder text-dark mb-1">Xin chào, Đối tác! 👋</h2>
-              <p className="text-muted mb-0">Đây là tổng quan tình hình kinh doanh hôm nay.</p>
+              <h1 className="dash-title">Xin chào, Đối tác! 👋</h1>
+              <div className="dash-subtitle">Chúc bạn một ngày kinh doanh hiệu quả và nhiều booking.</div>
             </div>
-            <Button variant="primary" className="rounded-pill px-4 fw-bold shadow-sm" onClick={() => navigate('/partner/tours/create')}>
-              + Đăng Tour Mới
-            </Button>
+            {/* Optional: Add Date or Quick Notification Bell here */}
           </div>
-
-          {/* Stats Row */}
-          <Row className="g-3">
-            {stats.map((stat, idx) => (
-              <Col md={6} lg={3} key={idx}>
-                <Card className="border-0 shadow-sm rounded-4 h-100 stat-card">
-                  <Card.Body className="d-flex align-items-center p-3">
-                    <div className={`icon-box bg-${stat.color} bg-opacity-10 text-${stat.color} rounded-3 me-3`}>
-                      <i className={`bi ${stat.icon} fs-4`}></i>
-                    </div>
-                    <div>
-                      <p className="text-muted small mb-1 fw-semibold">{stat.label}</p>
-                      <h5 className="fw-bold mb-0 text-dark">{stat.value}</h5>
-                      <small className="text-success fw-bold" style={{fontSize: 11}}>{stat.trend}</small>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            ))}
-          </Row>
         </Container>
       </div>
 
-      {/* --- MENU GRID --- */}
-      <Container className="pb-5">
-        <h5 className="fw-bold mb-3 text-secondary px-2">Truy cập nhanh</h5>
+      <Container>
+        {/* STATS ROW (Overlapping Hero) */}
         <Row className="g-4">
-          {menuItems.map((item, idx) => (
+          {stats.map((item, idx) => (
             <Col md={6} lg={3} key={idx}>
-              <Card
-                className="h-100 border-0 shadow-sm rounded-4 menu-card"
-                onClick={() => navigate(item.link)}
-              >
-                <Card.Body className="p-4 d-flex flex-column align-items-center text-center">
-                  <div 
-                    className="menu-icon mb-3"
-                    style={{ color: item.color, backgroundColor: item.bg }}
-                  >
-                    <i className={`bi ${item.icon}`}></i>
-                  </div>
-                  <h6 className="fw-bold mb-2 text-dark">{item.title}</h6>
-                  <p className="text-muted small mb-0">{item.desc}</p>
-                </Card.Body>
-                <div className="card-footer bg-white border-0 pt-0 pb-4">
-                    <small className="text-primary fw-bold" style={{fontSize: 12}}>Truy cập &rarr;</small>
+              <div className="stat-card">
+                <div className="stat-icon-wrapper" style={{ color: item.color, backgroundColor: item.bg }}>
+                  <i className={`bi ${item.icon}`}></i>
                 </div>
-              </Card>
+                <div className="stat-content">
+                  <div className="stat-label">{item.label}</div>
+                  <h3>{item.value}</h3>
+                  <div className="stat-trend text-success">
+                    <i className="bi bi-graph-up-arrow"></i> {item.trend}
+                  </div>
+                </div>
+              </div>
             </Col>
           ))}
         </Row>
+
+        {/* QUICK MENU */}
+        <div className="menu-grid">
+          {menuItems.map((item, idx) => (
+            <div key={idx} className="menu-card" onClick={() => navigate(item.link)}>
+              <div
+                className="menu-icon-box"
+                style={{
+                  color: item.color,
+                  backgroundColor: item.bg,
+                  boxShadow: idx === 0 ? "0 4px 10px rgba(11, 95, 255, 0.3)" : "none" // Highlight first item
+                }}
+              >
+                <i className={`bi ${item.icon}`}></i>
+              </div>
+              <div className="menu-title">{item.title}</div>
+              <div className="menu-desc">{item.desc}</div>
+            </div>
+          ))}
+        </div>
       </Container>
     </div>
   );

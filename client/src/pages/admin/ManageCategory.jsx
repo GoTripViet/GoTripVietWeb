@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import categoryApi from "../../api/categoryApi";
+import "../../styles/admin/ManageCategory.css";
 
+// --- HELPERS ---
 function normalizeList(res) {
   const a = res?.data ?? res;
   const b = a?.data ?? a;
@@ -13,14 +15,13 @@ function normalizeList(res) {
 
 function normalizeImage(img) {
   if (!img) return { url: "", public_id: "" };
-  if (typeof img === "string") return { url: img, public_id: "" }; // dữ liệu cũ
+  if (typeof img === "string") return { url: img, public_id: "" };
   return {
     url: img?.url || "",
     public_id: img?.public_id || "",
   };
 }
 
-// Map API -> row UI
 function toRow(x) {
   const parentObj =
     typeof x?.parent === "object" && x?.parent !== null ? x.parent : null;
@@ -29,174 +30,36 @@ function toRow(x) {
   return {
     ...x,
     id: x?.id || x?._id,
-    // backend lưu parent là ObjectId, nếu populate thì parent là object
     parentId: parentObj?._id || x?.parent || null,
     parentName: parentObj?.name || "",
-    // slug do backend auto, UI chỉ hiển thị
     slug: x?.slug || "",
     image,
     imageUrl: image.url,
+    status: x?.status || "active", // [NEW] Lấy status
+    created_by: x?.created_by, // [NEW] Lấy người tạo
   };
 }
 
-// Payload gửi lên backend: KHÔNG gửi slug (vì backend auto tạo theo name)
 function toPayload(row) {
   return {
     name: row?.name?.trim(),
     parent: row?.parentId || null,
     description: row?.description || "",
-    image: row?.image || { url: "", public_id: "" }, // ✅ gửi object
+    image: row?.image || { url: "", public_id: "" },
+    status: row?.status, // Giữ nguyên status khi update
   };
 }
 
-const styles = {
-  page: { display: "grid", gap: 12 },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  h1: { fontWeight: 900, fontSize: 22 },
-  sub: { color: "#6b7280", fontSize: 12, lineHeight: 1.5 },
-
-  btn: {
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    background: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  primaryBtn: {
-    borderRadius: 12,
-    border: "1px solid rgba(11,95,255,0.35)",
-    padding: "10px 12px",
-    cursor: "pointer",
-    background: "rgba(11,95,255,0.08)",
-    fontWeight: 900,
-    color: "#0b5fff",
-  },
-  dangerBtn: {
-    borderRadius: 12,
-    border: "1px solid #fecaca",
-    padding: "10px 12px",
-    cursor: "pointer",
-    background: "#fff",
-    fontWeight: 900,
-    color: "#b91c1c",
-  },
-
-  tableWrap: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    textAlign: "left",
-    fontSize: 12,
-    color: "#6b7280",
-    padding: 10,
-    borderBottom: "1px solid #e5e7eb",
-    background: "#fafafa",
-    whiteSpace: "nowrap",
-  },
-  td: { padding: 10, borderBottom: "1px solid #f3f4f6", verticalAlign: "top" },
-
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.35)",
-    display: "grid",
-    placeItems: "center",
-    zIndex: 50,
-  },
-  modal: {
-    width: "min(760px, calc(100vw - 24px))",
-    background: "#fff",
-    borderRadius: 16,
-    border: "1px solid #e5e7eb",
-    overflow: "hidden",
-    maxHeight: "calc(100vh - 24px)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  modalHeader: {
-    padding: 12,
-    borderBottom: "1px solid #e5e7eb",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    background: "linear-gradient(180deg,#fff,#fafafa)",
-    gap: 10,
-  },
-  modalBody: {
-    padding: 12,
-    display: "grid",
-    gap: 10,
-    overflowY: "auto",
-    flex: "1 1 auto",
-  },
-  modalFooter: {
-    padding: 12,
-    borderTop: "1px solid #e5e7eb",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  label: { fontSize: 12, fontWeight: 900, color: "#374151" },
-  input: {
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    outline: "none",
-    width: "100%",
-  },
-  textarea: {
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    outline: "none",
-    width: "100%",
-    minHeight: 90,
-    resize: "vertical",
-    lineHeight: 1.5,
-  },
-  badge: (bg, color) => ({
-    fontSize: 11,
-    padding: "4px 8px",
-    borderRadius: 999,
-    background: bg,
-    color,
-    border: "1px solid rgba(0,0,0,0.06)",
-    fontWeight: 900,
-    display: "inline-block",
-  }),
-  empty: { color: "#9ca3af", fontSize: 12 },
-};
-
+// --- MODAL COMPONENT ---
 function Modal({ open, title, onClose, children }) {
   if (!open) return null;
   return (
-    <div
-      style={styles.overlay}
-      onMouseDown={onClose}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => e.preventDefault()}
-    >
-      <div
-        style={styles.modal}
-        onMouseDown={(e) => e.stopPropagation()}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => e.preventDefault()}
-      >
-        <div style={styles.modalHeader}>
-          <div style={{ fontWeight: 900 }}>{title}</div>
-          <button style={styles.btn} onClick={onClose} type="button">
-            Đóng
+    <div className="cat-modal-overlay" onMouseDown={onClose}>
+      <div className="cat-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="cat-modal-header">
+          <div className="cat-modal-title">{title}</div>
+          <button className="cat-close-btn" onClick={onClose} type="button">
+            ✕
           </button>
         </div>
         {children}
@@ -205,9 +68,15 @@ function Modal({ open, title, onClose, children }) {
   );
 }
 
+// --- MAIN COMPONENT ---
 export default function ManageCategory() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(10);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState(null);
@@ -219,19 +88,41 @@ export default function ManageCategory() {
     parentId: "",
     description: "",
     image: { url: "", public_id: "" },
+    status: "active",
   });
 
-  /// Cloudinary
   const [uploadingImg, setUploadingImg] = useState(false);
   const [localPreview, setLocalPreview] = useState("");
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await categoryApi.getAll();
-      const list = normalizeList(res).map(toRow);
+      const res = await categoryApi.getManage({ page, limit });
+      // 1. Lấy toàn bộ dữ liệu thô
+      let list = normalizeList(res).map(toRow);
 
-      // Map parentName nếu backend KHÔNG populate parent
+      // 2. Sắp xếp: Pending lên đầu
+      list.sort((a, b) => {
+        if (a.status === "pending" && b.status !== "pending") return -1;
+        if (a.status !== "pending" && b.status === "pending") return 1;
+        return 0;
+      });
+
+      // 3. Phân trang Client-side (nếu server trả về cục to)
+      const isServerPaginated = res.totalPages !== undefined;
+
+      if (isServerPaginated) {
+        setTotalPages(res.totalPages);
+      } else {
+        const totalItems = list.length;
+        setTotalPages(Math.ceil(totalItems / limit) || 1);
+
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        list = list.slice(startIndex, endIndex);
+      }
+
+      // 4. Map Parent Name
       const idToName = new Map(list.map((c) => [c.id, c.name]));
       const list2 = list.map((c) => ({
         ...c,
@@ -242,9 +133,6 @@ export default function ManageCategory() {
       setRows(list2);
     } catch (e) {
       console.error(e);
-      alert(
-        e?.response?.data?.message || e?.message || "Không tải được danh mục"
-      );
     } finally {
       setLoading(false);
     }
@@ -252,10 +140,9 @@ export default function ManageCategory() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [page]);
 
   const parentOptions = useMemo(() => {
-    // dropdown chọn danh mục cha
     return rows.map((c) => ({ id: c.id, name: c.name }));
   }, [rows]);
 
@@ -266,6 +153,7 @@ export default function ManageCategory() {
       parentId: "",
       description: "",
       image: { url: "", public_id: "" },
+      status: "active",
     });
     setLocalPreview("");
     setEditOpen(true);
@@ -277,7 +165,8 @@ export default function ManageCategory() {
       name: row?.name || "",
       parentId: row?.parentId || "",
       description: row?.description || "",
-      image: row?.image || { url: "", public_id: "" }, // row.image đã normalize ở toRow
+      image: row?.image || { url: "", public_id: "" },
+      status: row?.status || "active",
     });
     setLocalPreview("");
     setEditOpen(true);
@@ -290,8 +179,6 @@ export default function ManageCategory() {
 
   const save = async () => {
     if (!form.name.trim()) return alert("Vui lòng nhập tên danh mục.");
-
-    // tự chặn chọn parent = chính nó
     if (editing?.id && form.parentId && form.parentId === editing.id) {
       return alert("Danh mục cha không thể là chính nó.");
     }
@@ -313,9 +200,19 @@ export default function ManageCategory() {
       await load();
     } catch (e) {
       console.error(e);
-      alert(
-        e?.response?.data?.message || e?.message || "Lưu danh mục thất bại"
-      );
+      alert(e?.response?.data?.message || e?.message || "Lưu danh mục thất bại");
+    }
+  };
+
+  // [NEW] Logic duyệt danh mục
+  const approve = async (row) => {
+    if (!confirm(`Duyệt danh mục "${row.name}"?`)) return;
+    try {
+      await categoryApi.update(row.id, { status: "active" });
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert(e?.response?.data?.message || e?.message || "Lỗi khi duyệt");
     }
   };
 
@@ -326,9 +223,7 @@ export default function ManageCategory() {
       await load();
     } catch (e) {
       console.error(e);
-      alert(
-        e?.response?.data?.message || e?.message || "Xóa danh mục thất bại"
-      );
+      alert(e?.response?.data?.message || e?.message || "Xóa danh mục thất bại");
     }
   };
 
@@ -342,7 +237,6 @@ export default function ManageCategory() {
     if (!file) return;
     if (!file.type?.startsWith("image/")) return alert("Chỉ nhận file ảnh.");
 
-    // preview ngay cho user
     if (localPreview) URL.revokeObjectURL(localPreview);
     const preview = URL.createObjectURL(file);
     setLocalPreview(preview);
@@ -353,9 +247,9 @@ export default function ManageCategory() {
       fd.append("file", file);
 
       const res = await categoryApi.uploadCategoryImage(fd);
-      // axiosClient unwrap => res = { url, public_id }
-      const url = res?.url;
-      const public_id = res?.public_id || "";
+      const url = res?.url || res?.data?.url;
+      const public_id = res?.public_id || res?.data?.public_id || "";
+
       if (!url) throw new Error("Server không trả về url");
 
       setForm((s) => ({ ...s, image: { url, public_id } }));
@@ -375,157 +269,232 @@ export default function ManageCategory() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
+    <div className="cat-page">
+      {/* HEADER */}
+      <div className="cat-header">
         <div>
-          <div style={styles.h1}>Quản lý danh mục</div>
-          <div style={styles.sub}>
-            * <b>Slug</b> được backend tự tạo từ <b>Tên danh mục</b> (tự động,
-            không cần nhập).
+          <h1 className="cat-title">Quản lý danh mục</h1>
+          <div className="cat-subtitle">
+            Duyệt các yêu cầu tạo danh mục từ Partner và quản lý dữ liệu.
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={load} style={styles.btn} disabled={loading}>
-            {loading ? "Đang tải..." : "↻ Tải lại"}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="cat-btn cat-btn-default" onClick={load} disabled={loading}>
+            {loading ? "..." : "↻ Tải lại"}
           </button>
-          <button onClick={openCreate} style={styles.primaryBtn}>
+          <button className="cat-btn cat-btn-primary" onClick={openCreate}>
             + Thêm danh mục
           </button>
         </div>
       </div>
 
-      {/* BẢNG LIST (không hiển thị image ở đây) */}
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
+      {/* TABLE */}
+      <div className="cat-table-container">
+        <table className="cat-table">
           <thead>
             <tr>
-              <th style={styles.th}>Tên danh mục</th>
-              <th style={styles.th}>Slug</th>
-              <th style={styles.th}>Danh mục cha</th>
-              <th style={styles.th}>Mô tả</th>
-              <th style={styles.th}>Hành động</th>
+              <th>Tên danh mục</th>
+              <th>Slug</th>
+              <th>Danh mục cha</th>
+              <th>Mô tả</th>
+              <th style={{ textAlign: "right" }}>Hành động</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((x) => (
-              <tr key={x.id || x._id}>
-                <td style={styles.td}>
-                  <span style={styles.badge("rgba(11,95,255,0.10)", "#0b5fff")}>
-                    {x.name}
-                  </span>
-                </td>
-                <td style={styles.td}>
-                  {x.slug ? (
-                    <code>{x.slug}</code>
-                  ) : (
-                    <span style={styles.empty}>Tự động</span>
-                  )}
-                </td>
-                <td style={styles.td}>
-                  {x.parentName || <span style={styles.empty}>—</span>}
-                </td>
-                <td style={styles.td}>
-                  {x.description ? (
-                    <span>{x.description}</span>
-                  ) : (
-                    <span style={styles.empty}>—</span>
-                  )}
-                </td>
-                <td
-                  style={{
-                    ...styles.td,
-                    textAlign: "right",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <button style={styles.btn} onClick={() => openDetail(x)}>
-                    Chi tiết
-                  </button>{" "}
-                  <button style={styles.btn} onClick={() => openEdit(x)}>
-                    Chỉnh sửa
-                  </button>{" "}
-                  <button style={styles.dangerBtn} onClick={() => remove(x.id)}>
-                    Xóa
-                  </button>
+            {loading ? (
+              <tr>
+                <td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>
+                  Đang tải dữ liệu...
                 </td>
               </tr>
-            ))}
-            {!loading && rows.length === 0 ? (
+            ) : rows.length === 0 ? (
               <tr>
-                <td style={styles.td} colSpan={5}>
+                <td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>
                   Chưa có danh mục nào.
                 </td>
               </tr>
-            ) : null}
+            ) : (
+              rows.map((x) => {
+                const isPending = x.status === "pending";
+                return (
+                  <tr key={x.id || x._id} className={isPending ? "cat-tr-pending" : ""}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{x.name}</div>
+                      {isPending && (
+                        <span className="cat-badge" style={{ backgroundColor: "#f59e0b", color: "#fff", fontSize: 11, padding: "2px 6px", borderRadius: 4 }}>
+                          ⏳ Chờ duyệt
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {x.slug ? <code className="cat-code">{x.slug}</code> : <span className="text-muted">Tự động</span>}
+                    </td>
+                    <td>{x.parentName || <span className="text-muted">—</span>}</td>
+                    <td>
+                      {x.description ? (
+                        <span style={{ color: "#4b5563" }}>{x.description}</span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+
+                        {/* [NEW] Nút Duyệt */}
+                        {isPending && (
+                          <button
+                            className="cat-btn cat-btn-success"
+                            style={{ backgroundColor: "#10b981", color: "white", borderColor: "#10b981", padding: '6px 12px' }}
+                            onClick={() => approve(x)}
+                            title="Duyệt ngay"
+                          >
+                            ✓ Duyệt
+                          </button>
+                        )}
+
+                        <button
+                          className="cat-btn cat-btn-default"
+                          onClick={() => openDetail(x)}
+                          title="Chi tiết"
+                          style={{ padding: '6px 12px' }}
+                        >
+                          👁️
+                        </button>
+                        <button
+                          className="cat-btn cat-btn-default"
+                          onClick={() => openEdit(x)}
+                          title="Sửa"
+                          style={{ padding: '6px 12px' }}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="cat-btn cat-btn-danger"
+                          onClick={() => remove(x.id)}
+                          title="Xóa"
+                          style={{ padding: '6px 12px' }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* MODAL CHI TIẾT (hiển thị image ở đây) */}
-      <Modal
-        open={detailOpen}
-        title="Chi tiết danh mục"
-        onClose={() => setDetailOpen(false)}
-      >
-        <div style={styles.modalBody}>
-          <div style={styles.row2}>
+      {/* PAGINATION CONTROLS */}
+      {!loading && (rows.length > 0 || totalPages > 1) && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+          <span style={{ fontSize: 14, color: "#6b7280", marginRight: 12 }}>
+            Trang <b>{page}</b> / {totalPages}
+          </span>
+          <button
+            className="cat-btn cat-btn-default"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+            style={{ width: 36, height: 36, padding: 0 }}
+          >
+            &lt;
+          </button>
+
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pNum = i + 1;
+            if (totalPages > 5) {
+              if (page > 3) pNum = page - 2 + i;
+              if (pNum > totalPages) pNum = totalPages - 4 + i;
+            }
+            if (pNum > totalPages || pNum < 1) return null;
+            return (
+              <button
+                key={pNum}
+                className={`cat-btn ${page === pNum ? "cat-btn-primary" : "cat-btn-default"}`}
+                onClick={() => setPage(pNum)}
+                style={{ width: 36, height: 36, padding: 0 }}
+              >
+                {pNum}
+              </button>
+            );
+          })}
+
+          <button
+            className="cat-btn cat-btn-default"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+            style={{ width: 36, height: 36, padding: 0 }}
+          >
+            &gt;
+          </button>
+        </div>
+      )}
+
+      {/* MODAL CHI TIẾT */}
+      <Modal open={detailOpen} title="Chi tiết danh mục" onClose={() => setDetailOpen(false)}>
+        <div className="cat-modal-body">
+          <div className="cat-detail-row">
             <div>
-              <div style={styles.label}>Tên danh mục</div>
-              <div style={styles.value}>{detailRow?.name || "—"}</div>
+              <div className="cat-label">Tên danh mục</div>
+              <div className="cat-detail-value">
+                {detailRow?.name}
+                {detailRow?.status === 'pending' && <span style={{ color: 'orange', marginLeft: 8 }}>(Chờ duyệt)</span>}
+              </div>
             </div>
             <div>
-              <div style={styles.label}>Slug</div>
-              <div style={styles.value}>{detailRow?.slug || "—"}</div>
+              <div className="cat-label">Slug</div>
+              <div className="cat-detail-value">
+                {detailRow?.slug ? <code className="cat-code">{detailRow.slug}</code> : "—"}
+              </div>
             </div>
           </div>
-
-          <div style={styles.row2}>
+          <div className="cat-detail-row">
             <div>
-              <div style={styles.label}>Danh mục cha</div>
-              <div style={styles.value}>{detailRow?.parentName || "—"}</div>
+              <div className="cat-label">Danh mục cha</div>
+              <div className="cat-detail-value">{detailRow?.parentName || "—"}</div>
             </div>
             <div>
-              <div style={styles.label}>Ảnh</div>
-              <div style={styles.value}>
+              <div className="cat-label">Ảnh</div>
+              <div className="cat-detail-value">
                 {detailRow?.image?.url ? (
-                  <div style={{ display: "grid", gap: 8 }}>
-                    <div>
-                      <code>{detailRow.image.url}</code>
-                    </div>
-                    <img
-                      src={detailRow.image.url}
-                      alt="category"
-                      style={{
-                        width: "100%",
-                        maxHeight: "60vh",
-                        objectFit: "contain",
-                        borderRadius: 12,
-                        border: "1px solid #e5e7eb",
-                        display: "block",
-                      }}
-                      onError={(e) => (e.currentTarget.style.display = "none")}
-                    />
-                  </div>
+                  <img
+                    src={detailRow.image.url}
+                    alt="category"
+                    className="cat-preview-img"
+                    style={{ marginTop: 0 }}
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
                 ) : (
                   "—"
                 )}
               </div>
             </div>
           </div>
-
           <div>
-            <div style={styles.label}>Mô tả</div>
-            <div style={styles.value}>{detailRow?.description || "—"}</div>
+            <div className="cat-label">Mô tả</div>
+            <div className="cat-detail-value">{detailRow?.description || "—"}</div>
           </div>
         </div>
-
-        <div style={styles.modalFooter}>
-          <button style={styles.btn} onClick={() => setDetailOpen(false)}>
+        <div className="cat-modal-footer">
+          <button className="cat-btn cat-btn-default" onClick={() => setDetailOpen(false)}>
             Đóng
           </button>
+          {detailRow?.status === 'pending' && (
+            <button
+              className="cat-btn cat-btn-success"
+              style={{ backgroundColor: "#10b981", color: "white", borderColor: "#10b981" }}
+              onClick={() => {
+                setDetailOpen(false);
+                approve(detailRow);
+              }}
+            >
+              Duyệt ngay
+            </button>
+          )}
           <button
-            style={styles.primaryBtn}
+            className="cat-btn cat-btn-primary"
             onClick={() => {
               setDetailOpen(false);
               openEdit(detailRow);
@@ -542,32 +511,40 @@ export default function ManageCategory() {
         title={editing ? "Chỉnh sửa danh mục" : "Thêm danh mục"}
         onClose={() => setEditOpen(false)}
       >
-        <div style={styles.modalBody}>
-          <div>
-            <div style={styles.label}>Tên danh mục</div>
+        <div className="cat-modal-body">
+          <div className="cat-form-group">
+            <label className="cat-label">Tên danh mục</label>
             <input
-              style={styles.input}
+              className="cat-input"
               value={form.name}
               onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
               placeholder="VD: Tour Biển"
             />
-            <div style={styles.sub}>
-              Slug sẽ tự tạo từ tên danh mục khi lưu.
-            </div>
           </div>
 
-          <div>
-            <div style={styles.label}>Danh mục cha</div>
+          <div className="cat-form-group">
+            <label className="cat-label">Trạng thái</label>
             <select
-              style={styles.input}
+              className="cat-select"
+              value={form.status}
+              onChange={(e) => setForm(s => ({ ...s, status: e.target.value }))}
+            >
+              <option value="active">Active (Hoạt động)</option>
+              <option value="pending">Pending (Chờ duyệt)</option>
+              <option value="rejected">Rejected (Từ chối)</option>
+            </select>
+          </div>
+
+          <div className="cat-form-group">
+            <label className="cat-label">Danh mục cha</label>
+            <select
+              className="cat-select"
               value={form.parentId || ""}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, parentId: e.target.value }))
-              }
+              onChange={(e) => setForm((s) => ({ ...s, parentId: e.target.value }))}
             >
               <option value="">— Không có (cấp 1) —</option>
               {parentOptions
-                .filter((p) => !editing || p.id !== editing.id) // không cho chọn chính nó
+                .filter((p) => !editing || p.id !== editing.id)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -576,49 +553,26 @@ export default function ManageCategory() {
             </select>
           </div>
 
-          <div>
-            <div style={styles.label}>Mô tả</div>
+          <div className="cat-form-group">
+            <label className="cat-label">Mô tả</label>
             <textarea
-              style={styles.textarea}
+              className="cat-textarea"
               value={form.description}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, description: e.target.value }))
-              }
+              onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))}
               placeholder="Mô tả ngắn cho danh mục..."
             />
           </div>
 
-          <div>
-            <div style={styles.label}>Ảnh</div>
-            {/* 2) khu vực kéo/thả */}
+          <div className="cat-form-group">
+            <label className="cat-label">Ảnh</label>
             <div
+              className="cat-upload-area"
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDropImage}
-              style={{
-                marginTop: 10,
-                border: "2px dashed #e5e7eb",
-                borderRadius: 12,
-                padding: 12,
-                display: "grid",
-                gap: 10,
-                background: "#fafafa",
-              }}
             >
-              <div style={{ fontWeight: 900 }}>
-                Kéo & thả ảnh vào đây, hoặc bấm chọn file
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <label
-                  style={{ ...styles.primaryBtn, display: "inline-block" }}
-                >
+              <div className="cat-upload-text">Kéo & thả ảnh vào đây, hoặc bấm nút bên dưới</div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <label className="cat-btn cat-btn-primary">
                   {uploadingImg ? "Đang upload..." : "Chọn ảnh từ máy"}
                   <input
                     type="file"
@@ -628,57 +582,38 @@ export default function ManageCategory() {
                     disabled={uploadingImg}
                   />
                 </label>
-
-                <span style={styles.sub}>
-                  {uploadingImg
-                    ? "Vui lòng chờ upload xong..."
-                    : "Tối đa 5MB, định dạng ảnh"}
-                </span>
+                {form.image?.url && (
+                  <button
+                    type="button"
+                    className="cat-btn cat-btn-danger"
+                    onClick={() => {
+                      setForm((s) => ({ ...s, image: { url: "", public_id: "" } }));
+                      setLocalPreview("");
+                    }}
+                    disabled={uploadingImg}
+                  >
+                    Xóa ảnh
+                  </button>
+                )}
               </div>
-
-              {/* 3) preview */}
               {(localPreview || form.image?.url) && (
                 <img
                   src={localPreview || form.image.url}
                   alt="preview"
-                  style={{
-                    width: "100%",
-                    maxHeight: "40vh",
-                    objectFit: "contain",
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
-                  }}
+                  className="cat-preview-img"
                   onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               )}
-              {form.image?.url ? (
-                <button
-                  type="button"
-                  style={styles.dangerBtn}
-                  onClick={() => {
-                    // chỉ xóa trong form; bấm Lưu => backend sẽ destroy ảnh cũ theo public_id
-                    setForm((s) => ({
-                      ...s,
-                      image: { url: "", public_id: "" },
-                    }));
-                    setLocalPreview("");
-                  }}
-                  disabled={uploadingImg}
-                >
-                  Xóa ảnh
-                </button>
-              ) : null}
             </div>
           </div>
         </div>
 
-        <div style={styles.modalFooter}>
-          <button style={styles.btn} onClick={() => setEditOpen(false)}>
+        <div className="cat-modal-footer">
+          <button className="cat-btn cat-btn-default" onClick={() => setEditOpen(false)}>
             Hủy
           </button>
-          <button style={styles.primaryBtn} onClick={save}>
-            Lưu
+          <button className="cat-btn cat-btn-primary" onClick={save}>
+            {editing ? "Lưu thay đổi" : "Tạo danh mục"}
           </button>
         </div>
       </Modal>

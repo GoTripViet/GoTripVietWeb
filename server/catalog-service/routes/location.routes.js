@@ -5,26 +5,31 @@ const locationController = require('../controllers/location.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 const checkRole = require('../middleware/checkRole.middleware');
 
-// --- Partner Routes (THÊM MỚI) ---
-// POST /locations/request
-// Route này cho phép Partner (hoặc Admin) gửi yêu cầu tạo địa điểm mới
-// Lưu ý: Đặt route này trước các route có tham số (/:id...) để tránh xung đột
+// --- Partner Routes ---
 router.post(
   '/request',
   authMiddleware,
-  checkRole(['partner', 'admin']), // Cho phép Partner và Admin
+  checkRole(['partner', 'admin']),
   locationController.requestLocation
 );
 
+// --- [MỚI] MANAGEMENT ROUTE (Dành cho Admin & Partner xem danh sách đầy đủ) ---
+// Route này PHẢI đặt trước router.get('/', ...)
+router.get(
+  '/manage',
+  authMiddleware,
+  checkRole(['admin', 'partner']),
+  locationController.getAllLocations // Controller sẽ tự check req.user để trả về dữ liệu đúng
+);
+
 // --- Public Routes ---
-// GET /locations
+// GET /locations (Dành cho khách vãng lai - Chỉ thấy Active)
 router.get('/', locationController.getAllLocations);
 
-// GET /locations/da-nang (slug) HOẶC /locations/672f... (id)
+// GET /locations/:idOrSlug
 router.get('/:idOrSlug', locationController.getLocationByIdOrSlug);
 
 // --- Admin Routes ---
-// POST /locations (Admin tạo trực tiếp - status active luôn)
 router.post(
   '/',
   authMiddleware,
@@ -32,7 +37,6 @@ router.post(
   locationController.createLocation
 );
 
-// PUT /locations/:id
 router.put(
   '/:id',
   authMiddleware,
@@ -40,7 +44,6 @@ router.put(
   locationController.updateLocation
 );
 
-// DELETE /locations/:id
 router.delete(
   '/:id',
   authMiddleware,

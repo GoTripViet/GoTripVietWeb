@@ -1,5 +1,17 @@
 const locationService = require("../services/location.service");
 const Location = require("../models/location.model");
+
+// Hàm hỗ trợ tạo slug đơn giản (nếu model chưa có plugin tự động)
+const createSlug = (text) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-") // Replace spaces with -
+    .replace(/[^\w\-]+/g, "") // Remove all non-word chars
+    .replace(/\-\-+/g, "-"); // Replace multiple - with single -
+};
+
 class LocationController {
   async createLocation(req, res) {
     try {
@@ -10,13 +22,18 @@ class LocationController {
     }
   }
 
-  // [NEW] Request a new location (for Partners)
+  // [CẬP NHẬT] Request a new location (Full info)
   async requestLocation(req, res) {
     try {
-      const { name } = req.body;
-      const userId = req.user?._id || req.user?.id; // Assumes Auth Middleware adds req.user
+      // 1. Nhận đầy đủ dữ liệu từ Partner
+      const { name, description, country, image } = req.body;
+      const userId = req.user?._id || req.user?.id;
 
-      // 1. Check for duplicates (Case insensitive)
+      if (!name) {
+        return res.status(400).json({ message: "Tên địa điểm là bắt buộc." });
+      }
+
+      // 2. Check trùng tên
       const existing = await Location.findOne({
         name: { $regex: new RegExp(`^${name.trim()}$`, "i") },
       });
@@ -27,44 +44,51 @@ class LocationController {
           .json({ message: "Địa điểm này đã tồn tại trên hệ thống." });
       }
 
-      // 2. Create with 'pending' status
+      // 3. Tạo slug (tạm thời làm thủ công nếu model không tự handle)
+      const slug = createSlug(name);
+
+      // 4. Tạo location với đầy đủ thông tin và status 'pending'
       const newLocation = await Location.create({
         name: name.trim(),
+        slug: slug,
+        description: description || "",
+        country: country || "",
+        image: image || "", // URL ảnh từ Cloudinary
         status: "pending",
         created_by: userId,
       });
 
       res.status(201).json(newLocation);
     } catch (error) {
+      console.error("Request Location Error:", error);
       res.status(500).json({ message: error.message });
     }
   }
 
-  // [UPDATED] Get All - Filter logic for Partners
   async getAllLocations(req, res) {
     try {
-      // If query_mode is 'partner', we get Active + Pending (owned by user)
-      // Otherwise (default), we might just get Active (or all if admin)
-      const { query_mode } = req.query;
       const userId = req.user?._id || req.user?.id;
+      const userRoles = req.user?.roles || [];
+      const isAdmin = userRoles.includes('admin');
+      const isPartner = userRoles.includes('partner');
 
-      let filter = {};
+      let filter = { status: 'active' }; // Mặc định cho khách
 
-      if (query_mode === "partner" && userId) {
-        filter = {
-          $or: [
-            { status: "active" }, // Public locations
-            { status: "pending", created_by: userId }, // My pending requests
-          ],
-        };
-        const locations = await Location.find(filter).sort({ name: 1 });
-        return res.status(200).json(locations);
+      if (userId) {
+        if (isAdmin) {
+          filter = {}; // Admin xem hết
+        } else if (isPartner) {
+          // Partner xem active + của mình (pending/rejected)
+          filter = {
+            $or: [
+              { status: 'active' },
+              { created_by: userId }
+            ]
+          };
+        }
       }
 
-      // Default behavior (fetch all active)
-      const locations = await locationService.getAllLocations({
-        status: "active",
-      });
+      const locations = await Location.find(filter).sort({ createdAt: -1 });
       res.status(200).json(locations);
     } catch (error) {
       res.status(500).json({ message: error.message });
