@@ -18,6 +18,71 @@ const formatDDMM = (day, month) => {
   return `${dd}/${mm}`;
 };
 
+const formatDuration = (days) => {
+  if (!days || days <= 1) return "Trong ngày";
+  return `${days}N${days - 1}Đ`;
+};
+
+const formatShortDate = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}`;
+};
+
+const normalizeImageUrl = (p) => {
+  const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+  const rawImg =
+    Array.isArray(p?.images) && p.images.length > 0 ? p.images[0] : null;
+  const rawUrl =
+    typeof rawImg === "string"
+      ? rawImg
+      : typeof rawImg?.url === "string"
+      ? rawImg.url
+      : "";
+
+  let validImage = "";
+  if (rawUrl) {
+    validImage = rawUrl.startsWith("http")
+      ? rawUrl
+      : `${base}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+  }
+
+  return validImage || "https://placehold.co/400x300?text=Tour+Image";
+};
+
+const mapTourLikeSearchPage = (p) => {
+  const tDetails = p?.tour_details || {};
+
+  const fakeCode = p?._id
+    ? `TOUR-${String(p._id).slice(-4).toUpperCase()}`
+    : "TOUR-CODE";
+
+  const rawDates = Array.isArray(tDetails.departure_times)
+    ? [...tDetails.departure_times]
+    : [];
+  rawDates.sort((a, b) => new Date(a) - new Date(b));
+
+  const departureDates = rawDates.slice(0, 3).map((d) => formatShortDate(d));
+
+  return {
+    id: p._id,
+    title: p.title,
+    imageUrl: normalizeImageUrl(p),
+
+    price: p.base_price,
+    originalPrice: p.base_price ? p.base_price * 1.15 : undefined,
+
+    tourCode: fakeCode,
+    startPoint: tDetails.start_point || "—",
+    duration: formatDuration(tDetails.duration_days),
+    transport: tDetails.transport_type || "—",
+    departureDates,
+  };
+};
+
 const formatDiscount = (type, value) => {
   if (!type) return "—";
   if (type === "percentage") return `${Number(value || 0)}%`;
@@ -30,33 +95,6 @@ const discountTypeLabel = (type) => {
   if (type === "percentage") return "Giảm theo %";
   if (type === "fixed_amount") return "Giảm thẳng";
   return "Giảm giá";
-};
-
-const pickImageUrl = (tour) => {
-  // tour.images[0].url (theo data bạn từng gửi) hoặc tour.image / thumbnail
-  return (
-    tour?.images?.[0]?.url ||
-    tour?.image?.url ||
-    tour?.thumbnail ||
-    tour?.cover ||
-    ""
-  );
-};
-
-const mapTourToBigCardProps = (tour) => {
-  // BigCard tolerant: thiếu field vẫn render ok
-  return {
-    id: tour?._id || tour?.id,
-    imageUrl: pickImageUrl(tour),
-    title: tour?.title || tour?.name || "Tour",
-    tourCode: tour?.tour_code || tour?.code || tour?.sku || "N/A",
-    startPoint: tour?.start_point || tour?.startPoint || tour?.from || "—",
-    duration: tour?.duration || tour?.tour_details?.duration || "—",
-    departureDates: tour?.departure_dates || tour?.departureDates || [],
-    transport: tour?.transport || tour?.tour_details?.transport || "—",
-    transportIcon:
-      tour?.transport_icon || tour?.transportIcon || "bi-bus-front",
-  };
 };
 
 export default function EventDetail() {
@@ -98,14 +136,22 @@ export default function EventDetail() {
         // 2) Lấy tours áp dụng từ inventory-service
         const toursRes = await inventoryApi.getPublicEventTours(id);
         const data = toursRes.data;
+
         const list = Array.isArray(data)
           ? data
+          : Array.isArray(data?.products)
+          ? data.products
           : Array.isArray(data?.tours)
           ? data.tours
           : Array.isArray(data?.items)
           ? data.items
+          : Array.isArray(data?.data)
+          ? data.data
           : [];
-        setTours(list);
+
+        const mappedList = list.map((p) => mapTourLikeSearchPage(p));
+        if (!alive) return;
+        setTours(mappedList);
       } catch (err) {
         if (!alive) return;
         setError("Không tải được Event. Vui lòng thử lại.");
@@ -249,17 +295,14 @@ export default function EventDetail() {
           </Alert>
         ) : (
           <Row className="g-3">
-            {tours.map((tour) => {
-              const props = mapTourToBigCardProps(tour);
-              return (
-                <Col key={props.id || props.title} xs={12} md={6} lg={4}>
-                  <BigCard
-                    {...props}
-                    onClick={() => navigate(`/product/${props.id}`)}
-                  />
-                </Col>
-              );
-            })}
+            {tours.map((item) => (
+              <Col key={item.id || item.title} xs={12} md={6} lg={4}>
+                <BigCard
+                  {...item}
+                  onClick={() => navigate(`/product/${item.id}`)}
+                />
+              </Col>
+            ))}
           </Row>
         )}
       </div>

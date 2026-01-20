@@ -1,8 +1,8 @@
-import axios from 'axios';
+import axios from "axios";
 
 // Cấu hình axios riêng cho Inventory Service (Port 3003)
 const inventoryClient = axios.create({
-  baseURL: 'http://localhost:3003',
+  baseURL: "http://localhost:3003",
   headers: {
     "Content-Type": "application/json",
   },
@@ -10,7 +10,7 @@ const inventoryClient = axios.create({
 
 // Interceptor: Tự động gắn Token vào Header để qua được Auth Middleware
 inventoryClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token'); 
+  const token = localStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -18,7 +18,6 @@ inventoryClient.interceptors.request.use((config) => {
 });
 
 const inventoryApi = {
-
   // 1. Tên hàm mới (Dùng cho Admin)
   getByProductId: (productId) => {
     return inventoryClient.get(`/inventory/product/${productId}`);
@@ -65,6 +64,10 @@ const inventoryApi = {
     return inventoryClient.get(`/events/public/month`, {
       params: { year, month },
     });
+  },
+
+  getActivePromotionsPublic: () => {
+    return inventoryClient.get("/promotions/public/active");
   },
 };
 
