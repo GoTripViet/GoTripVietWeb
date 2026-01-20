@@ -1,5 +1,8 @@
 const Booking = require("../models/booking.model");
-const { sendPaymentSuccessEmail } = require("../utils/mailer");
+const {
+  sendPaymentSuccessEmail,
+  sendPaidCancellationEmail,
+} = require("../utils/mailer");
 const axios = require("axios");
 
 // Get URLs from .env
@@ -56,7 +59,7 @@ class BookingService {
       throw new Error(
         `Inventory check failed: ${
           error.response?.data?.message || error.message
-        }`
+        }`,
       );
     }
 
@@ -68,13 +71,13 @@ class BookingService {
     if (promotionCode) {
       try {
         const promoRes = await axios.get(
-          `${INVENTORY_URL}/promotions/code/${promotionCode}`
+          `${INVENTORY_URL}/promotions/code/${promotionCode}`,
         );
         const promotion = promoRes.data;
 
         if (promotion.rules && promotion.rules.min_spend > totalPrice) {
           throw new Error(
-            `Min spend for code ${promotionCode} is ${promotion.rules.min_spend}`
+            `Min spend for code ${promotionCode} is ${promotion.rules.min_spend}`,
           );
         }
 
@@ -94,7 +97,7 @@ class BookingService {
         throw new Error(
           `Invalid promotion code: ${
             error.response?.data?.message || error.message
-          }`
+          }`,
         );
       }
     }
@@ -103,7 +106,7 @@ class BookingService {
     const mainItem = items[0];
     const startDate = new Date(mainItem.startDate || Date.now());
     const durationDays = parseInt(
-      mainItem.duration || mainItem.snapshot?.duration_days || 1
+      mainItem.duration || mainItem.snapshot?.duration_days || 1,
     );
 
     const endDate = new Date(startDate);
@@ -194,7 +197,7 @@ class BookingService {
       throw new Error(
         `Inventory reservation failed: ${
           error.response?.data?.message || error.message
-        }`
+        }`,
       );
     }
 
@@ -211,7 +214,7 @@ class BookingService {
 
     await booking.save();
     console.log(
-      `✅ Booking ${booking._id} confirmed & paid. Revenue held in escrow.`
+      `✅ Booking ${booking._id} confirmed & paid. Revenue held in escrow.`,
     );
     // Gửi email sau khi đã confirmed
     const toEmail = booking.customer_details?.email;
@@ -223,7 +226,7 @@ class BookingService {
           booking,
           paymentInfo,
         }).catch((err) =>
-          console.error("Send payment email failed:", err.message)
+          console.error("Send payment email failed:", err.message),
         );
       });
     }
@@ -249,20 +252,26 @@ class BookingService {
     if (originalStatus === "cancelled")
       throw new Error("Booking is already cancelled");
 
+    // chỉ để check "Thanh toán"
+    const wasPaid = booking.payment_status === "paid";
+
     if (originalStatus === "pending") {
       booking.status = "cancelled";
       await booking.save();
+
+      // (tuỳ bạn) pending/unpaid có gửi mail hay không
       return booking;
     }
 
     if (originalStatus === "confirmed") {
-      // Release Stock
+      // Release Stock (giữ nguyên)
       const releaseRequest = {
         items: booking.items.map((item) => ({
           inventoryId: item.inventory_id.toString(),
           quantity: item.quantity,
         })),
       };
+
       try {
         await axios.post(`${INVENTORY_URL}/inventory/release`, releaseRequest, {
           headers: { Authorization: authToken },
@@ -271,21 +280,52 @@ class BookingService {
         console.error(`Stock release failed: ${error.message}`);
       }
 
-      // Refund Money
+      // Refund Money (không block hủy nếu refund lỗi)
+      let refundRequestOk = false;
+
       try {
         await axios.post(
           `${PAYMENT_URL}/payment/refund`,
-          { bookingId: booking._id },
-          { headers: { "x-api-key": API_KEY } }
+          { bookingId: booking._id.toString() },
+          { headers: { "x-api-key": API_KEY } },
         );
+        refundRequestOk = true;
       } catch (error) {
-        throw new Error(`Refund failed: ${error.message}`);
+        // log chi tiết để debug payment-service
+        const detail =
+          error.response?.data?.message ||
+          (typeof error.response?.data === "string"
+            ? error.response.data
+            : JSON.stringify(error.response?.data || {}));
+
+        console.error(
+          "Refund request failed:",
+          error.response?.status,
+          detail || error.message,
+        );
+
+        // ❗ không throw nữa -> vẫn cho hủy & gửi mail
       }
 
+      // luôn cancel
       booking.status = "cancelled";
       await booking.save();
+
+      // gửi mail nếu đã paid (dù refundRequestOk true/false thì mail vẫn nói “sau ít phút”)
+      const toEmail = booking.customer_details?.email;
+      if (wasPaid && toEmail) {
+        setImmediate(() => {
+          sendPaidCancellationEmail({ to: toEmail, booking }).catch((err) =>
+            console.error("Send cancellation email failed:", err.message),
+          );
+        });
+      }
+
       return booking;
     }
+
+    // ✅ tránh return undefined
+    throw new Error(`Cannot cancel booking when status is ${originalStatus}`);
   }
 
   async getAllBookings(queryParams) {
@@ -313,7 +353,7 @@ class BookingService {
         `${CATALOG_URL}/products/partner/me?limit=200`,
         {
           headers: { Authorization: userToken },
-        }
+        },
       );
       const data = catalogRes.data;
       const myProducts = Array.isArray(data) ? data : data.data || [];

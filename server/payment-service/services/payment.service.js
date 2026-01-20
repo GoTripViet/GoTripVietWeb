@@ -1,18 +1,17 @@
 // services/payment.service.js
-const Payment = require('../models/payment.model');
-const Transaction = require('../models/transaction.model');
-const axios = require('axios');
-const moment = require('moment');
-const qs = require('qs');
-const crypto = require('crypto');
+const Payment = require("../models/payment.model");
+const Transaction = require("../models/transaction.model");
+const axios = require("axios");
+const moment = require("moment");
+const qs = require("qs");
+const crypto = require("crypto");
 
 // Environment Variables
-const BOOKING_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3004';
-const USER_URL = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+const BOOKING_URL = process.env.BOOKING_SERVICE_URL || "http://localhost:3004";
+const USER_URL = process.env.USER_SERVICE_URL || "http://localhost:3001";
 const API_KEY = process.env.INTERNAL_API_KEY;
 
 class PaymentService {
-
   // ==========================================
   // 1. REVENUE & WALLET LOGIC
   // ==========================================
@@ -32,19 +31,19 @@ class PaymentService {
     await Transaction.create({
       partner_id: partnerId,
       booking_id: bookingId,
-      type: 'INCOME',
+      type: "INCOME",
       amount: amount,
-      description: description || 'Revenue for completed tour',
-      status: 'COMPLETED'
+      description: description || "Revenue for completed tour",
+      status: "COMPLETED",
     });
 
     await Transaction.create({
       partner_id: partnerId,
       booking_id: bookingId,
-      type: 'COMMISSION',
+      type: "COMMISSION",
       amount: -commissionAmount, // Negative amount
       description: `Platform fee 15% for booking ${bookingId}`,
-      status: 'COMPLETED'
+      status: "COMPLETED",
     });
 
     // B. Call User Service to Update Balance (API Call instead of DB)
@@ -52,7 +51,7 @@ class PaymentService {
       await axios.post(
         `${USER_URL}/users/internal/wallet/update`,
         { userId: partnerId, amount: partnerReceived },
-        { headers: { 'x-api-key': API_KEY } }
+        { headers: { "x-api-key": API_KEY } },
       );
     } catch (error) {
       console.error("Failed to update User Wallet via API:", error.message);
@@ -61,7 +60,7 @@ class PaymentService {
     }
 
     console.log(`💰 Revenue Distributed: Partner +${partnerReceived}`);
-    return { message: 'Success', partnerReceived, commissionAmount };
+    return { message: "Success", partnerReceived, commissionAmount };
   }
 
   /**
@@ -74,12 +73,11 @@ class PaymentService {
     try {
       // [FIX] Sửa '/users/profile' thành '/users/' + partnerId
       const userRes = await axios.get(`${USER_URL}/users/${partnerId}`, {
-        headers: { Authorization: userToken }
+        headers: { Authorization: userToken },
       });
 
       // Lấy field wallet_balance từ kết quả trả về
       balance = userRes.data.wallet_balance || 0;
-
     } catch (error) {
       console.warn("Could not fetch balance from User Service:", error.message);
       // Nếu lỗi, balance mặc định là 0 để không chết trang web
@@ -101,7 +99,7 @@ class PaymentService {
     let currentBalance = 0;
     try {
       const userRes = await axios.get(`${USER_URL}/users/profile`, {
-        headers: { Authorization: userToken }
+        headers: { Authorization: userToken },
       });
       currentBalance = userRes.data.wallet_balance || 0;
     } catch (error) {
@@ -115,10 +113,10 @@ class PaymentService {
     // 2. Create Transaction
     const tx = new Transaction({
       partner_id: partnerId,
-      type: 'WITHDRAWAL',
+      type: "WITHDRAWAL",
       amount: -amount,
       description: `Withdrawal to ${bankInfo.bankName} - ${bankInfo.accountNumber}`,
-      status: 'PENDING'
+      status: "PENDING",
     });
     await tx.save();
 
@@ -126,28 +124,28 @@ class PaymentService {
     await axios.post(
       `${USER_URL}/users/internal/wallet/update`,
       { userId: partnerId, amount: -amount }, // Negative amount to deduct
-      { headers: { 'x-api-key': API_KEY } }
+      { headers: { "x-api-key": API_KEY } },
     );
 
     return { message: "Withdrawal request submitted!", transaction: tx };
   }
-
 
   // ==========================================
   // 2. VNPAY LOGIC
   // ==========================================
 
   createVNPayUrl(req, bookingId, amount, bankCode) {
-    process.env.TZ = 'Asia/Ho_Chi_Minh';
+    process.env.TZ = "Asia/Ho_Chi_Minh";
     const date = new Date();
-    const createDate = moment(date).format('YYYYMMDDHHmmss');
+    const createDate = moment(date).format("YYYYMMDDHHmmss");
 
-    let ipAddr = req.headers['x-forwarded-for'] ||
+    let ipAddr =
+      req.headers["x-forwarded-for"] ||
       req.connection.remoteAddress ||
       req.socket.remoteAddress ||
       req.connection.socket.remoteAddress;
 
-    if (ipAddr === '::1') ipAddr = '127.0.0.1';
+    if (ipAddr === "::1") ipAddr = "127.0.0.1";
 
     const tmnCode = process.env.VNP_TMN_CODE;
     const secretKey = process.env.VNP_HASH_SECRET;
@@ -155,31 +153,31 @@ class PaymentService {
     const returnUrl = process.env.VNP_RETURN_URL;
 
     let vnp_Params = {};
-    vnp_Params['vnp_Version'] = '2.1.0';
-    vnp_Params['vnp_Command'] = 'pay';
-    vnp_Params['vnp_TmnCode'] = tmnCode;
-    vnp_Params['vnp_Locale'] = 'vn';
-    vnp_Params['vnp_CurrCode'] = 'VND';
-    vnp_Params['vnp_TxnRef'] = bookingId;
-    vnp_Params['vnp_OrderInfo'] = 'Thanh toan don hang:' + bookingId;
-    vnp_Params['vnp_OrderType'] = 'other';
-    vnp_Params['vnp_Amount'] = amount * 100;
-    vnp_Params['vnp_ReturnUrl'] = returnUrl;
-    vnp_Params['vnp_IpAddr'] = ipAddr;
-    vnp_Params['vnp_CreateDate'] = createDate;
+    vnp_Params["vnp_Version"] = "2.1.0";
+    vnp_Params["vnp_Command"] = "pay";
+    vnp_Params["vnp_TmnCode"] = tmnCode;
+    vnp_Params["vnp_Locale"] = "vn";
+    vnp_Params["vnp_CurrCode"] = "VND";
+    vnp_Params["vnp_TxnRef"] = bookingId;
+    vnp_Params["vnp_OrderInfo"] = "Thanh toan don hang:" + bookingId;
+    vnp_Params["vnp_OrderType"] = "other";
+    vnp_Params["vnp_Amount"] = amount * 100;
+    vnp_Params["vnp_ReturnUrl"] = returnUrl;
+    vnp_Params["vnp_IpAddr"] = ipAddr;
+    vnp_Params["vnp_CreateDate"] = createDate;
 
     if (bankCode) {
-      vnp_Params['vnp_BankCode'] = bankCode;
+      vnp_Params["vnp_BankCode"] = bankCode;
     }
 
     vnp_Params = this.sortObject(vnp_Params);
 
     const signData = qs.stringify(vnp_Params, { encode: false });
     const hmac = crypto.createHmac("sha512", secretKey);
-    const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest("hex");
+    const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
-    vnp_Params['vnp_SecureHash'] = signed;
-    const finalUrl = vnpUrl + '?' + qs.stringify(vnp_Params, { encode: false });
+    vnp_Params["vnp_SecureHash"] = signed;
+    const finalUrl = vnpUrl + "?" + qs.stringify(vnp_Params, { encode: false });
 
     return finalUrl;
   }
@@ -187,12 +185,14 @@ class PaymentService {
   async verifyVNPayReturn(vnp_Params) {
     console.log("⚠️ DEV MODE: Bypassing signature check");
 
-    const vnp_ResponseCode = vnp_Params['vnp_ResponseCode'];
-    const rawTxnRef = vnp_Params['vnp_TxnRef'];
-    const amount = parseInt(vnp_Params['vnp_Amount']) / 100;
+    const vnp_ResponseCode = vnp_Params["vnp_ResponseCode"];
+    const rawTxnRef = vnp_Params["vnp_TxnRef"];
+    const amount = parseInt(vnp_Params["vnp_Amount"]) / 100;
 
-    if (vnp_ResponseCode === '00') {
-      const bookingId = rawTxnRef.includes('_') ? rawTxnRef.split('_')[0] : rawTxnRef;
+    if (vnp_ResponseCode === "00") {
+      const bookingId = rawTxnRef.includes("_")
+        ? rawTxnRef.split("_")[0]
+        : rawTxnRef;
 
       try {
         await Payment.findOneAndUpdate(
@@ -200,13 +200,13 @@ class PaymentService {
           {
             booking_id: bookingId,
             amount: amount,
-            currency: 'vnd',
-            status: 'succeeded',
-            gateway: 'vnpay',
+            currency: "vnd",
+            status: "succeeded",
+            gateway: "vnpay",
             transaction_date: new Date(),
-            gateway_transaction_id: vnp_Params['vnp_TransactionNo']
+            gateway_transaction_id: vnp_Params["vnp_TransactionNo"],
           },
-          { upsert: true, new: true }
+          { upsert: true, new: true },
         );
       } catch (dbError) {
         console.error("DB Error:", dbError.message);
@@ -220,31 +220,35 @@ class PaymentService {
           {
             bookingId: bookingId,
             paymentInfo: {
-              gateway: 'vnpay',
-              gateway_transaction_id: vnp_Params['vnp_TransactionNo'] || 'Unknown',
+              gateway: "vnpay",
+              gateway_transaction_id:
+                vnp_Params["vnp_TransactionNo"] || "Unknown",
               amount: amount,
-              status: 'succeeded'
-            }
+              status: "succeeded",
+            },
           },
-          { headers: { 'x-api-key': API_KEY } }
+          { headers: { "x-api-key": API_KEY } },
         );
 
         return {
-          status: 'success',
-          message: 'Payment Successful',
-          data: response.data
+          status: "success",
+          message: "Payment Successful",
+          data: response.data,
         };
-
       } catch (error) {
         console.error("Booking Service Sync Error:", error.message);
         return {
-          status: 'success',
-          message: 'Payment Successful (Sync Warning)',
-          data: { _id: bookingId }
+          status: "success",
+          message: "Payment Successful (Sync Warning)",
+          data: { _id: bookingId },
         };
       }
     } else {
-      return { status: 'failed', message: 'Payment Failed', code: vnp_ResponseCode };
+      return {
+        status: "failed",
+        message: "Payment Failed",
+        code: vnp_ResponseCode,
+      };
     }
   }
 
@@ -253,27 +257,106 @@ class PaymentService {
   // ==========================================
 
   async refundPayment(bookingId) {
-    // 1. Find Payment
-    const payment = await Payment.findOne({ booking_id: bookingId, status: 'succeeded' });
-    if (!payment) throw new Error('No successful payment found.');
+    const payment = await Payment.findOne({
+      booking_id: bookingId,
+      status: "succeeded",
+    });
+    if (!payment) throw new Error("No successful payment found.");
 
-    // 2. Handle VNPAY (Mock)
-    if (payment.gateway === 'vnpay') {
-      console.log(`♻️ Processing VNPAY Refund (Mock) for ${bookingId}`);
-      const updatedPayment = await Payment.findByIdAndUpdate(
-        payment._id,
-        {
-          $set: {
-            status: 'refunded',
-            amount_refunded: payment.amount,
-            refunded_at: new Date()
-          }
-        },
-        { new: true, runValidators: false } // Avoids 'user_id' required error
-      );
-      return updatedPayment;
+    if (payment.gateway !== "vnpay") {
+      throw new Error(`Refund not supported for gateway: ${payment.gateway}`);
     }
-    throw new Error(`Refund not supported for gateway: ${payment.gateway}`);
+
+    // 1) Chuẩn bị request
+    const tmnCode = process.env.VNP_TMN_CODE;
+    const secretKey = process.env.VNP_HASH_SECRET;
+    const apiUrl = process.env.VNP_API_URL; // sandbox/prod
+
+    const vnp_RequestId = `${bookingId}-${Date.now()}`.slice(0, 32);
+    const vnp_Version = "2.1.0";
+    const vnp_Command = "refund";
+    const vnp_TransactionType = "02"; // 02 full, 03 partial :contentReference[oaicite:10]{index=10}
+    const vnp_TxnRef = bookingId.toString();
+    const vnp_Amount = payment.amount * 100; // VNPAY thường dùng x100 như pay
+    const vnp_TransactionNo = payment.gateway_transaction_id || ""; // optional :contentReference[oaicite:11]{index=11}
+
+    // CỰC QUAN TRỌNG: phải có transactionDate (vnp_CreateDate lúc PAY)
+    const vnp_TransactionDate = payment.gateway_transaction_date; // bạn cần lưu field này khi tạo pay
+    if (!vnp_TransactionDate)
+      throw new Error(
+        "Missing gateway_transaction_date (vnp_TransactionDate) for refund.",
+      );
+
+    const vnp_CreateBy = "GoTripViet";
+    const vnp_CreateDate = moment().utcOffset(7).format("YYYYMMDDHHmmss");
+    const vnp_IpAddr = "127.0.0.1";
+    const vnp_OrderInfo = `Hoan tien booking ${vnp_TxnRef}`;
+
+    // 2) Tạo secure hash đúng công thức :contentReference[oaicite:12]{index=12}
+    const hashData = [
+      vnp_RequestId,
+      vnp_Version,
+      vnp_Command,
+      tmnCode,
+      vnp_TransactionType,
+      vnp_TxnRef,
+      vnp_Amount,
+      vnp_TransactionNo,
+      vnp_TransactionDate,
+      vnp_CreateBy,
+      vnp_CreateDate,
+      vnp_IpAddr,
+      vnp_OrderInfo,
+    ].join("|");
+
+    const vnp_SecureHash = crypto
+      .createHmac("sha512", secretKey)
+      .update(Buffer.from(hashData, "utf-8"))
+      .digest("hex");
+
+    const payload = {
+      vnp_RequestId,
+      vnp_Version,
+      vnp_Command,
+      vnp_TmnCode: tmnCode,
+      vnp_TransactionType,
+      vnp_TxnRef,
+      vnp_Amount,
+      vnp_TransactionNo,
+      vnp_TransactionDate,
+      vnp_CreateBy,
+      vnp_CreateDate,
+      vnp_IpAddr,
+      vnp_OrderInfo,
+      vnp_SecureHash,
+    };
+
+    // 3) Gọi VNPAY
+    const { data } = await axios.post(apiUrl, payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+
+    // data.vnp_ResponseCode === '00' là OK :contentReference[oaicite:13]{index=13}
+    if (data?.vnp_ResponseCode !== "00") {
+      throw new Error(
+        `VNPAY refund failed: ${data?.vnp_ResponseCode} - ${data?.vnp_Message || ""}`,
+      );
+    }
+
+    // 4) Update DB
+    const updated = await Payment.findByIdAndUpdate(
+      payment._id,
+      {
+        $set: {
+          status: "refunded",
+          amount_refunded: payment.amount,
+          refunded_at: new Date(),
+        },
+      },
+      { new: true },
+    );
+
+    return updated;
   }
 
   async getAllPayments(queryParams) {
@@ -281,9 +364,17 @@ class PaymentService {
     let filter = {};
     if (status) filter.status = status;
     const skip = (page - 1) * limit;
-    const payments = await Payment.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit));
+    const payments = await Payment.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
     const totalPayments = await Payment.countDocuments(filter);
-    return { payments, currentPage: parseInt(page), totalPages: Math.ceil(totalPayments / limit), totalPayments };
+    return {
+      payments,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalPayments / limit),
+      totalPayments,
+    };
   }
 
   async getPaymentsForBooking(bookingId) {

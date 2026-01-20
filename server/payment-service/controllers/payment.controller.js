@@ -1,9 +1,8 @@
 // controllers/payment.controller.js
-const paymentService = require('../services/payment.service');
-const Transaction = require('../models/transaction.model');
+const paymentService = require("../services/payment.service");
+const Transaction = require("../models/transaction.model");
 
 class PaymentController {
-
   // ==========================================
   // 1. VNPAY PAYMENT
   // ==========================================
@@ -14,18 +13,25 @@ class PaymentController {
       const { amount, bookingId, bankCode, language } = req.body;
 
       if (!bookingId || !amount) {
-        return res.status(400).json({ message: 'Missing bookingId or amount' });
+        return res.status(400).json({ message: "Missing bookingId or amount" });
       }
 
       // Call Service to generate URL
-      const paymentUrl = paymentService.createVNPayUrl(req, bookingId, amount, bankCode, language);
+      const paymentUrl = paymentService.createVNPayUrl(
+        req,
+        bookingId,
+        amount,
+        bankCode,
+        language,
+      );
 
       // Return URL to Frontend
       res.status(200).json({ paymentUrl });
-
     } catch (error) {
       console.error("VNPAY URL Error:", error);
-      res.status(500).json({ message: 'Error creating VNPAY link', error: error.message });
+      res
+        .status(500)
+        .json({ message: "Error creating VNPAY link", error: error.message });
     }
   }
 
@@ -35,13 +41,17 @@ class PaymentController {
       // req.query contains all VNPAY parameters
       const result = await paymentService.verifyVNPayReturn(req.query);
 
-      if (result.status === 'success') {
+      if (result.status === "success") {
         res.status(200).json(result);
       } else {
         res.status(400).json(result);
       }
     } catch (error) {
-      res.status(500).json({ status: 'error', message: 'Server error', error: error.message });
+      res.status(500).json({
+        status: "error",
+        message: "Server error",
+        error: error.message,
+      });
     }
   }
 
@@ -54,7 +64,7 @@ class PaymentController {
     try {
       const partnerId = req.user.id;
       // Get Token to authenticate with User Service
-      const userToken = req.headers['authorization'];
+      const userToken = req.headers["authorization"];
 
       const data = await paymentService.getWalletInfo(partnerId, userToken);
       res.status(200).json(data);
@@ -69,9 +79,14 @@ class PaymentController {
     try {
       const partnerId = req.user.id;
       const { amount, bankInfo } = req.body;
-      const userToken = req.headers['authorization'];
+      const userToken = req.headers["authorization"];
 
-      const result = await paymentService.requestPayout(partnerId, amount, bankInfo, userToken);
+      const result = await paymentService.requestPayout(
+        partnerId,
+        amount,
+        bankInfo,
+        userToken,
+      );
       res.status(200).json(result);
     } catch (error) {
       console.error("Payout Request Error:", error.message);
@@ -89,7 +104,12 @@ class PaymentController {
     try {
       const { bookingId, partnerId, amount, description } = req.body;
 
-      const result = await paymentService.distributeRevenue(bookingId, partnerId, amount, description);
+      const result = await paymentService.distributeRevenue(
+        bookingId,
+        partnerId,
+        amount,
+        description,
+      );
       res.status(200).json(result);
     } catch (error) {
       console.error("Distribute Revenue Error:", error.message);
@@ -101,15 +121,16 @@ class PaymentController {
   async refundPayment(req, res) {
     try {
       const { bookingId } = req.body;
-      if (!bookingId) {
-        return res.status(400).json({ message: 'bookingId is required' });
-      }
+      if (!bookingId)
+        return res.status(400).json({ message: "bookingId is required" });
 
       const payment = await paymentService.refundPayment(bookingId);
-      res.status(200).json(payment);
+      return res.status(200).json(payment);
     } catch (error) {
-      console.error("Refund Error:", error.message);
-      res.status(500).json({ message: 'Refund failed', error: error.message });
+      // nếu là lỗi nghiệp vụ "không có payment succeeded" -> 404
+      const msg = error.message || "Refund failed";
+      const isNotFound = msg.includes("No successful payment found");
+      return res.status(isNotFound ? 404 : 400).json({ message: msg });
     }
   }
 
@@ -130,10 +151,14 @@ class PaymentController {
   // GET /payment/booking/:bookingId
   async adminGetPaymentsForBooking(req, res) {
     try {
-      const payments = await paymentService.getPaymentsForBooking(req.params.bookingId);
+      const payments = await paymentService.getPaymentsForBooking(
+        req.params.bookingId,
+      );
       res.status(200).json(payments);
     } catch (error) {
-      res.status(404).json({ message: 'Payments not found', error: error.message });
+      res
+        .status(404)
+        .json({ message: "Payments not found", error: error.message });
     }
   }
 
@@ -141,23 +166,23 @@ class PaymentController {
     try {
       const transactions = await Transaction.find().sort({ createdAt: -1 });
 
-      let totalVolume = 0;   // GMV (Total Sales)
-      let adminProfit = 0;   // 15%
+      let totalVolume = 0; // GMV (Total Sales)
+      let adminProfit = 0; // 15%
       let partnerPayout = 0; // 85%
 
-      transactions.forEach(t => {
+      transactions.forEach((t) => {
         const amount = t.amount || 0;
 
-        // Logic based on your DB: 
+        // Logic based on your DB:
         // INCOME = 100,000 (Full Price)
         // COMMISSION = -15,000 (Deduction)
 
-        if (t.type === 'INCOME') {
+        if (t.type === "INCOME") {
           // Since INCOME is the full price, this IS the Total Volume
           totalVolume += amount;
         }
 
-        if (t.type === 'COMMISSION') {
+        if (t.type === "COMMISSION") {
           // Commission is negative (-15000), so we use Math.abs to get positive 15000
           adminProfit += Math.abs(amount);
         }
@@ -169,14 +194,13 @@ class PaymentController {
 
       res.status(200).json({
         stats: {
-          totalVolume,     // Should be 100,000
-          adminProfit,     // Should be 15,000
-          partnerPayout,   // Should be 85,000
-          transactionCount: transactions.length
+          totalVolume, // Should be 100,000
+          adminProfit, // Should be 15,000
+          partnerPayout, // Should be 85,000
+          transactionCount: transactions.length,
         },
-        transactions
+        transactions,
       });
-
     } catch (error) {
       console.error("Stats Error:", error);
       res.status(500).json({ message: error.message });
