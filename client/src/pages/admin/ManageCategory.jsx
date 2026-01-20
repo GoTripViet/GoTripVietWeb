@@ -93,37 +93,45 @@ export default function ManageCategory() {
 
   const [uploadingImg, setUploadingImg] = useState(false);
   const [localPreview, setLocalPreview] = useState("");
+  const [allCategories, setAllCategories] = useState([]);
 
   const load = async () => {
     setLoading(true);
     try {
       const res = await categoryApi.getManage({ page, limit });
-      // 1. Lấy toàn bộ dữ liệu thô
-      let list = normalizeList(res).map(toRow);
 
-      // 2. Sắp xếp: Pending lên đầu
-      list.sort((a, b) => {
+      // 1) full list (chưa cắt trang)
+      let fullList = normalizeList(res).map(toRow);
+
+      // 2) sort pending lên đầu
+      fullList.sort((a, b) => {
         if (a.status === "pending" && b.status !== "pending") return -1;
         if (a.status !== "pending" && b.status === "pending") return 1;
         return 0;
       });
 
-      // 3. Phân trang Client-side (nếu server trả về cục to)
-      const isServerPaginated = res.totalPages !== undefined;
+      // LƯU full list để làm parent options
+      setAllCategories(fullList);
 
+      // 3) tạo list hiển thị (có phân trang)
+      let list = fullList;
+
+      const isServerPaginated = res.totalPages !== undefined;
       if (isServerPaginated) {
         setTotalPages(res.totalPages);
+        // nếu server đã paginate thì list đã là trang hiện tại, giữ nguyên
+        // (nhưng fullList lúc này vẫn chỉ là trang hiện tại nếu server paginate)
       } else {
-        const totalItems = list.length;
+        const totalItems = fullList.length;
         setTotalPages(Math.ceil(totalItems / limit) || 1);
 
         const startIndex = (page - 1) * limit;
         const endIndex = startIndex + limit;
-        list = list.slice(startIndex, endIndex);
+        list = fullList.slice(startIndex, endIndex);
       }
 
-      // 4. Map Parent Name
-      const idToName = new Map(list.map((c) => [c.id, c.name]));
+      // 4) Map parent name dựa trên FULL LIST (không phải list đã slice)
+      const idToName = new Map(fullList.map((c) => [c.id, c.name]));
       const list2 = list.map((c) => ({
         ...c,
         parentName:
@@ -143,8 +151,8 @@ export default function ManageCategory() {
   }, [page]);
 
   const parentOptions = useMemo(() => {
-    return rows.map((c) => ({ id: c.id, name: c.name }));
-  }, [rows]);
+    return allCategories.map((c) => ({ id: c.id, name: c.name }));
+  }, [allCategories]);
 
   const openCreate = () => {
     setEditing(null);
@@ -200,7 +208,9 @@ export default function ManageCategory() {
       await load();
     } catch (e) {
       console.error(e);
-      alert(e?.response?.data?.message || e?.message || "Lưu danh mục thất bại");
+      alert(
+        e?.response?.data?.message || e?.message || "Lưu danh mục thất bại",
+      );
     }
   };
 
@@ -223,7 +233,9 @@ export default function ManageCategory() {
       await load();
     } catch (e) {
       console.error(e);
-      alert(e?.response?.data?.message || e?.message || "Xóa danh mục thất bại");
+      alert(
+        e?.response?.data?.message || e?.message || "Xóa danh mục thất bại",
+      );
     }
   };
 
@@ -280,7 +292,11 @@ export default function ManageCategory() {
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="cat-btn cat-btn-default" onClick={load} disabled={loading}>
+          <button
+            className="cat-btn cat-btn-default"
+            onClick={load}
+            disabled={loading}
+          >
             {loading ? "..." : "↻ Tải lại"}
           </button>
           <button className="cat-btn cat-btn-primary" onClick={openCreate}>
@@ -304,13 +320,19 @@ export default function ManageCategory() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>
+                <td
+                  colSpan={5}
+                  style={{ padding: 40, textAlign: "center", color: "#6b7280" }}
+                >
                   Đang tải dữ liệu...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>
+                <td
+                  colSpan={5}
+                  style={{ padding: 40, textAlign: "center", color: "#6b7280" }}
+                >
                   Chưa có danh mục nào.
                 </td>
               </tr>
@@ -318,34 +340,64 @@ export default function ManageCategory() {
               rows.map((x) => {
                 const isPending = x.status === "pending";
                 return (
-                  <tr key={x.id || x._id} className={isPending ? "cat-tr-pending" : ""}>
+                  <tr
+                    key={x.id || x._id}
+                    className={isPending ? "cat-tr-pending" : ""}
+                  >
                     <td>
                       <div style={{ fontWeight: 600 }}>{x.name}</div>
                       {isPending && (
-                        <span className="cat-badge" style={{ backgroundColor: "#f59e0b", color: "#fff", fontSize: 11, padding: "2px 6px", borderRadius: 4 }}>
+                        <span
+                          className="cat-badge"
+                          style={{
+                            backgroundColor: "#f59e0b",
+                            color: "#fff",
+                            fontSize: 11,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                          }}
+                        >
                           ⏳ Chờ duyệt
                         </span>
                       )}
                     </td>
                     <td>
-                      {x.slug ? <code className="cat-code">{x.slug}</code> : <span className="text-muted">Tự động</span>}
+                      {x.slug ? (
+                        <code className="cat-code">{x.slug}</code>
+                      ) : (
+                        <span className="text-muted">Tự động</span>
+                      )}
                     </td>
-                    <td>{x.parentName || <span className="text-muted">—</span>}</td>
+                    <td>
+                      {x.parentName || <span className="text-muted">—</span>}
+                    </td>
                     <td>
                       {x.description ? (
-                        <span style={{ color: "#4b5563" }}>{x.description}</span>
+                        <span style={{ color: "#4b5563" }}>
+                          {x.description}
+                        </span>
                       ) : (
                         <span className="text-muted">—</span>
                       )}
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: 6,
+                        }}
+                      >
                         {/* [NEW] Nút Duyệt */}
                         {isPending && (
                           <button
                             className="cat-btn cat-btn-success"
-                            style={{ backgroundColor: "#10b981", color: "white", borderColor: "#10b981", padding: '6px 12px' }}
+                            style={{
+                              backgroundColor: "#10b981",
+                              color: "white",
+                              borderColor: "#10b981",
+                              padding: "6px 12px",
+                            }}
                             onClick={() => approve(x)}
                             title="Duyệt ngay"
                           >
@@ -357,7 +409,7 @@ export default function ManageCategory() {
                           className="cat-btn cat-btn-default"
                           onClick={() => openDetail(x)}
                           title="Chi tiết"
-                          style={{ padding: '6px 12px' }}
+                          style={{ padding: "6px 12px" }}
                         >
                           👁️
                         </button>
@@ -365,7 +417,7 @@ export default function ManageCategory() {
                           className="cat-btn cat-btn-default"
                           onClick={() => openEdit(x)}
                           title="Sửa"
-                          style={{ padding: '6px 12px' }}
+                          style={{ padding: "6px 12px" }}
                         >
                           ✎
                         </button>
@@ -373,7 +425,7 @@ export default function ManageCategory() {
                           className="cat-btn cat-btn-danger"
                           onClick={() => remove(x.id)}
                           title="Xóa"
-                          style={{ padding: '6px 12px' }}
+                          style={{ padding: "6px 12px" }}
                         >
                           ✕
                         </button>
@@ -389,7 +441,15 @@ export default function ManageCategory() {
 
       {/* PAGINATION CONTROLS */}
       {!loading && (rows.length > 0 || totalPages > 1) && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 8,
+          }}
+        >
           <span style={{ fontSize: 14, color: "#6b7280", marginRight: 12 }}>
             Trang <b>{page}</b> / {totalPages}
           </span>
@@ -433,27 +493,41 @@ export default function ManageCategory() {
       )}
 
       {/* MODAL CHI TIẾT */}
-      <Modal open={detailOpen} title="Chi tiết danh mục" onClose={() => setDetailOpen(false)}>
+      <Modal
+        open={detailOpen}
+        title="Chi tiết danh mục"
+        onClose={() => setDetailOpen(false)}
+      >
         <div className="cat-modal-body">
           <div className="cat-detail-row">
             <div>
               <div className="cat-label">Tên danh mục</div>
               <div className="cat-detail-value">
                 {detailRow?.name}
-                {detailRow?.status === 'pending' && <span style={{ color: 'orange', marginLeft: 8 }}>(Chờ duyệt)</span>}
+                {detailRow?.status === "pending" && (
+                  <span style={{ color: "orange", marginLeft: 8 }}>
+                    (Chờ duyệt)
+                  </span>
+                )}
               </div>
             </div>
             <div>
               <div className="cat-label">Slug</div>
               <div className="cat-detail-value">
-                {detailRow?.slug ? <code className="cat-code">{detailRow.slug}</code> : "—"}
+                {detailRow?.slug ? (
+                  <code className="cat-code">{detailRow.slug}</code>
+                ) : (
+                  "—"
+                )}
               </div>
             </div>
           </div>
           <div className="cat-detail-row">
             <div>
               <div className="cat-label">Danh mục cha</div>
-              <div className="cat-detail-value">{detailRow?.parentName || "—"}</div>
+              <div className="cat-detail-value">
+                {detailRow?.parentName || "—"}
+              </div>
             </div>
             <div>
               <div className="cat-label">Ảnh</div>
@@ -474,17 +548,26 @@ export default function ManageCategory() {
           </div>
           <div>
             <div className="cat-label">Mô tả</div>
-            <div className="cat-detail-value">{detailRow?.description || "—"}</div>
+            <div className="cat-detail-value">
+              {detailRow?.description || "—"}
+            </div>
           </div>
         </div>
         <div className="cat-modal-footer">
-          <button className="cat-btn cat-btn-default" onClick={() => setDetailOpen(false)}>
+          <button
+            className="cat-btn cat-btn-default"
+            onClick={() => setDetailOpen(false)}
+          >
             Đóng
           </button>
-          {detailRow?.status === 'pending' && (
+          {detailRow?.status === "pending" && (
             <button
               className="cat-btn cat-btn-success"
-              style={{ backgroundColor: "#10b981", color: "white", borderColor: "#10b981" }}
+              style={{
+                backgroundColor: "#10b981",
+                color: "white",
+                borderColor: "#10b981",
+              }}
               onClick={() => {
                 setDetailOpen(false);
                 approve(detailRow);
@@ -527,7 +610,9 @@ export default function ManageCategory() {
             <select
               className="cat-select"
               value={form.status}
-              onChange={(e) => setForm(s => ({ ...s, status: e.target.value }))}
+              onChange={(e) =>
+                setForm((s) => ({ ...s, status: e.target.value }))
+              }
             >
               <option value="active">Active (Hoạt động)</option>
               <option value="pending">Pending (Chờ duyệt)</option>
@@ -537,20 +622,40 @@ export default function ManageCategory() {
 
           <div className="cat-form-group">
             <label className="cat-label">Danh mục cha</label>
-            <select
-              className="cat-select"
-              value={form.parentId || ""}
-              onChange={(e) => setForm((s) => ({ ...s, parentId: e.target.value }))}
-            >
-              <option value="">— Không có (cấp 1) —</option>
-              {parentOptions
+
+            <input
+              className="cat-input"
+              list="parentCategoryList"
+              placeholder="Gõ để tìm danh mục cha..."
+              value={
+                // hiển thị tên nếu có id
+                form.parentId
+                  ? allCategories.find((c) => c.id === form.parentId)?.name ||
+                    ""
+                  : ""
+              }
+              onChange={(e) => {
+                const name = e.target.value;
+                const match = allCategories.find(
+                  (c) => c.name.toLowerCase() === name.toLowerCase(),
+                );
+                setForm((s) => ({ ...s, parentId: match?.id || "" }));
+              }}
+            />
+
+            <datalist id="parentCategoryList">
+              {/* option "none" */}
+              {/* (datalist không có option value="" kiểu select, nên bạn để placeholder là đủ) */}
+              {allCategories
                 .filter((p) => !editing || p.id !== editing.id)
                 .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+                  <option key={p.id} value={p.name} />
                 ))}
-            </select>
+            </datalist>
+
+            <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+              Gõ tên danh mục để tìm nhanh. Nếu để trống: danh mục cấp 1.
+            </div>
           </div>
 
           <div className="cat-form-group">
@@ -558,7 +663,9 @@ export default function ManageCategory() {
             <textarea
               className="cat-textarea"
               value={form.description}
-              onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))}
+              onChange={(e) =>
+                setForm((s) => ({ ...s, description: e.target.value }))
+              }
               placeholder="Mô tả ngắn cho danh mục..."
             />
           </div>
@@ -570,7 +677,9 @@ export default function ManageCategory() {
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDropImage}
             >
-              <div className="cat-upload-text">Kéo & thả ảnh vào đây, hoặc bấm nút bên dưới</div>
+              <div className="cat-upload-text">
+                Kéo & thả ảnh vào đây, hoặc bấm nút bên dưới
+              </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 <label className="cat-btn cat-btn-primary">
                   {uploadingImg ? "Đang upload..." : "Chọn ảnh từ máy"}
@@ -587,7 +696,10 @@ export default function ManageCategory() {
                     type="button"
                     className="cat-btn cat-btn-danger"
                     onClick={() => {
-                      setForm((s) => ({ ...s, image: { url: "", public_id: "" } }));
+                      setForm((s) => ({
+                        ...s,
+                        image: { url: "", public_id: "" },
+                      }));
                       setLocalPreview("");
                     }}
                     disabled={uploadingImg}
@@ -609,7 +721,10 @@ export default function ManageCategory() {
         </div>
 
         <div className="cat-modal-footer">
-          <button className="cat-btn cat-btn-default" onClick={() => setEditOpen(false)}>
+          <button
+            className="cat-btn cat-btn-default"
+            onClick={() => setEditOpen(false)}
+          >
             Hủy
           </button>
           <button className="cat-btn cat-btn-primary" onClick={save}>
