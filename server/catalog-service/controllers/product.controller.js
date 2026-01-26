@@ -200,6 +200,18 @@ class ProductController {
       res.status(400).json({ message: error.message });
     }
   }
+
+  // Thêm hàm này vào Class
+  async getProductInternal(req, res) {
+    try {
+      // Gọi sang Service
+      const product = await productService.getProductInternal(req.params.id);
+      res.status(200).json(product);
+    } catch (error) {
+      console.error("❌ Error getting internal product:", error.message);
+      res.status(500).json({ message: error.message });
+    }
+  }
 }
 
 module.exports = new ProductController();

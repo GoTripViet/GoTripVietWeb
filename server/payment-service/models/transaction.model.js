@@ -2,12 +2,12 @@
 const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
-    partner_id: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // ID của Partner
+    partner_id: { type: mongoose.Schema.Types.ObjectId, required: false, index: true }, // ID của Partner (null cho giao dịch hệ thống như VOUCHER_COST)
     booking_id: { type: mongoose.Schema.Types.ObjectId, required: false }, // Link tới đơn hàng (nếu có)
 
     type: {
         type: String,
-        enum: ['INCOME', 'WITHDRAWAL', 'REFUND', 'COMMISSION'],
+        enum: ['INCOME', 'WITHDRAWAL', 'REFUND', 'COMMISSION', 'VOUCHER_COST'],
         required: true
     },
 

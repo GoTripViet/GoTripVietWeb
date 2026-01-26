@@ -87,9 +87,9 @@ class PaymentController {
   // Called by Booking Service (Cron Job)
   async distributeRevenue(req, res) {
     try {
-      const { bookingId, partnerId, amount, description } = req.body;
+      const { bookingId, partnerId, amount, discountAmount, description } = req.body;
 
-      const result = await paymentService.distributeRevenue(bookingId, partnerId, amount, description);
+      const result = await paymentService.distributeRevenue(bookingId, partnerId, amount, discountAmount || 0, description);
       res.status(200).json(result);
     } catch (error) {
       console.error("Distribute Revenue Error:", error.message);
@@ -139,39 +139,42 @@ class PaymentController {
 
   async getSystemStats(req, res) {
     try {
-      const transactions = await Transaction.find().sort({ createdAt: -1 });
+      // Lấy tất cả giao dịch đã hoàn thành
+      const transactions = await Transaction.find({ status: 'COMPLETED' }).sort({ createdAt: -1 });
 
-      let totalVolume = 0;   // GMV (Total Sales)
-      let adminProfit = 0;   // 15%
-      let partnerPayout = 0; // 85%
+      let totalVolume = 0;      // Tổng doanh số (GMV) từ các đơn hàng, tính trên giá gốc.
+      let adminGrossProfit = 0; // Lợi nhuận gộp của Admin (phí sàn 15%).
+      let totalVoucherCost = 0; // Tổng chi phí voucher Admin chịu.
 
       transactions.forEach(t => {
-        const amount = t.amount || 0;
-
-        // Logic based on your DB: 
-        // INCOME = 100,000 (Full Price)
-        // COMMISSION = -15,000 (Deduction)
+        const val = t.amount;
 
         if (t.type === 'INCOME') {
-          // Since INCOME is the full price, this IS the Total Volume
-          totalVolume += amount;
-        }
-
-        if (t.type === 'COMMISSION') {
-          // Commission is negative (-15000), so we use Math.abs to get positive 15000
-          adminProfit += Math.abs(amount);
+          // INCOME là 100% giá trị gốc của tour
+          totalVolume += val;
+        } else if (t.type === 'COMMISSION') {
+          // COMMISSION là 15% phí sàn
+          adminGrossProfit += val;
+        } else if (t.type === 'VOUCHER_COST') {
+          // VOUCHER_COST là chi phí admin chịu
+          totalVoucherCost += val;
         }
       });
 
-      // Calculate Partner Payout
-      // Payout = Total Sales - Admin Profit
-      partnerPayout = totalVolume - adminProfit;
+      // Lợi nhuận ròng của Admin = Phí sàn - Chi phí voucher
+      const adminNetProfit = adminGrossProfit - totalVoucherCost;
+
+      // Tiền Partner nhận = Tổng giá trị tour - Phí sàn
+      const partnerPayout = totalVolume - adminGrossProfit;
 
       res.status(200).json({
         stats: {
-          totalVolume,     // Should be 100,000
-          adminProfit,     // Should be 15,000
-          partnerPayout,   // Should be 85,000
+          totalVolume: totalVolume,         // Tổng doanh số (giá gốc)
+          adminProfit: adminNetProfit,      // Lợi nhuận RÒNG của Admin
+          partnerPayout: partnerPayout,     // Tổng tiền Partner được hưởng
+          // Thêm 2 field mới để minh bạch hơn trên dashboard
+          adminGrossProfit: adminGrossProfit,
+          totalVoucherCost: totalVoucherCost,
           transactionCount: transactions.length
         },
         transactions

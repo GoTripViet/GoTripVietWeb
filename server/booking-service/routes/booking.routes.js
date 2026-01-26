@@ -15,6 +15,29 @@ router.post(
   bookingController.confirmPaymentInternal
 );
 
+// [DEBUG] Kiểm tra thông tin booking (tạm thời)
+router.get(
+  '/internal/debug/:id',
+  apiKeyAuth,
+  async (req, res) => {
+    try {
+      const Booking = require('../models/booking.model');
+      const booking = await Booking.findById(req.params.id);
+      if (!booking) return res.status(404).json({ message: 'Booking not found' });
+      res.json({
+        _id: booking._id,
+        status: booking.status,
+        pricing: booking.pricing,
+        promotion_id: booking.promotion_id,
+        start_date: booking.start_date,
+        end_date: booking.end_date
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // -----------------------------------------------------
 // AUTHENTICATED ROUTES (USER & PARTNER)
 // -----------------------------------------------------
