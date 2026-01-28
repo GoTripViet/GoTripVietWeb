@@ -1,5 +1,8 @@
 const Booking = require("../models/booking.model");
-const { sendPaymentSuccessEmail } = require("../utils/mailer");
+const {
+  sendPaymentSuccessEmail,
+  sendPaidCancellationEmail,
+} = require("../utils/mailer");
 const axios = require("axios");
 
 // Get URLs from .env
@@ -34,22 +37,27 @@ class BookingService {
       // API: GET /products/internal/:id
       const prodRes = await axios.get(
         `${CATALOG_URL}/products/internal/${productId}`,
-        { headers: { "x-api-key": API_KEY } }
+        { headers: { "x-api-key": API_KEY } },
       );
       productData = prodRes.data;
       console.log("---------------- DEBUG LOG ----------------");
       console.log("1. Product ID:", productId);
-      console.log("2. Data nhận từ Catalog:", JSON.stringify(productData, null, 2));
-      console.log("3. Duration Days tìm thấy:", productData.tour_details?.duration_days);
+      console.log(
+        "2. Data nhận từ Catalog:",
+        JSON.stringify(productData, null, 2),
+      );
+      console.log(
+        "3. Duration Days tìm thấy:",
+        productData.tour_details?.duration_days,
+      );
       console.log("-------------------------------------------");
       // B. Gọi Inventory Service: Lấy Ngày Khởi Hành (Start Date)
       // API: GET /inventory/internal/:id
       const invRes = await axios.get(
         `${INVENTORY_URL}/inventory/internal/${inventoryId}`,
-        { headers: { "x-api-key": API_KEY } }
+        { headers: { "x-api-key": API_KEY } },
       );
       inventoryData = invRes.data;
-
     } catch (err) {
       console.error("❌ Error fetching internal data:", err.message);
       throw new Error("Không thể xác thực thông tin sản phẩm hoặc kho hàng.");
@@ -69,7 +77,7 @@ class BookingService {
     endDate.setDate(endDate.getDate() + durationDays);
 
     console.log(
-      `📅 [Booking Logic] Start: ${startDate.toISOString()} | Duration: ${durationDays} days | End: ${endDate.toISOString()}`
+      `📅 [Booking Logic] Start: ${startDate.toISOString()} | Duration: ${durationDays} days | End: ${endDate.toISOString()}`,
     );
 
     // --- 3. XỬ LÝ ITEMS & GIÁ (Snapshot) ---
@@ -110,8 +118,9 @@ class BookingService {
       });
     } catch (error) {
       throw new Error(
-        `Hết hàng hoặc lỗi kho: ${error.response?.data?.message || error.message
-        }`
+        `Hết hàng hoặc lỗi kho: ${
+          error.response?.data?.message || error.message
+        }`,
       );
     }
 
@@ -123,13 +132,13 @@ class BookingService {
     if (promotionCode) {
       try {
         const promoRes = await axios.get(
-          `${INVENTORY_URL}/promotions/code/${promotionCode}`
+          `${INVENTORY_URL}/promotions/code/${promotionCode}`,
         );
         const promotion = promoRes.data;
 
         if (promotion.rules && promotion.rules.min_spend > totalPrice) {
           throw new Error(
-            `Đơn hàng chưa đủ điều kiện tối thiểu: ${promotion.rules.min_spend}`
+            `Đơn hàng chưa đủ điều kiện tối thiểu: ${promotion.rules.min_spend}`,
           );
         }
 
@@ -150,8 +159,9 @@ class BookingService {
         // Nếu mã lỗi thì bỏ qua hoặc báo lỗi tuỳ nghiệp vụ
         console.warn("Promotion Error:", error.message);
         throw new Error(
-          `Mã giảm giá không hợp lệ: ${error.response?.data?.message || error.message
-          }`
+          `Mã giảm giá không hợp lệ: ${
+            error.response?.data?.message || error.message
+          }`,
         );
       }
     }
@@ -161,7 +171,7 @@ class BookingService {
       user_id: userId,
       status: "pending",
       start_date: startDate, // ✅ Dữ liệu chuẩn từ Inventory
-      end_date: endDate,     // ✅ Dữ liệu chuẩn tính từ Catalog
+      end_date: endDate, // ✅ Dữ liệu chuẩn tính từ Catalog
       items: formattedItems,
       pricing: {
         total_price_before_discount: totalPrice,
@@ -172,12 +182,12 @@ class BookingService {
       passengers: passengers || [],
       customer_details: contactInfo
         ? {
-          fullName: contactInfo.fullName,
-          email: contactInfo.email,
-          phone: contactInfo.phone,
-          address: contactInfo.address,
-          note: contactInfo.note,
-        }
+            fullName: contactInfo.fullName,
+            email: contactInfo.email,
+            phone: contactInfo.phone,
+            address: contactInfo.address,
+            note: contactInfo.note,
+          }
         : {},
     });
 
@@ -233,8 +243,9 @@ class BookingService {
       booking.status = "failed";
       await booking.save();
       throw new Error(
-        `Inventory reservation failed: ${error.response?.data?.message || error.message
-        }`
+        `Inventory reservation failed: ${
+          error.response?.data?.message || error.message
+        }`,
       );
     }
 
@@ -251,7 +262,7 @@ class BookingService {
 
     await booking.save();
     console.log(
-      `✅ Booking ${booking._id} confirmed & paid. Revenue held in escrow.`
+      `✅ Booking ${booking._id} confirmed & paid. Revenue held in escrow.`,
     );
     // Gửi email sau khi đã confirmed
     const toEmail = booking.customer_details?.email;
@@ -263,7 +274,7 @@ class BookingService {
           booking,
           paymentInfo,
         }).catch((err) =>
-          console.error("Send payment email failed:", err.message)
+          console.error("Send payment email failed:", err.message),
         );
       });
     }
@@ -289,20 +300,26 @@ class BookingService {
     if (originalStatus === "cancelled")
       throw new Error("Booking is already cancelled");
 
+    // chỉ để check "Thanh toán"
+    const wasPaid = booking.payment_status === "paid";
+
     if (originalStatus === "pending") {
       booking.status = "cancelled";
       await booking.save();
+
+      // (tuỳ bạn) pending/unpaid có gửi mail hay không
       return booking;
     }
 
     if (originalStatus === "confirmed") {
-      // Release Stock
+      // Release Stock (giữ nguyên)
       const releaseRequest = {
         items: booking.items.map((item) => ({
           inventoryId: item.inventory_id.toString(),
           quantity: item.quantity,
         })),
       };
+
       try {
         await axios.post(`${INVENTORY_URL}/inventory/release`, releaseRequest, {
           headers: { Authorization: authToken },
@@ -311,21 +328,52 @@ class BookingService {
         console.error(`Stock release failed: ${error.message}`);
       }
 
-      // Refund Money
+      // Refund Money (không block hủy nếu refund lỗi)
+      let refundRequestOk = false;
+
       try {
         await axios.post(
           `${PAYMENT_URL}/payment/refund`,
-          { bookingId: booking._id },
-          { headers: { "x-api-key": API_KEY } }
+          { bookingId: booking._id.toString() },
+          { headers: { "x-api-key": API_KEY } },
         );
+        refundRequestOk = true;
       } catch (error) {
-        throw new Error(`Refund failed: ${error.message}`);
+        // log chi tiết để debug payment-service
+        const detail =
+          error.response?.data?.message ||
+          (typeof error.response?.data === "string"
+            ? error.response.data
+            : JSON.stringify(error.response?.data || {}));
+
+        console.error(
+          "Refund request failed:",
+          error.response?.status,
+          detail || error.message,
+        );
+
+        // ❗ không throw nữa -> vẫn cho hủy & gửi mail
       }
 
+      // luôn cancel
       booking.status = "cancelled";
       await booking.save();
+
+      // gửi mail nếu đã paid (dù refundRequestOk true/false thì mail vẫn nói “sau ít phút”)
+      const toEmail = booking.customer_details?.email;
+      if (wasPaid && toEmail) {
+        setImmediate(() => {
+          sendPaidCancellationEmail({ to: toEmail, booking }).catch((err) =>
+            console.error("Send cancellation email failed:", err.message),
+          );
+        });
+      }
+
       return booking;
     }
+
+    // ✅ tránh return undefined
+    throw new Error(`Cannot cancel booking when status is ${originalStatus}`);
   }
 
   async getAllBookings(queryParams) {
@@ -353,7 +401,7 @@ class BookingService {
         `${CATALOG_URL}/products/partner/me?limit=200`,
         {
           headers: { Authorization: userToken },
-        }
+        },
       );
       const data = catalogRes.data;
       const myProducts = Array.isArray(data) ? data : data.data || [];

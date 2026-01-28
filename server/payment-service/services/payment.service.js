@@ -1,18 +1,17 @@
 // services/payment.service.js
-const Payment = require('../models/payment.model');
-const Transaction = require('../models/transaction.model');
-const axios = require('axios');
-const moment = require('moment');
-const qs = require('qs');
-const crypto = require('crypto');
+const Payment = require("../models/payment.model");
+const Transaction = require("../models/transaction.model");
+const axios = require("axios");
+const moment = require("moment");
+const qs = require("qs");
+const crypto = require("crypto");
 
 // Environment Variables
-const BOOKING_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3004';
-const USER_URL = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+const BOOKING_URL = process.env.BOOKING_SERVICE_URL || "http://localhost:3004";
+const USER_URL = process.env.USER_SERVICE_URL || "http://localhost:3001";
 const API_KEY = process.env.INTERNAL_API_KEY;
 
 class PaymentService {
-
   // ==========================================
   // 1. REVENUE & WALLET LOGIC
   // ==========================================
@@ -23,7 +22,13 @@ class PaymentService {
    * @param {number} amount - Giá gốc của tour (trước khi giảm giá)
    * @param {number} discountAmount - Số tiền voucher/giảm giá (Admin chịu). Cần được truyền từ booking-service.
    */
-  async distributeRevenue(bookingId, partnerId, amount, discountAmount = 0, description) {
+  async distributeRevenue(
+    bookingId,
+    partnerId,
+    amount,
+    discountAmount = 0,
+    description,
+  ) {
     const COMMISSION_RATE = 0.15; // 15%
 
     // 1. Tính toán
@@ -32,7 +37,9 @@ class PaymentService {
     // Lợi nhuận thực của Admin = Phí sàn - Chi phí giảm giá
     const adminNetProfit = commissionAmount - discountAmount;
 
-    console.log(`💸 Processing Revenue: Total ${amount} | Discount ${discountAmount} | Fee ${commissionAmount} | Partner ${partnerReceived} | Admin Net ${adminNetProfit}`);
+    console.log(
+      `💸 Processing Revenue: Total ${amount} | Discount ${discountAmount} | Fee ${commissionAmount} | Partner ${partnerReceived} | Admin Net ${adminNetProfit}`,
+    );
 
     // 2. Ghi lịch sử giao dịch (Transaction)
 
@@ -40,10 +47,10 @@ class PaymentService {
     await Transaction.create({
       partner_id: partnerId,
       booking_id: bookingId,
-      type: 'INCOME',
+      type: "INCOME",
       amount: amount,
       description: description || `Tổng doanh thu gốc cho đơn ${bookingId}`,
-      status: 'COMPLETED'
+      status: "COMPLETED",
     });
 
     // B. Transaction COMMISSION: Ghi nhận phí sàn (Để Admin thống kê lợi nhuận)
@@ -51,10 +58,10 @@ class PaymentService {
     await Transaction.create({
       partner_id: partnerId, // Vẫn gắn với partner để biết thu từ ai
       booking_id: bookingId,
-      type: 'COMMISSION',
+      type: "COMMISSION",
       amount: commissionAmount,
       description: `Phí sàn 15% cho đơn ${bookingId}`,
-      status: 'COMPLETED'
+      status: "COMPLETED",
     });
 
     // C. [NEW] Transaction VOUCHER_COST: Ghi nhận chi phí giảm giá Admin chịu
@@ -62,10 +69,10 @@ class PaymentService {
       await Transaction.create({
         partner_id: null, // Chi phí của hệ thống, không của partner nào
         booking_id: bookingId,
-        type: 'VOUCHER_COST',
+        type: "VOUCHER_COST",
         amount: discountAmount, // Lưu số dương, sẽ được trừ đi khi tính toán
         description: `Chi phí voucher cho đơn ${bookingId}`,
-        status: 'COMPLETED'
+        status: "COMPLETED",
       });
     }
 
@@ -75,9 +82,9 @@ class PaymentService {
         `${USER_URL}/users/internal/wallet/update`,
         {
           userId: partnerId,
-          amount: partnerReceived // ✅ Chỉ cộng số tiền thực nhận
+          amount: partnerReceived, // ✅ Chỉ cộng số tiền thực nhận
         },
-        { headers: { 'x-api-key': API_KEY } }
+        { headers: { "x-api-key": API_KEY } },
       );
     } catch (error) {
       console.error("❌ Failed to update User Wallet via API:", error.message);
@@ -85,9 +92,11 @@ class PaymentService {
       throw new Error(`Wallet update failed: ${error.message}`);
     }
 
-    console.log(`✅ Revenue Distributed Successfully: Partner +${partnerReceived}`);
+    console.log(
+      `✅ Revenue Distributed Successfully: Partner +${partnerReceived}`,
+    );
     return {
-      message: 'Success',
+      message: "Success",
       partnerReceived,
       commissionAmount,
       discountAmount,
@@ -106,14 +115,16 @@ class PaymentService {
     try {
       // ✅ API: GET /users/:id (Cần khớp với user.routes.js)
       const userRes = await axios.get(`${USER_URL}/users/${partnerId}`, {
-        headers: { Authorization: userToken }
+        headers: { Authorization: userToken },
       });
 
       // Lấy field wallet_balance từ kết quả trả về
       balance = userRes.data.wallet_balance || 0;
-
     } catch (error) {
-      console.warn("⚠️ Could not fetch balance from User Service:", error.message);
+      console.warn(
+        "⚠️ Could not fetch balance from User Service:",
+        error.message,
+      );
       // Nếu lỗi kết nối, hiển thị balance = 0 thay vì sập trang
     }
 
@@ -133,7 +144,7 @@ class PaymentService {
     let currentBalance = 0;
     try {
       const userRes = await axios.get(`${USER_URL}/users/${partnerId}`, {
-        headers: { Authorization: userToken }
+        headers: { Authorization: userToken },
       });
       currentBalance = userRes.data.wallet_balance || 0;
     } catch (error) {
@@ -148,10 +159,10 @@ class PaymentService {
     // Lưu ý: Status là PENDING (Chờ Admin duyệt chuyển khoản thủ công hoặc auto banking)
     const tx = new Transaction({
       partner_id: partnerId,
-      type: 'WITHDRAWAL',
+      type: "WITHDRAWAL",
       amount: -amount, // Số âm thể hiện tiền ra
       description: `Rút tiền về ${bankInfo.bankName} - ${bankInfo.accountNumber}`,
-      status: 'PENDING'
+      status: "PENDING",
     });
     await tx.save();
 
@@ -161,7 +172,7 @@ class PaymentService {
       await axios.post(
         `${USER_URL}/users/internal/wallet/update`,
         { userId: partnerId, amount: -amount }, // Trừ tiền
-        { headers: { 'x-api-key': API_KEY } }
+        { headers: { "x-api-key": API_KEY } },
       );
     } catch (err) {
       // Nếu trừ tiền lỗi, phải xóa Transaction vừa tạo để tránh lệch
@@ -172,22 +183,22 @@ class PaymentService {
     return { message: "Yêu cầu rút tiền thành công!", transaction: tx };
   }
 
-
   // ==========================================
   // 2. VNPAY LOGIC (Giữ nguyên)
   // ==========================================
 
   createVNPayUrl(req, bookingId, amount, bankCode, language) {
-    process.env.TZ = 'Asia/Ho_Chi_Minh';
+    process.env.TZ = "Asia/Ho_Chi_Minh";
     const date = new Date();
-    const createDate = moment(date).format('YYYYMMDDHHmmss');
+    const createDate = moment(date).format("YYYYMMDDHHmmss");
 
-    let ipAddr = req.headers['x-forwarded-for'] ||
+    let ipAddr =
+      req.headers["x-forwarded-for"] ||
       req.connection.remoteAddress ||
       req.socket.remoteAddress ||
       req.connection.socket.remoteAddress;
 
-    if (ipAddr === '::1') ipAddr = '127.0.0.1';
+    if (ipAddr === "::1") ipAddr = "127.0.0.1";
 
     const tmnCode = process.env.VNP_TMN_CODE;
     const secretKey = process.env.VNP_HASH_SECRET;
@@ -195,31 +206,31 @@ class PaymentService {
     const returnUrl = process.env.VNP_RETURN_URL;
 
     let vnp_Params = {};
-    vnp_Params['vnp_Version'] = '2.1.0';
-    vnp_Params['vnp_Command'] = 'pay';
-    vnp_Params['vnp_TmnCode'] = tmnCode;
-    vnp_Params['vnp_Locale'] = language || 'vn';
-    vnp_Params['vnp_CurrCode'] = 'VND';
-    vnp_Params['vnp_TxnRef'] = bookingId;
-    vnp_Params['vnp_OrderInfo'] = 'Thanh toan don hang:' + bookingId;
-    vnp_Params['vnp_OrderType'] = 'other';
-    vnp_Params['vnp_Amount'] = amount * 100;
-    vnp_Params['vnp_ReturnUrl'] = returnUrl;
-    vnp_Params['vnp_IpAddr'] = ipAddr;
-    vnp_Params['vnp_CreateDate'] = createDate;
+    vnp_Params["vnp_Version"] = "2.1.0";
+    vnp_Params["vnp_Command"] = "pay";
+    vnp_Params["vnp_TmnCode"] = tmnCode;
+    vnp_Params["vnp_Locale"] = language || "vn";
+    vnp_Params["vnp_CurrCode"] = "VND";
+    vnp_Params["vnp_TxnRef"] = bookingId;
+    vnp_Params["vnp_OrderInfo"] = "Thanh toan don hang:" + bookingId;
+    vnp_Params["vnp_OrderType"] = "other";
+    vnp_Params["vnp_Amount"] = amount * 100;
+    vnp_Params["vnp_ReturnUrl"] = returnUrl;
+    vnp_Params["vnp_IpAddr"] = ipAddr;
+    vnp_Params["vnp_CreateDate"] = createDate;
 
     if (bankCode) {
-      vnp_Params['vnp_BankCode'] = bankCode;
+      vnp_Params["vnp_BankCode"] = bankCode;
     }
 
     vnp_Params = this.sortObject(vnp_Params);
 
     const signData = qs.stringify(vnp_Params, { encode: false });
     const hmac = crypto.createHmac("sha512", secretKey);
-    const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest("hex");
+    const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
-    vnp_Params['vnp_SecureHash'] = signed;
-    const finalUrl = vnpUrl + '?' + qs.stringify(vnp_Params, { encode: false });
+    vnp_Params["vnp_SecureHash"] = signed;
+    const finalUrl = vnpUrl + "?" + qs.stringify(vnp_Params, { encode: false });
 
     return finalUrl;
   }
@@ -229,13 +240,15 @@ class PaymentService {
     // Trong môi trường Production, bạn phải uncomment logic check SecureHash
     console.log("⚠️ [Payment] Verifying VNPAY Return...");
 
-    const vnp_ResponseCode = vnp_Params['vnp_ResponseCode'];
-    const rawTxnRef = vnp_Params['vnp_TxnRef'];
-    const amount = parseInt(vnp_Params['vnp_Amount']) / 100;
+    const vnp_ResponseCode = vnp_Params["vnp_ResponseCode"];
+    const rawTxnRef = vnp_Params["vnp_TxnRef"];
+    const amount = parseInt(vnp_Params["vnp_Amount"]) / 100;
 
     // VNPAY trả về 00 là thành công
-    if (vnp_ResponseCode === '00') {
-      const bookingId = rawTxnRef.includes('_') ? rawTxnRef.split('_')[0] : rawTxnRef;
+    if (vnp_ResponseCode === "00") {
+      const bookingId = rawTxnRef.includes("_")
+        ? rawTxnRef.split("_")[0]
+        : rawTxnRef;
 
       // 1. Lưu/Cập nhật Payment vào DB
       try {
@@ -244,13 +257,13 @@ class PaymentService {
           {
             booking_id: bookingId,
             amount: amount,
-            currency: 'vnd',
-            status: 'succeeded',
-            gateway: 'vnpay',
+            currency: "vnd",
+            status: "succeeded",
+            gateway: "vnpay",
             transaction_date: new Date(),
-            gateway_transaction_id: vnp_Params['vnp_TransactionNo']
+            gateway_transaction_id: vnp_Params["vnp_TransactionNo"],
           },
-          { upsert: true, new: true }
+          { upsert: true, new: true },
         );
       } catch (dbError) {
         console.error("DB Error updating payment:", dbError.message);
@@ -264,33 +277,37 @@ class PaymentService {
           {
             bookingId: bookingId,
             paymentInfo: {
-              gateway: 'vnpay',
-              gateway_transaction_id: vnp_Params['vnp_TransactionNo'] || 'Unknown',
+              gateway: "vnpay",
+              gateway_transaction_id:
+                vnp_Params["vnp_TransactionNo"] || "Unknown",
               amount: amount,
-              status: 'succeeded'
-            }
+              status: "succeeded",
+            },
           },
-          { headers: { 'x-api-key': API_KEY } }
+          { headers: { "x-api-key": API_KEY } },
         );
 
         return {
-          status: 'success',
-          message: 'Payment Successful',
-          data: response.data
+          status: "success",
+          message: "Payment Successful",
+          data: response.data,
         };
-
       } catch (error) {
         console.error("❌ Booking Service Sync Error:", error.message);
         // Vẫn trả về success cho Frontend hiển thị, nhưng log lỗi để Admin check
         return {
-          status: 'success',
-          message: 'Payment Successful (Sync Warning)',
-          data: { _id: bookingId }
+          status: "success",
+          message: "Payment Successful (Sync Warning)",
+          data: { _id: bookingId },
         };
       }
     } else {
       // Thanh toán thất bại
-      return { status: 'failed', message: 'Payment Failed', code: vnp_ResponseCode };
+      return {
+        status: "failed",
+        message: "Payment Failed",
+        code: vnp_ResponseCode,
+      };
     }
   }
 
@@ -300,24 +317,27 @@ class PaymentService {
 
   async refundPayment(bookingId) {
     // 1. Tìm Payment thành công
-    const payment = await Payment.findOne({ booking_id: bookingId, status: 'succeeded' });
-    if (!payment) throw new Error('No successful payment found to refund.');
+    const payment = await Payment.findOne({
+      booking_id: bookingId,
+      status: "succeeded",
+    });
+    if (!payment) throw new Error("No successful payment found to refund.");
 
     // 2. Xử lý Refund (Giả lập)
     // Trong thực tế cần gọi API hoàn tiền của VNPAY
-    if (payment.gateway === 'vnpay') {
+    if (payment.gateway === "vnpay") {
       console.log(`♻️ Processing VNPAY Refund (Mock) for ${bookingId}`);
 
       const updatedPayment = await Payment.findByIdAndUpdate(
         payment._id,
         {
           $set: {
-            status: 'refunded',
+            status: "refunded",
             amount_refunded: payment.amount,
-            refunded_at: new Date()
-          }
+            refunded_at: new Date(),
+          },
         },
-        { new: true }
+        { new: true },
       );
       return updatedPayment;
     }
@@ -340,7 +360,7 @@ class PaymentService {
       payments,
       currentPage: parseInt(page),
       totalPages: Math.ceil(totalPayments / limit),
-      totalPayments
+      totalPayments,
     };
   }
 
