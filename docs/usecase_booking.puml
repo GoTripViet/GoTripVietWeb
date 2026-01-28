@@ -1,0 +1,96 @@
+@startuml GoTripViet_UseCase_Booking
+' ================================================
+' DETAILED USE CASE: BOOKING FLOW
+' ================================================
+left to right direction
+skinparam shadowing true
+skinparam highlighting false
+
+' Material Design Colors
+!define COLOR_ACTOR #E0F7FA
+!define COLOR_UC #90CAF9
+!define COLOR_SYS_UC #E1BEE7
+
+skinparam actor {
+    BorderColor #333333
+    BackgroundColor COLOR_ACTOR
+    FontSize 13
+    FontStyle Bold
+}
+
+skinparam usecase {
+    BorderColor #1565C0
+    BackgroundColor COLOR_UC
+    FontSize 12
+    ArrowColor #455A64
+}
+
+skinparam package {
+    BorderColor #555555
+    FontSize 14
+    FontStyle Bold
+    BackgroundColor #FAFAFA
+}
+
+title <size:20><b>Sub-system: Đặt Tour & Thanh Toán</b></size>
+
+' ================================================
+' ACTORS
+' ================================================
+actor "Khách Hàng\n(Customer)" as Customer
+actor "Hệ Thống\n(System)" as System
+actor "Cổng Thanh Toán\n(Payment Gateway)" as Gateway <<External>>
+
+' ================================================
+' USE CASES
+' ================================================
+package "Booking Process" {
+    usecase "Tìm Kiếm Tour" as UC_Search
+    usecase "Xem Chi Tiết Tour" as UC_ViewDetail
+    usecase "Kiểm Tra Còn Chỗ (Inventory)" as UC_CheckInv
+    usecase "Đặt Tour (Tạo Booking)" as UC_Book
+    usecase "Nhập Thông Tin Hành Khách" as UC_InputPax
+    usecase "Áp Dụng Mã Giảm Giá" as UC_ApplyVoucher
+    usecase "Thanh Toán Đơn Hàng" as UC_Payment
+    usecase "Hủy Đặt Tour" as UC_Cancel
+    usecase "Xem Lịch Sử Đặt Tour" as UC_History
+    usecase "Đánh Giá Tour" as UC_Review
+}
+
+package "Payment Service" {
+    usecase "Xử Lý Giao Dịch" as UC_ProcessTxn COLOR_SYS_UC
+    usecase "Hoàn Tiền (Refund)" as UC_Refund COLOR_SYS_UC
+}
+
+' ================================================
+' RELATIONSHIPS
+' ================================================
+Customer --> UC_Search
+Customer --> UC_ViewDetail
+Customer --> UC_History
+Customer --> UC_Review
+
+UC_ViewDetail ..> UC_CheckInv : <<include>>
+UC_Book ..> UC_ViewDetail : <<include>>
+UC_Book ..> UC_InputPax : <<include>>
+UC_Book .> UC_ApplyVoucher : <<extend>>
+UC_Book ..> UC_Payment : <<include>>
+
+UC_Payment <--> Gateway : "API Call"
+UC_Payment ..> UC_ProcessTxn : <<include>>
+
+Customer --> UC_Cancel
+UC_Cancel ..> UC_Refund : <<include>> (nếu đã TT)
+
+note right of UC_CheckInv
+  System kiểm tra ngày
+  và số chỗ còn trống
+end note
+
+legend bottom right
+  |= Ký hiệu |= Ý nghĩa |
+  | ..include..> | **Bao gồm (Include)**:\nHành động bắt buộc |
+  | ..extend..> | **Mở rộng (Extend)**:\nHành động tùy chọn |
+endlegend
+
+@enduml

@@ -1,0 +1,103 @@
+@startuml GoTripViet_UseCase_Partner
+' ================================================
+' DETAILED USE CASE: PARTNER OPERATIONS
+' ================================================
+left to right direction
+skinparam shadowing true
+skinparam highlighting false
+
+' Material Design Colors
+!define COLOR_ACTOR #FFF9C4
+!define COLOR_UC #FFF59D
+!define COLOR_ADMIN_UC #EF9A9A
+
+skinparam actor {
+    BorderColor #333333
+    BackgroundColor COLOR_ACTOR
+    FontSize 13
+    FontStyle Bold
+}
+
+skinparam usecase {
+    BorderColor #FBC02D
+    BackgroundColor COLOR_UC
+    FontSize 12
+    ArrowColor #455A64
+}
+
+skinparam package {
+    BorderColor #555555
+    FontSize 14
+    FontStyle Bold
+    BackgroundColor #FAFAFA
+}
+
+title <size:20><b>Sub-system: Quản Lý Của Đối Tác (Partner)</b></size>
+
+' ================================================
+' ACTORS
+' ================================================
+actor "Đối Tác\n(Partner)" as Partner
+actor "Quản Trị Viên\n(Admin)" as Admin
+
+' ================================================
+' USE CASES
+' ================================================
+package "Partner Portal" {
+    usecase "Đăng Ký Đối Tác" as UC_RegPartner
+    usecase "Gửi Hồ Sơ Xét Duyệt" as UC_SubmitProfile
+    
+    usecase "Quản Lý Tour" as UC_ManageTour
+    usecase "Tạo Tour Mới (Draft)" as UC_CreateTour
+    usecase "Gửi Tour Duyệt" as UC_SubmitTour
+    usecase "Chỉnh Sửa Tour" as UC_EditTour
+    
+    usecase "Quản Lý Inventory" as UC_Inventory
+    usecase "Đóng/Mở Ngày Khởi Hành" as UC_BlockDate
+    
+    usecase "Xem Báo Cáo Doanh Thu" as UC_Reports
+    usecase "Quản Lý Ví (Wallet)" as UC_Wallet
+    usecase "Yêu Cầu Rút Tiền" as UC_Withdraw
+}
+
+package "Admin Actions" {
+    usecase "Duyệt Hồ Sơ Partner" as UC_ApproveProfile COLOR_ADMIN_UC
+    usecase "Duyệt Tour" as UC_ApproveTour COLOR_ADMIN_UC
+}
+
+' ================================================
+' RELATIONSHIPS
+' ================================================
+Partner --> UC_RegPartner
+Partner --> UC_SubmitProfile
+UC_SubmitProfile --> UC_ApproveProfile : "Notify Admin"
+
+Partner --> UC_ManageTour
+UC_ManageTour <|-- UC_CreateTour
+UC_ManageTour <|-- UC_EditTour
+UC_CreateTour ..> UC_SubmitTour : <<include>>
+UC_SubmitTour --> UC_ApproveTour : "Notify Admin"
+
+Partner --> UC_Inventory
+UC_Inventory <|-- UC_BlockDate
+
+Partner --> UC_Reports
+Partner --> UC_Wallet
+UC_Wallet <|-- UC_Withdraw
+
+Admin -up-> UC_ApproveProfile
+Admin -up-> UC_ApproveTour
+
+note right of UC_Withdraw
+  Partner yêu cầu,
+  Admin xử lý thủ công
+  hoặc tự động
+end note
+
+legend bottom right
+  |= Ký hiệu |= Ý nghĩa |
+  | ───|> | **Kế thừa (Generalization)**:\nUse case con cụ thể hóa Use case cha |
+  | ..include..> | **Bao gồm (Include)**:\nHành động bắt buộc phải thực hiện |
+endlegend
+
+@enduml

@@ -1,0 +1,92 @@
+@startuml GoTripViet_UseCase_Admin
+' ================================================
+' DETAILED USE CASE: ADMIN MANAGEMENT
+' ================================================
+left to right direction
+skinparam shadowing true
+skinparam highlighting false
+
+' Material Design Colors
+!define COLOR_ACTOR #FFCDD2
+!define COLOR_UC #EF9A9A
+
+skinparam actor {
+    BorderColor #333333
+    BackgroundColor COLOR_ACTOR
+    FontSize 13
+    FontStyle Bold
+}
+
+skinparam usecase {
+    BorderColor #C62828
+    BackgroundColor COLOR_UC
+    FontSize 12
+    ArrowColor #455A64
+}
+
+skinparam package {
+    BorderColor #555555
+    FontSize 14
+    FontStyle Bold
+    BackgroundColor #FAFAFA
+}
+
+title <size:20><b>Sub-system: Quản Trị Hệ Thống (Admin)</b></size>
+
+' ================================================
+' ACTORS
+' ================================================
+actor "Quản Trị Viên\n(Admin)" as Admin
+actor "Hệ Thống\n(System)" as System
+
+' ================================================
+' USE CASES
+' ================================================
+package "Content Management" {
+    usecase "Duyệt Tour Mới" as UC_ApproveTour
+    usecase "Từ Chối Tour (Reject)" as UC_RejectTour
+    usecase "Quản Lý Danh Mục (Category)" as UC_Category
+    usecase "Quản Lý Địa Điểm (Location)" as UC_Location
+}
+
+package "Marketing & Sales" {
+    usecase "Quản Lý Mã Giảm Giá (Promotion)" as UC_Promo
+    usecase "Quản Lý Sự Kiện (Event)" as UC_Event
+}
+
+package "User & System Management" {
+    usecase "Quản Lý Người Dùng" as UC_UserMgmt
+    usecase "Khóa/Mở Khóa Tài Khoản" as UC_BlockUser
+    usecase "Duyệt Đối Tác" as UC_ApprovePartner
+    usecase "Xem Báo Cáo Hệ Thống" as UC_SysReport
+}
+
+' ================================================
+' RELATIONSHIPS
+' ================================================
+Admin --> UC_ApproveTour
+UC_ApproveTour <.. UC_RejectTour : <<extend>>
+
+Admin --> UC_Category
+Admin --> UC_Location
+
+Admin --> UC_Promo
+Admin --> UC_Event
+
+Admin --> UC_UserMgmt
+UC_UserMgmt <|-- UC_BlockUser
+Admin --> UC_ApprovePartner
+Admin --> UC_SysReport
+
+note right of UC_RejectTour
+  Phải cung cấp
+  lý do từ chối
+end note
+
+legend bottom right
+  |= Ký hiệu |= Ý nghĩa |
+  | ───|> | **Kế thừa (Generalization)**:\nUse case con cụ thể hóa Use case cha |
+  | ..extend..> | **Mở rộng (Extend)**:\nHành động tùy chọn (Optional) |
+endlegend
+
+@enduml

@@ -1,0 +1,207 @@
+@startuml GoTripViet_UseCase_Diagram
+' ================================================
+' USE CASE DIAGRAM - GoTripViet Travel Booking System
+' ================================================
+left to right direction
+skinparam handwritten false
+skinparam packageStyle rectangle
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam shadowing true
+skinparam highlighting false
+
+' Material Design Colors
+!define COLOR_USER #E8F5E9
+!define COLOR_PARTNER #FFF9C4
+!define COLOR_ADMIN #FFCDD2
+!define COLOR_SYSTEM #E0F7FA
+!define COLOR_PAYMENT #F3E5F5
+
+!define COLOR_UC_ACCOUNT #C8E6C9
+!define COLOR_UC_BROWSE #FFE082
+!define COLOR_UC_BOOKING #90CAF9
+!define COLOR_UC_PARTNER #FFF59D
+!define COLOR_UC_ADMIN #EF9A9A
+!define COLOR_UC_AI #80DEEA
+
+skinparam actor {
+    BorderColor #333333
+    BackgroundColor COLOR_SYSTEM
+    FontSize 13
+    FontStyle Bold
+}
+
+skinparam usecase {
+    BorderColor #1565C0
+    BackgroundColor #BBDEFB
+    FontSize 12
+    ArrowColor #455A64
+}
+
+skinparam package {
+    BorderColor #555555
+    FontSize 14
+    FontStyle Bold
+    BackgroundColor #FAFAFA
+}
+
+skinparam arrow {
+    Color #455A64
+    Thickness 1
+}
+
+title <size:24><b>GoTripViet - Hệ Thống Đặt Tour Du Lịch</b></size>\n<size:16>Sơ đồ Case Chi Tiết</size>
+
+' ================================================
+' ACTORS
+' ================================================
+actor "Khách Vãng Lai\n(Guest)" as Guest 
+actor "Khách Hàng\n(Customer)" as Customer 
+actor "Đối Tác\n(Partner)" as Partner 
+actor "Quản Trị Viên\n(Admin)" as Admin 
+actor "AI Chatbot" as AI <<System>>
+actor "Cổng Thanh Toán" as PaymentGateway <<External>>
+
+' Inheritance
+Guest <|-- Customer
+Customer <|-- Partner
+Customer <|-- Admin
+
+' ================================================
+' USE CASES
+' ================================================
+rectangle "GoTripViet System" {
+
+    package "1. Xác Thực & Tài Khoản" as Pkg_Auth #COLOR_UC_ACCOUNT {
+        usecase "Đăng Ký" as UC_Register
+        usecase "Đăng Nhập" as UC_Login
+        usecase "Quên Mật Khẩu" as UC_ForgotPassword
+        usecase "Đổi Mật Khẩu" as UC_ChangePassword
+        usecase "Cập Nhật Hồ Sơ" as UC_UpdateProfile
+        usecase "Đăng Ký Đối Tác" as UC_RegisterPartner
+    }
+
+    package "2. Tìm Kiếm & Khám Phá" as Pkg_Browse #COLOR_UC_BROWSE {
+        usecase "Tìm Kiếm Tour" as UC_Search
+        usecase "Lọc Tour (Giá, Nơi đi, ...)" as UC_Filter
+        usecase "Xem Chi Tiết Tour" as UC_ViewDetail
+        usecase "Xem Lịch Trình Tour" as UC_ViewItinerary
+        usecase "Xem Đánh Giá" as UC_ViewReview
+    }
+
+    package "3. Đặt Tour & Thanh Toán" as Pkg_Booking #COLOR_UC_BOOKING {
+        usecase "Đặt Tour (Booking)" as UC_BookTour
+        usecase "Chọn Ngày & Số Người" as UC_SelectOptions
+        usecase "Nhập Thông Tin Hành Khách" as UC_EnterPassengerInfo
+        usecase "Áp Dụng Voucher" as UC_ApplyVoucher
+        usecase "Thanh Toán Online" as UC_PayOnline
+        usecase "Xem Lịch Sử Đặt Tour" as UC_ViewHistory
+        usecase "Hủy Đặt Tour" as UC_CancelBooking
+    }
+
+    package "4. Hỗ Trợ Thông Minh" as Pkg_AI #COLOR_UC_AI {
+        usecase "Chat Tư Vấn Tour" as UC_ChatAI
+        usecase "Gợi Ý Tour Theo Sở Thích" as UC_AIRecommend
+    }
+
+    package "5. Quản Lý Tour (Partner)" as Pkg_Partner #COLOR_UC_PARTNER {
+        usecase "Quản Lý Tour" as UC_ManageTour
+        usecase "Tạo Tour Mới" as UC_CreateTour
+        usecase "Cập Nhật Tour" as UC_UpdateTour
+        usecase "Quản Lý Lịch Khởi Hành (Inventory)" as UC_ManageInventory
+        usecase "Quản Lý Ví & Rút Tiền" as UC_ManageWallet
+        usecase "Xem Thống Kê Doanh Thu" as UC_ViewStats
+    }
+
+    package "6. Quản Trị Hệ Thống (Admin)" as Pkg_Admin #COLOR_UC_ADMIN {
+        usecase "Duyệt Tour" as UC_ApproveTour
+        usecase "Từ Chối Tour" as UC_RejectTour
+        usecase "Quản Lý Danh Mục & Địa Điểm" as UC_ManageCategories
+        usecase "Quản Lý Sự Kiện (Event)" as UC_ManageEvent
+        usecase "Quản Lý Mã Giảm Giá (Promotion)" as UC_ManagePromotion
+        usecase "Quản Lý Người Dùng & Đối Tác" as UC_ManageUsers
+    }
+}
+
+' ================================================
+' RELATIONSHIPS
+' ================================================
+
+' Guest
+Guest --> UC_Register
+Guest --> UC_Login
+Guest --> UC_Search
+Guest --> UC_ViewDetail
+Guest --> UC_ChatAI
+
+' Customer
+Customer --> UC_UpdateProfile
+Customer --> UC_ChangePassword
+Customer --> UC_BookTour
+Customer --> UC_ViewHistory
+Customer --> UC_CancelBooking
+Customer --> UC_RegisterPartner
+Customer --> UC_AIRecommend
+
+' Partner
+Partner --> UC_ManageTour
+Partner --> UC_ManageInventory
+Partner --> UC_ManageWallet
+Partner --> UC_ViewStats
+
+' Admin
+Admin --> UC_ApproveTour
+Admin --> UC_ManageCategories
+Admin --> UC_ManageEvent
+Admin --> UC_ManagePromotion
+Admin --> UC_ManageUsers
+
+' System Actors
+UC_ChatAI <--> AI
+UC_AIRecommend <-- AI
+UC_PayOnline <--> PaymentGateway
+
+' Include & Extend
+UC_BookTour ..> UC_Login : <<include>>
+UC_BookTour ..> UC_SelectOptions : <<include>>
+UC_BookTour ..> UC_EnterPassengerInfo : <<include>>
+UC_BookTour ..> UC_PayOnline : <<include>>
+UC_BookTour <.. UC_ApplyVoucher : <<extend>>
+
+UC_Search <.. UC_Filter : <<extend>>
+UC_ViewDetail ..> UC_ViewItinerary : <<include>>
+UC_ViewDetail <.. UC_ViewReview : <<extend>>
+
+UC_ManageTour <|-- UC_CreateTour
+UC_ManageTour <|-- UC_UpdateTour
+
+UC_ApproveTour <.. UC_RejectTour : <<extend>>
+
+' ================================================
+' NOTES
+' ================================================
+note right of UC_BookTour
+  Luồng đặt tour bao gồm
+  chọn ngày, nhập thông tin,
+  và thanh toán.
+end note
+
+note right of UC_ApproveTour
+  Admin xem xét tour
+  trước khi public.
+end note
+
+note bottom of UC_ManageWallet
+  Partner theo dõi số dư
+  và yêu cầu rút tiền.
+end note
+
+legend bottom right
+  |= Ký hiệu |= Ý nghĩa |
+  | ───|> | Kế thừa (Inheritance) - Actor con có mọi quyền của Actor cha |
+  | ..include..> | Bắt buộc phải thực hiện (Required) |
+  | ..extend..> | Mở rộng, tùy chọn thực hiện (Optional) |
+endlegend
+
+@enduml
