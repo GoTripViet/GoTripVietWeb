@@ -90,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long_outlined),
               activeIcon: Icon(Icons.receipt_long),
-              label: "Chuyến đi",
+              label: "Tour của tôi",
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -151,14 +151,14 @@ class _HomeTab extends StatelessWidget {
                     color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    onPressed: () {},
-                  ),
+                  // child: IconButton(
+                  //   icon: const Icon(
+                  //     Icons.notifications_outlined,
+                  //     color: Colors.white,
+                  //     size: 24,
+                  //   ),
+                  //   onPressed: () {},
+                  // ),
                 ),
               ],
 

@@ -59,6 +59,8 @@ export default function DashboardAdvanced() {
     totalVolume: 0,
     adminProfit: 0,
     partnerPayout: 0,
+    adminGrossProfit: 0,
+    totalVoucherCost: 0,
   });
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,25 +73,13 @@ export default function DashboardAdvanced() {
       try {
         const res = await paymentApi.getSystemStats();
         if (res) {
-          let safeTotalVolume = 0;
-          let safeAdminProfit = 0;
-          let safePartnerPayout = 0;
+          // ✅ FIX: Dùng trực tiếp stats từ Backend gửi về
+          // Backend đã tính đúng: Volume (100%), Profit (15%), Payout (85%)
+          if (res.stats) {
+            setStats(res.stats);
+          }
 
-          res.transactions.forEach(tx => {
-            if (tx.status === 'COMPLETED') {
-              if (tx.type === 'INCOME') safeTotalVolume += tx.amount;
-              if (tx.type === 'COMMISSION') safeAdminProfit += Math.abs(tx.amount);
-            }
-          });
-          safePartnerPayout = safeTotalVolume - safeAdminProfit;
-
-          setStats({
-            totalVolume: safeTotalVolume,
-            adminProfit: safeAdminProfit,
-            partnerPayout: safePartnerPayout
-          });
-
-          // Sort transactions by date (newest first)
+          // Sort transactions chỉ để hiển thị danh sách
           const sortedTxs = (res.transactions || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
           setTransactions(sortedTxs);
         }
@@ -195,6 +185,7 @@ export default function DashboardAdvanced() {
         {/* --- STATS CARDS --- */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginBottom: '32px' }}>
           {/* Card 1 */}
+
           <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}>
             <div style={decorationCircle}></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', position: 'relative', zIndex: 10 }}>
@@ -209,9 +200,24 @@ export default function DashboardAdvanced() {
             <div style={decorationCircle}></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', position: 'relative', zIndex: 10 }}>
               <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: '12px', backdropFilter: 'blur(4px)' }}><TrendingUpIcon /></div>
-              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#d1fae5' }}>Lợi Nhuận Admin</span>
+              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#d1fae5' }}>Lợi Nhuận Admin (Ròng)</span>
             </div>
-            <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10 }}>{formatCurrency(stats.adminProfit)}</div>
+            <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10, lineHeight: 1.2 }}>{formatCurrency(stats.adminProfit)}</div>
+            {/* NEW: Breakdown */}
+            <div style={{
+              marginTop: '12px',
+              paddingTop: '8px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+              fontSize: '12px',
+              fontWeight: '500',
+              color: '#d1fae5',
+              position: 'relative',
+              zIndex: 10,
+              lineHeight: 1.5
+            }}>
+              <div>Phí sàn: {formatCurrency(stats.adminGrossProfit)}</div>
+              <div>Chi phí voucher: -{formatCurrency(stats.totalVoucherCost)}</div>
+            </div>
           </div>
 
           {/* Card 3 */}
@@ -222,6 +228,34 @@ export default function DashboardAdvanced() {
               <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fce7f3' }}>Đã Trả Partner</span>
             </div>
             <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10 }}>{formatCurrency(stats.partnerPayout)}</div>
+          </div>
+
+          {/* Card 4 - Chi phí mã giảm giá */}
+          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #dc2626 0%, #f87171 100%)' }}>
+            <div style={decorationCircle}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', position: 'relative', zIndex: 10 }}>
+              <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: '12px', backdropFilter: 'blur(4px)' }}>
+                <IconWrapper>
+                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </IconWrapper>
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fecaca' }}>Chi Phí Mã Giảm Giá</span>
+            </div>
+            <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10 }}>-{formatCurrency(stats.totalVoucherCost)}</div>
+            <div style={{
+              marginTop: '12px',
+              paddingTop: '8px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+              fontSize: '12px',
+              fontWeight: '500',
+              color: '#fecaca',
+              position: 'relative',
+              zIndex: 10
+            }}>
+              <div>🏷️ Admin chịu chi phí voucher/khuyến mãi</div>
+            </div>
           </div>
         </div>
 
@@ -338,6 +372,7 @@ export default function DashboardAdvanced() {
                         <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase' }}>Loại</th>
                         <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase' }}>Booking ID</th>
                         <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'right' }}>Số Tiền</th>
+                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'right' }}>Giảm Giá</th>
                         <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'center' }}>Trạng Thái</th>
                         <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'right' }}>Thời Gian</th>
                       </tr>
@@ -352,25 +387,54 @@ export default function DashboardAdvanced() {
                               </span>
                             </td>
                             <td style={{ padding: '16px 20px' }}>
+                              {/* --- FIX: Logic hiển thị loại giao dịch --- */}
                               {tx.type === "INCOME" ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#047857' }}>↓</div>
+                                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#047857' }}>💰</div>
                                   <span style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>Doanh Thu</span>
                                 </div>
-                              ) : (
+                              ) : tx.type === "COMMISSION" ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>%</div>
-                                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>Phí Sàn</span>
+                                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>Phí Sàn (Lợi nhuận)</span>
                                 </div>
+                              ) : tx.type === "VOUCHER_COST" ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b91c1c' }}>🏷️</div>
+                                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>Chi phí Voucher</span>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>{tx.type}</span>
                               )}
                             </td>
                             <td style={{ padding: '16px 20px', fontSize: '14px', color: '#6b7280' }}>
                               {tx.booking_id ? tx.booking_id.slice(-6).toUpperCase() : "N/A"}
                             </td>
                             <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                              <span style={{ fontSize: '14px', fontWeight: '700', color: tx.type === "INCOME" ? '#059669' : '#2563eb' }}>
-                                {tx.type === "INCOME" ? "+" : ""}{formatCurrency(tx.amount)}
+                              {/* --- FIX: Logic hiển thị số tiền và màu sắc --- */}
+                              <span style={{
+                                fontSize: '14px',
+                                fontWeight: '700',
+                                color: tx.type === "INCOME" ? '#059669' : (tx.type === "COMMISSION" ? '#4f46e5' : '#b91c1c')
+                              }}>
+                                {tx.type === "INCOME" ? "+" : (tx.type === "VOUCHER_COST" ? "-" : " ")}{formatCurrency(tx.amount)}
                               </span>
+                            </td>
+                            <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                              {/* Hiển thị giảm giá - tìm VOUCHER_COST cùng booking_id */}
+                              {(() => {
+                                if (tx.type === "INCOME" && tx.booking_id) {
+                                  const voucherTx = transactions.find(t => t.type === "VOUCHER_COST" && t.booking_id === tx.booking_id);
+                                  if (voucherTx) {
+                                    return (
+                                      <span style={{ fontSize: '14px', fontWeight: '600', color: '#dc2626' }}>
+                                        -{formatCurrency(voucherTx.amount)}
+                                      </span>
+                                    );
+                                  }
+                                }
+                                return <span style={{ fontSize: '13px', color: '#9ca3af' }}>—</span>;
+                              })()}
                             </td>
                             <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                               {tx.status === 'COMPLETED' ? (
@@ -390,7 +454,7 @@ export default function DashboardAdvanced() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="6" style={{ padding: '60px', textAlign: 'center', color: '#9ca3af' }}>
+                          <td colSpan="7" style={{ padding: '60px', textAlign: 'center', color: '#9ca3af' }}>
                             <div style={{ fontSize: '40px', marginBottom: '10px' }}>📭</div>
                             Chưa có dữ liệu giao dịch nào.
                           </td>
@@ -415,5 +479,9 @@ export default function DashboardAdvanced() {
         }
       `}</style>
     </div>
+
+
+
+
   );
 }

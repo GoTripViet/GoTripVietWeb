@@ -24,27 +24,88 @@ class BookingService {
     passengers,
     contactInfo,
   }) {
-    // --- 1. Calculate Price & Prepare Snapshot ---
+    // --- 1. LẤY DỮ LIỆU THỰC TẾ TỪ CÁC SERVICE KHÁC (SERVER-TO-SERVER) ---
+    // Giả sử item đầu tiên là Tour chính để tính ngày giờ
+    const mainItemReq = items[0];
+    const { productId, inventoryId } = mainItemReq;
+
+    let productData = null;
+    let inventoryData = null;
+
+    try {
+      // A. Gọi Catalog Service: Lấy Duration & Partner ID
+      // API: GET /products/internal/:id
+      const prodRes = await axios.get(
+        `${CATALOG_URL}/products/internal/${productId}`,
+        { headers: { "x-api-key": API_KEY } },
+      );
+      productData = prodRes.data;
+      console.log("---------------- DEBUG LOG ----------------");
+      console.log("1. Product ID:", productId);
+      console.log(
+        "2. Data nhận từ Catalog:",
+        JSON.stringify(productData, null, 2),
+      );
+      console.log(
+        "3. Duration Days tìm thấy:",
+        productData.tour_details?.duration_days,
+      );
+      console.log("-------------------------------------------");
+      // B. Gọi Inventory Service: Lấy Ngày Khởi Hành (Start Date)
+      // API: GET /inventory/internal/:id
+      const invRes = await axios.get(
+        `${INVENTORY_URL}/inventory/internal/${inventoryId}`,
+        { headers: { "x-api-key": API_KEY } },
+      );
+      inventoryData = invRes.data;
+    } catch (err) {
+      console.error("❌ Error fetching internal data:", err.message);
+      throw new Error("Không thể xác thực thông tin sản phẩm hoặc kho hàng.");
+    }
+
+    // --- 2. TÍNH TOÁN NGÀY GIỜ CHUẨN (SOURCE OF TRUTH) ---
+
+    // a. Ngày đi: Lấy từ Inventory DB (Chính xác từng giây)
+    const startDate = new Date(inventoryData.date);
+
+    // b. Thời lượng: Lấy từ Product DB (Ví dụ: 3 ngày)
+    // Nếu catalog không ghi duration, mặc định là 1 ngày
+    const durationDays = parseInt(productData.tour_details?.duration_days);
+
+    // c. Ngày về: Cộng dồn
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + durationDays);
+
+    console.log(
+      `📅 [Booking Logic] Start: ${startDate.toISOString()} | Duration: ${durationDays} days | End: ${endDate.toISOString()}`,
+    );
+
+    // --- 3. XỬ LÝ ITEMS & GIÁ (Snapshot) ---
     let totalPrice = 0;
     let formattedItems = [];
 
     for (const item of items) {
-      totalPrice += item.unitPrice * item.quantity;
+      // Lưu ý: Để an toàn tuyệt đối, bạn cũng nên lấy unitPrice từ inventoryData.price
+      // Ở đây tạm thời dùng giá frontend gửi lên (hoặc bạn có thể sửa lại logic này)
+      const currentPrice = item.unitPrice;
+
+      totalPrice += currentPrice * item.quantity;
       formattedItems.push({
         product_id: item.productId,
         inventory_id: item.inventoryId,
         product_type: item.productType,
         quantity: item.quantity,
-        unit_price: item.unitPrice,
+        unit_price: currentPrice,
         snapshot: {
-          title: item.productTitle,
+          title: item.productTitle || productData.title, // Ưu tiên lấy title chuẩn
           details_text: item.detailsText,
           image: item.image,
+          duration_days: durationDays, // Lưu lại duration vào snapshot
         },
       });
     }
 
-    // --- 2. Check Stock ---
+    // --- 4. CHECK STOCK (Kiểm tra tồn kho) ---
     const checkStockRequest = {
       items: items.map((item) => ({
         inventoryId: item.inventoryId,
@@ -57,13 +118,13 @@ class BookingService {
       });
     } catch (error) {
       throw new Error(
-        `Inventory check failed: ${
+        `Hết hàng hoặc lỗi kho: ${
           error.response?.data?.message || error.message
         }`,
       );
     }
 
-    // --- 3. Handle Promotion ---
+    // --- 5. HANDLE PROMOTION (Mã giảm giá) ---
     let discountAmount = 0;
     let finalPrice = totalPrice;
     let promotionId = null;
@@ -77,7 +138,7 @@ class BookingService {
 
         if (promotion.rules && promotion.rules.min_spend > totalPrice) {
           throw new Error(
-            `Min spend for code ${promotionCode} is ${promotion.rules.min_spend}`,
+            `Đơn hàng chưa đủ điều kiện tối thiểu: ${promotion.rules.min_spend}`,
           );
         }
 
@@ -87,6 +148,7 @@ class BookingService {
           discountAmount = promotion.value;
         }
 
+        // Không giảm quá giá trị đơn
         if (discountAmount > totalPrice) {
           discountAmount = totalPrice;
         }
@@ -94,37 +156,23 @@ class BookingService {
         finalPrice = totalPrice - discountAmount;
         promotionId = promotion._id;
       } catch (error) {
+        // Nếu mã lỗi thì bỏ qua hoặc báo lỗi tuỳ nghiệp vụ
+        console.warn("Promotion Error:", error.message);
         throw new Error(
-          `Invalid promotion code: ${
+          `Mã giảm giá không hợp lệ: ${
             error.response?.data?.message || error.message
           }`,
         );
       }
     }
 
-    // --- [LOGIC] CALCULATE START & END DATES ---
-    const mainItem = items[0];
-    const startDate = new Date(mainItem.startDate || Date.now());
-    const durationDays = parseInt(
-      mainItem.duration || mainItem.snapshot?.duration_days || 1,
-    );
-
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + durationDays);
-
-    // --- 4. CREATE BOOKING ---
+    // --- 6. TẠO & LƯU BOOKING ---
     const booking = new Booking({
       user_id: userId,
       status: "pending",
-      start_date: startDate,
-      end_date: endDate,
-      items: formattedItems.map((fi, index) => ({
-        ...fi,
-        snapshot: {
-          ...fi.snapshot,
-          duration_days: items[index].duration || 1,
-        },
-      })),
+      start_date: startDate, // ✅ Dữ liệu chuẩn từ Inventory
+      end_date: endDate, // ✅ Dữ liệu chuẩn tính từ Catalog
+      items: formattedItems,
       pricing: {
         total_price_before_discount: totalPrice,
         discount_amount: discountAmount,

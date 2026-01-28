@@ -4,7 +4,7 @@ const router = express.Router();
 const productController = require("../controllers/product.controller");
 const authMiddleware = require("../middleware/auth.middleware");
 const checkRole = require("../middleware/checkRole.middleware");
-
+const apiKeyAuth = require("../middleware/apiKey.middleware");
 // --- 1. Partner Routes (Phải đặt trước các route có tham số) ---
 router.get(
   "/partner/me",
@@ -85,6 +85,12 @@ router.delete(
   authMiddleware,
   checkRole(["partner", "admin"]),
   productController.removeSchedule
+);
+
+router.get(
+  '/internal/:id',
+  apiKeyAuth, // Middleware check khóa nội bộ
+  productController.getProductInternal
 );
 
 module.exports = router;

@@ -361,6 +361,14 @@ class ProductService {
     await product.save();
     return product;
   }
+
+  async getProductInternal(id) {
+    const product = await Product.findById(id)
+      .select("partner_id base_price title tour_details.duration_days");
+
+    if (!product) throw new Error("Product not found");
+    return product;
+  }
 }
 
 module.exports = new ProductService();

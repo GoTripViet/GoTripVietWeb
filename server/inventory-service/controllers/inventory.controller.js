@@ -90,6 +90,15 @@ class InventoryController {
       res.status(500).json({ success: false, message: 'Stock release failed', error: error.message });
     }
   }
+
+  async getInventoryInternal(req, res) {
+    try {
+      const result = await inventoryService.getInventoryInternal(req.params.id);
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(404).json({ message: error.message });
+    }
+  }
 }
 
 module.exports = new InventoryController();

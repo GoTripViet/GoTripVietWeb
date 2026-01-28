@@ -36,7 +36,7 @@ const checkAndCompleteBookings = async () => {
         booking.status = 'completed';
         await booking.save();
 
-        // B. Chia tiền (15% Admin / 85% Partner)
+        // B. Chia tiền (Admin chịu phí giảm giá -> Tính trên GIÁ GỐC)
         const productId = booking.items[0].product_id;
 
         // Gọi Catalog Service để lấy Partner ID
@@ -48,22 +48,35 @@ const checkAndCompleteBookings = async () => {
 
         if (partnerId) {
           // Gọi Payment Service để chia tiền
+          // Lấy discount amount trực tiếp từ booking (hoặc tính nếu không có)
+          const discountAmount = booking.pricing.discount_amount ||
+            ((booking.pricing.total_price_before_discount || 0) - (booking.pricing.final_price || booking.pricing.total_price_before_discount || 0));
+
+          console.log(`📊 Booking ${booking._id}: Giá gốc=${booking.pricing.total_price_before_discount}, Giá cuối=${booking.pricing.final_price}, Giảm giá=${discountAmount}`);
+
           await axios.post(
             `${PAYMENT_URL}/payment/internal/distribute-revenue`,
             {
               bookingId: booking._id,
               partnerId: partnerId,
-              amount: booking.pricing.final_price,
+              amount: booking.pricing.total_price_before_discount,
+              discountAmount: discountAmount > 0 ? discountAmount : 0,
               description: `Doanh thu tour hoàn thành #${booking._id.toString().slice(-6).toUpperCase()}`
             },
             { headers: { 'x-api-key': API_KEY } }
           );
-          console.log(`✅ Đã hoàn tất & Chia tiền: Booking ${booking._id}`);
+          console.log(`✅ Đã hoàn tất & Chia tiền (Theo giá gốc): Booking ${booking._id}`);
         } else {
           console.error(`⚠️ Không tìm thấy Partner cho Booking ${booking._id}, chưa chia tiền.`);
         }
 
       } catch (err) {
+        // 👇 THÊM ĐOẠN LOG NÀY 👇
+        if (err.response) {
+          console.error("❌ AXIOS ERROR URL:", err.config.url); // In ra URL thực tế bị lỗi
+          console.error("❌ AXIOS METHOD:", err.config.method);
+          console.error("❌ STATUS:", err.response.status);
+        }
         console.error(`❌ Lỗi xử lý booking ${booking._id}:`, err.message);
       }
     }
@@ -79,7 +92,7 @@ const startCronJob = () => {
     checkAndCompleteBookings();
   });
 
-  // 👇 [QUAN TRỌNG] CHẠY NGAY LẬP TỨC KHI KHỞI ĐỘNG SERVER 👇
+  // 👇 CHẠY NGAY LẬP TỨC KHI KHỞI ĐỘNG SERVER 👇
   console.log('🚀 Cron Job đã khởi động. Đang chạy quét lần đầu tiên...');
   checkAndCompleteBookings();
 };

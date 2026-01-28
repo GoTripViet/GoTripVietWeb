@@ -254,6 +254,18 @@ class InventoryService {
     }
   }
 
+  async getInventoryInternal(id) {
+    const item = await InventoryItem.findById(id);
+    if (!item) throw new Error("Inventory item not found");
+    
+    // Trả về ngày khởi hành (chỉ áp dụng cho Tour)
+    return {
+      _id: item._id,
+      date: item.tour_details?.date || null,
+      product_type: item.product_type
+    };
+  }
+
 }
 
 module.exports = new InventoryService();

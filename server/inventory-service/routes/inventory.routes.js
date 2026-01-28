@@ -60,4 +60,10 @@ router.post(
   inventoryController.releaseStock
 );
 
+router.get(
+  '/internal/:id',
+  // apiKeyAuth, // Uncomment nếu đã có middleware này bên Inventory
+  inventoryController.getInventoryInternal
+);
+
 module.exports = router;
