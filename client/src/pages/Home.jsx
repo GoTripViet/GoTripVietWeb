@@ -88,14 +88,14 @@ export default function Home() {
                   ? img
                   : "https://placehold.co/200x200?text=Location",
             };
-          })
+          }),
         );
 
         // ===============================================
         // c. [XỬ LÝ QUAN TRỌNG] TOUR + INVENTORY
         // ===============================================
         let tourListRaw = Array.isArray(
-          toursRes?.products || toursRes?.data?.products
+          toursRes?.products || toursRes?.data?.products,
         )
           ? toursRes?.products || toursRes?.data?.products
           : [];
@@ -113,8 +113,8 @@ export default function Home() {
               const invList = Array.isArray(invRes.data)
                 ? invRes.data
                 : Array.isArray(invRes)
-                ? invRes
-                : [];
+                  ? invRes
+                  : [];
 
               // Lọc ngày hợp lệ: Active + Tương lai + Còn chỗ
               const futureDates = invList
@@ -134,7 +134,7 @@ export default function Home() {
               // Nếu lỗi lấy lịch, trả về mảng rỗng (hiện Liên hệ)
               return { ...product, departure_dates: [] };
             }
-          })
+          }),
         );
 
         setRealTours(toursWithInventory.map((p) => mapProductToCard(p)));
@@ -144,8 +144,8 @@ export default function Home() {
         const rootCats = Array.isArray(rootCatsRes.data)
           ? rootCatsRes.data
           : Array.isArray(rootCatsRes)
-          ? rootCatsRes
-          : [];
+            ? rootCatsRes
+            : [];
 
         const sectionsData = await Promise.all(
           rootCats.map(async (parentCat) => {
@@ -156,15 +156,14 @@ export default function Home() {
               const childrenList = Array.isArray(childrenRes.data)
                 ? childrenRes.data
                 : Array.isArray(childrenRes)
-                ? childrenRes
-                : [];
+                  ? childrenRes
+                  : [];
 
               if (childrenList.length === 0) return null;
 
               const formattedChildren = childrenList.map((child) => {
                 const raw = child?.image?.url ?? child?.image;
-                const base =
-                  import.meta.env.VITE_API_URL || "http://localhost:3000";
+                const base = import.meta.env.VITE_API_URL;
                 const img =
                   typeof raw === "string" && raw
                     ? raw.startsWith("http")
@@ -179,7 +178,7 @@ export default function Home() {
                   imageUrl:
                     img ||
                     `https://placehold.co/300x300/e0f7fa/006064?text=${encodeURIComponent(
-                      child.name
+                      child.name,
                     )}`,
                 };
               });
@@ -192,7 +191,7 @@ export default function Home() {
             } catch (err) {
               return null;
             }
-          })
+          }),
         );
 
         // e. Xử lý EVENTS
@@ -281,8 +280,8 @@ export default function Home() {
               onClick={() =>
                 navigate(
                   `/search?location_id=${c.id}&label=${encodeURIComponent(
-                    c.title
-                  )}`
+                    c.title,
+                  )}`,
                 )
               }
             />
@@ -305,7 +304,7 @@ export default function Home() {
                   navigate(
                     `/search?category_id=${
                       childCat.id
-                    }&label=${encodeURIComponent(childCat.title)}`
+                    }&label=${encodeURIComponent(childCat.title)}`,
                   )
                 }
               />

@@ -32,7 +32,7 @@ const formatShortDate = (dateStr) => {
 };
 
 const normalizeImageUrl = (p) => {
-  const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const base = import.meta.env.VITE_API_URL;
 
   const rawImg =
     Array.isArray(p?.images) && p.images.length > 0 ? p.images[0] : null;
@@ -40,8 +40,8 @@ const normalizeImageUrl = (p) => {
     typeof rawImg === "string"
       ? rawImg
       : typeof rawImg?.url === "string"
-      ? rawImg.url
-      : "";
+        ? rawImg.url
+        : "";
 
   let validImage = "";
   if (rawUrl) {
@@ -140,14 +140,14 @@ export default function EventDetail() {
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.products)
-          ? data.products
-          : Array.isArray(data?.tours)
-          ? data.tours
-          : Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data?.data)
-          ? data.data
-          : [];
+            ? data.products
+            : Array.isArray(data?.tours)
+              ? data.tours
+              : Array.isArray(data?.items)
+                ? data.items
+                : Array.isArray(data?.data)
+                  ? data.data
+                  : [];
 
         const mappedList = list.map((p) => mapTourLikeSearchPage(p));
         if (!alive) return;

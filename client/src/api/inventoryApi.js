@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Cấu hình axios riêng cho Inventory Service (Port 3003)
 const inventoryClient = axios.create({
-  baseURL: "http://localhost:3003",
+  baseURL: import.meta.env.VITE_INVENTORY_API_URL || "http://localhost:3003",
   headers: {
     "Content-Type": "application/json",
   },

@@ -144,7 +144,7 @@ export default function SearchPage() {
             .map((d) => formatShortDate(d));
 
           // Xử lý ảnh (support cả string và object {url, public_id})
-          const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
+          const base = import.meta.env.VITE_API_URL;
 
           const rawImg =
             Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null;
@@ -152,8 +152,8 @@ export default function SearchPage() {
             typeof rawImg === "string"
               ? rawImg
               : typeof rawImg?.url === "string"
-              ? rawImg.url
-              : ""; // fallback nếu không có url
+                ? rawImg.url
+                : ""; // fallback nếu không có url
 
           let validImage = "";
           if (rawUrl) {
@@ -278,7 +278,7 @@ export default function SearchPage() {
           <p className="text-muted mb-4">
             {date
               ? `Rất tiếc, chưa có tour nào khởi hành vào ngày ${formatDateFull(
-                  date
+                  date,
                 )}.`
               : "Hãy thử thay đổi từ khóa, ngày đi hoặc mở rộng khoảng giá."}
           </p>
