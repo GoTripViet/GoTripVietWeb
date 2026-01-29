@@ -9,6 +9,9 @@ const checkRole = require("../middleware/checkRole.middleware");
 router.get("/public/active", promotionController.getActivePromotions);
 router.get("/code/:code", promotionController.getPromotionByCode);
 
+// --- Internal Routes (Service-to-Service) ---
+router.post("/internal/redeem", promotionController.redeemPromotion);
+
 // --- Admin Routes (Quản lý mã) ---
 router.post(
   "/",

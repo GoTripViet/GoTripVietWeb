@@ -38,6 +38,7 @@ import PartnerDashboard from "./pages/partner/PartnerDashboard";
 import PartnerInventory from "./pages/partner/PartnerInventory"; // [NEW IMPORT]
 import PartnerEditTour from "./pages/partner/PartnerEditTour";
 import PartnerOrderDetail from "./pages/partner/PartnerOrderDetail";
+import PartnerProfile from "./pages/partner/PartnerProfile";
 import HelpPage from "./pages/HelpPage.jsx";
 
 const HomePage = ({ activeCategoryIndex, onCategoryChange }) => {
@@ -399,6 +400,7 @@ const AppRouter = () => {
           />
           <Route path="/partner/orders" element={<PartnerManageOrders />} />
           <Route path="/partner/orders/:id" element={<PartnerOrderDetail />} />
+          <Route path="/partner/profile" element={<PartnerProfile />} />
         </Route>
 
         {/* Login – KHÔNG dùng UserLayout */}
