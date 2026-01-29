@@ -51,6 +51,41 @@ class PromotionService {
     // (nếu schema có start/end date thì lọc thêm ở đây)
     return Promotion.find({ is_active: true }).sort({ createdAt: -1 });
   }
+
+  /**
+   * [INTERNAL] Redeem a promotion (increment usage)
+   * Called when a booking is confirmed/paid
+   */
+  async redeemPromotion(id) {
+    const promotion = await Promotion.findById(id);
+
+    if (!promotion || !promotion.is_active) {
+      throw new Error("Promotion not found or inactive");
+    }
+
+    // 1. Check quantity
+    if (promotion.used_quantity >= promotion.total_quantity) {
+      throw new Error("Mã giảm giá đã hết số lượng sử dụng");
+    }
+
+    // 2. Check Expiry
+    const now = new Date();
+    if (promotion.rules?.valid_to && new Date(promotion.rules.valid_to) < now) {
+      throw new Error("Mã giảm giá đã hết hạn");
+    }
+    if (
+      promotion.rules?.valid_from &&
+      new Date(promotion.rules.valid_from) > now
+    ) {
+      throw new Error("Mã giảm giá chưa đến đợt sử dụng");
+    }
+
+    // 3. Increment usage
+    promotion.used_quantity += 1;
+    await promotion.save();
+
+    return promotion;
+  }
 }
 
 module.exports = new PromotionService();

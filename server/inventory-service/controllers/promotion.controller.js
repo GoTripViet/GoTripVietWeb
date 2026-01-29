@@ -73,6 +73,17 @@ class PromotionController {
       res.status(500).json({ message: error.message });
     }
   }
+
+  async redeemPromotion(req, res) {
+    try {
+      const { id } = req.body;
+      if (!id) throw new Error("Promotion ID is required");
+      const promo = await promotionService.redeemPromotion(id);
+      res.status(200).json({ status: "success", promotion: promo });
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  }
 }
 
 module.exports = new PromotionController();

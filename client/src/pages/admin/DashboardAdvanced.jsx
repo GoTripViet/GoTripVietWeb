@@ -65,6 +65,9 @@ export default function DashboardAdvanced() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // [NEW] Grouped Data State
+  const [bookingGroups, setBookingGroups] = useState([]);
+
   // [NEW] Tab State: 'chart' | 'list'
   const [activeTab, setActiveTab] = useState("chart");
 
@@ -76,12 +79,34 @@ export default function DashboardAdvanced() {
           // ✅ FIX: Dùng trực tiếp stats từ Backend gửi về
           // Backend đã tính đúng: Volume (100%), Profit (15%), Payout (85%)
           if (res.stats) {
-            setStats(res.stats);
+            setStats(prev => ({ ...prev, ...res.stats }));
           }
 
           // Sort transactions chỉ để hiển thị danh sách
           const sortedTxs = (res.transactions || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
           setTransactions(sortedTxs);
+
+          // [NEW] Logic gom nhóm theo Booking ID
+          const groups = {};
+          sortedTxs.forEach(tx => {
+            if (!tx.booking_id) return;
+            if (!groups[tx.booking_id]) {
+              groups[tx.booking_id] = {
+                booking_id: tx.booking_id,
+                createdAt: tx.createdAt,
+                income: 0,
+                commission: 0,
+                voucher: 0,
+                status: tx.status
+              };
+            }
+            const amt = Math.abs(tx.amount || 0);
+            if (tx.type === 'INCOME') groups[tx.booking_id].income = amt;
+            if (tx.type === 'COMMISSION') groups[tx.booking_id].commission += amt;
+            if (tx.type === 'VOUCHER_COST') groups[tx.booking_id].voucher += amt;
+          });
+          setBookingGroups(Object.values(groups).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+
         }
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -113,350 +138,390 @@ export default function DashboardAdvanced() {
     </div>
   );
 
-  // --- STYLES OBJECTS ---
-  const cardStyle = {
-    flex: 1,
-    minWidth: '280px',
-    borderRadius: '20px',
-    padding: '24px',
-    color: '#fff',
-    position: 'relative',
-    overflow: 'hidden',
-    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    transition: 'transform 0.2s',
-    cursor: 'default'
-  };
+  // --- PREMIUM UI COMPONENTS ---
+  const StatCard = ({ title, value, icon, color, subContent, style, valueStyle }) => (
+    <div style={{
+      backgroundColor: '#fff',
+      borderRadius: '24px',
+      padding: '28px',
+      border: '1px solid rgba(255,255,255,0.8)',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      minWidth: '260px',
+      flex: 1,
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      cursor: 'default',
+      position: 'relative',
+      overflow: 'hidden',
+      ...style
+    }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-5px) scale(1.01)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+      }}
+    >
+      {/* Decorative Glow Blob - Hiệu ứng quầng sáng nền */}
+      <div style={{
+        position: 'absolute',
+        top: -40,
+        right: -40,
+        width: 140,
+        height: 140,
+        background: color,
+        opacity: 0.12,
+        filter: 'blur(50px)',
+        borderRadius: '50%',
+        zIndex: 0,
+        pointerEvents: 'none'
+      }}></div>
 
-  const decorationCircle = {
-    position: 'absolute',
-    top: '-20px',
-    right: '-20px',
-    width: '120px',
-    height: '120px',
-    borderRadius: '50%',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    zIndex: 0
-  };
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+        <div>
+          <p style={{ color: '#64748b', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', opacity: 0.9 }}>
+            {title}
+          </p>
+          <h3 style={{ fontSize: '30px', fontWeight: '800', color: '#1e293b', margin: 0, letterSpacing: '-1px', lineHeight: 1.1, ...valueStyle }}>
+            {value}
+          </h3>
+        </div>
+        <div style={{
+          width: '52px', height: '52px',
+          borderRadius: '16px',
+          background: `linear-gradient(135deg, ${color}20, ${color}10)`,
+          color: color,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 4px 12px ${color}25`,
+          border: `1px solid ${color}20`,
+          backdropFilter: 'blur(4px)'
+        }}>
+          {React.cloneElement(icon, { width: 26, height: 26 })}
+        </div>
+      </div>
+
+      {subContent && (
+        <div style={{
+          position: 'relative',
+          zIndex: 10,
+          borderTop: `1px solid ${color}15`,
+          paddingTop: '16px',
+          marginTop: 'auto'
+        }}>
+          {subContent}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div style={{
-      backgroundColor: '#f6f7fb',
+      backgroundColor: '#f8fafc', // Slate-50 mostly
       minHeight: '100%',
-      fontFamily: "'Inter', system-ui, -apple-system, sans-serif"
+      fontFamily: "'Inter', sans-serif",
+      paddingBottom: '40px'
     }}>
 
-      {/* --- HEADER --- */}
+      {/* --- PREMIUM HEADER --- */}
       <div style={{
-        padding: '24px 32px',
-        background: '#fff',
-        borderRadius: '24px',
-        marginBottom: '24px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+        padding: '40px 48px',
+        background: 'linear-gradient(to bottom, #ffffff, #f8fafc)',
+        borderBottom: '1px solid #e2e8f0',
+        marginBottom: '48px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'end'
       }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.5px' }}>
-            Dashboard
+          <h1 style={{ fontSize: '36px', fontWeight: '800', color: '#0f172a', margin: 0, letterSpacing: '-1.5px', lineHeight: '1.1' }}>
+            Tổng Quan
           </h1>
-          <p style={{ color: '#6b7280', marginTop: '6px', fontSize: '14px' }}>Tổng quan hệ thống & báo cáo tài chính</p>
+          <p style={{ color: '#64748b', marginTop: '8px', fontSize: '15px', fontWeight: '500' }}>
+            Chào mừng trở lại! Dưới đây là báo cáo hiệu suất hôm nay.
+          </p>
         </div>
         <button
           onClick={() => window.location.reload()}
           style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '10px 20px', backgroundColor: '#f3f4f6', border: 'none',
-            borderRadius: '12px', fontSize: '14px', fontWeight: '600', color: '#4b5563',
-            cursor: 'pointer', transition: 'background 0.2s'
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '12px 24px', backgroundColor: '#fff', border: '1px solid #e2e8f0',
+            borderRadius: '14px', fontSize: '14px', fontWeight: '600', color: '#475569',
+            cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 5px rgba(0,0,0,0.03)'
           }}
-          onMouseEnter={(e) => e.target.style.background = '#e5e7eb'}
-          onMouseLeave={(e) => e.target.style.background = '#f3f4f6'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = '#cbd5e1';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = '#e2e8f0';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 5px rgba(0,0,0,0.03)';
+          }}
         >
-          <RefreshIcon /> Làm mới dữ liệu
+          <RefreshIcon /> Cập nhật dữ liệu
         </button>
       </div>
 
-      <div style={{ padding: '0 4px' }}>
+      <div style={{ padding: '0 48px', maxWidth: '1800px', margin: '0 auto' }}>
 
-        {/* --- STATS CARDS --- */}
+        {/* --- STATS CARDS ROW --- */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginBottom: '32px' }}>
-          {/* Card 1 */}
 
-          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}>
-            <div style={decorationCircle}></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', position: 'relative', zIndex: 10 }}>
-              <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: '12px', backdropFilter: 'blur(4px)' }}><MoneyIcon /></div>
-              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#e0e7ff' }}>Tổng Doanh Số</span>
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10 }}>{formatCurrency(stats.totalVolume)}</div>
-          </div>
+          <StatCard
+            title="Tổng Doanh Số (GMV)"
+            value={formatCurrency(stats.totalVolume)}
+            icon={<MoneyIcon />}
+            color="#2563eb" // Blue-600
+            style={{
+              background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
+              border: '1px solid #bfdbfe',
+              boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.1)'
+            }}
+            valueStyle={{ color: '#1e40af' }}
+            subContent={
+              <span style={{ fontSize: '12px', color: '#60a5fa', fontWeight: '600' }}>
+                Tổng giá trị giao dịch
+              </span>
+            }
+          />
 
-          {/* Card 2 */}
-          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}>
-            <div style={decorationCircle}></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', position: 'relative', zIndex: 10 }}>
-              <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: '12px', backdropFilter: 'blur(4px)' }}><TrendingUpIcon /></div>
-              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#d1fae5' }}>Lợi Nhuận Admin (Ròng)</span>
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10, lineHeight: 1.2 }}>{formatCurrency(stats.adminProfit)}</div>
-            {/* NEW: Breakdown */}
-            <div style={{
-              marginTop: '12px',
-              paddingTop: '8px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.2)',
-              fontSize: '12px',
-              fontWeight: '500',
-              color: '#d1fae5',
-              position: 'relative',
-              zIndex: 10,
-              lineHeight: 1.5
-            }}>
-              <div>Phí sàn: {formatCurrency(stats.adminGrossProfit)}</div>
-              <div>Chi phí voucher: -{formatCurrency(stats.totalVoucherCost)}</div>
-            </div>
-          </div>
+          <StatCard
+            title="Đã Trả Partner"
+            value={formatCurrency(stats.partnerPayout)}
+            icon={<HandshakeIcon />}
+            color="#d97706" // Amber-600
+            style={{
+              background: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)',
+              border: '1px solid #fde68a',
+              boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.1)'
+            }}
+            valueStyle={{ color: '#92400e' }}
+            subContent={
+              <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '600' }}>
+                85% doanh thu sau chiết khấu
+              </span>
+            }
+          />
 
-          {/* Card 3 */}
-          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #db2777 0%, #f472b6 100%)' }}>
-            <div style={decorationCircle}></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', position: 'relative', zIndex: 10 }}>
-              <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: '12px', backdropFilter: 'blur(4px)' }}><HandshakeIcon /></div>
-              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fce7f3' }}>Đã Trả Partner</span>
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10 }}>{formatCurrency(stats.partnerPayout)}</div>
-          </div>
-
-          {/* Card 4 - Chi phí mã giảm giá */}
-          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #dc2626 0%, #f87171 100%)' }}>
-            <div style={decorationCircle}></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', position: 'relative', zIndex: 10 }}>
-              <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: '12px', backdropFilter: 'blur(4px)' }}>
-                <IconWrapper>
-                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                </IconWrapper>
+          <StatCard
+            title="Chi Phí Mã Giảm Giá"
+            value={`-${formatCurrency(Math.abs(stats.totalVoucherCost || 0))}`}
+            icon={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
               </div>
-              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fecaca' }}>Chi Phí Mã Giảm Giá</span>
-            </div>
-            <div style={{ fontSize: '32px', fontWeight: '800', position: 'relative', zIndex: 10 }}>-{formatCurrency(stats.totalVoucherCost)}</div>
-            <div style={{
-              marginTop: '12px',
-              paddingTop: '8px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.2)',
-              fontSize: '12px',
-              fontWeight: '500',
-              color: '#fecaca',
-              position: 'relative',
-              zIndex: 10
-            }}>
-              <div>🏷️ Admin chịu chi phí voucher/khuyến mãi</div>
-            </div>
-          </div>
+            }
+            color="#dc2626" // Red-600
+            style={{
+              background: 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)',
+              border: '1px solid #fecaca',
+              boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.1)'
+            }}
+            valueStyle={{ color: '#b91c1c' }}
+            subContent={
+              <span style={{ fontSize: '12px', color: '#f87171', fontWeight: '600' }}>
+                Admin tài trợ
+              </span>
+            }
+          />
+
+          <StatCard
+            title="Lợi Nhuận Ròng (Admin)"
+            value={formatCurrency(stats.adminProfit)}
+            icon={<TrendingUpIcon />}
+            color="#059669" // Emerald-600
+            style={{
+              flex: '1.8', // TO NHẤT
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', // Gradient Xanh đậm hơn
+              border: '2px solid #10b981', // Viền xanh nổi bật
+              boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.2)', // Bóng đổ xanh
+              transform: 'scale(1.02)'
+            }}
+            valueStyle={{ fontSize: '36px', color: '#064e3b', fontWeight: '900' }} // Text Xanh đậm
+            subContent={
+              <div style={{ fontSize: '13px', color: '#166534', fontWeight: '700', display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                <span>Phí sàn: <b style={{ color: '#059669' }}>+{formatCurrency(stats.adminGrossProfit || 0)}</b></span>
+                <span>Voucher: <b style={{ color: '#dc2626' }}>-{formatCurrency(Math.abs(stats.totalVoucherCost || 0))}</b></span>
+              </div>
+            }
+          />
         </div>
 
-        {/* --- MAIN CONTENT SECTION (TABS) --- */}
-        <div style={{ backgroundColor: '#fff', borderRadius: '24px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', overflow: 'hidden' }}>
+        {/* --- MAIN CONTENT (TABS) --- */}
+        <div style={{ backgroundColor: '#fff', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9', overflow: 'hidden' }}>
 
-          {/* Tab Header */}
-          <div style={{
-            display: 'flex',
-            padding: '8px',
-            margin: '20px 24px 0',
-            backgroundColor: '#f3f4f6',
-            borderRadius: '16px',
-            width: 'fit-content'
-          }}>
-            <button
-              onClick={() => setActiveTab('chart')}
-              style={{
-                padding: '10px 24px',
-                borderRadius: '12px',
-                border: 'none',
-                fontWeight: '700',
-                fontSize: '14px',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                backgroundColor: activeTab === 'chart' ? '#fff' : 'transparent',
-                color: activeTab === 'chart' ? '#4f46e5' : '#6b7280',
-                boxShadow: activeTab === 'chart' ? '0 4px 6px -1px rgba(0,0,0,0.1)' : 'none'
-              }}
-            >
-              📊 Biểu đồ tăng trưởng
-            </button>
-            <button
-              onClick={() => setActiveTab('list')}
-              style={{
-                padding: '10px 24px',
-                borderRadius: '12px',
-                border: 'none',
-                fontWeight: '700',
-                fontSize: '14px',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                backgroundColor: activeTab === 'list' ? '#fff' : 'transparent',
-                color: activeTab === 'list' ? '#4f46e5' : '#6b7280',
-                boxShadow: activeTab === 'list' ? '0 4px 6px -1px rgba(0,0,0,0.1)' : 'none'
-              }}
-            >
-              📜 Lịch sử giao dịch
-            </button>
+          {/* Internal Tab Header */}
+          <div style={{ padding: '0 32px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '32px' }}>
+            {['chart', 'list'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: '24px 4px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === tab ? '3px solid #3b82f6' : '3px solid transparent',
+                  fontSize: '15px',
+                  fontWeight: activeTab === tab ? '700' : '500',
+                  color: activeTab === tab ? '#3b82f6' : '#64748b',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  transform: activeTab === tab ? 'translateY(1px)' : 'none'
+                }}
+              >
+                {tab === 'chart' ? 'Biểu Đồ Tăng Trưởng' : 'Lịch Sử Đơn Hàng'}
+              </button>
+            ))}
           </div>
 
-          <div style={{ padding: '24px' }}>
+          <div style={{ padding: '32px' }}>
 
             {/* --- TAB 1: CHART --- */}
             {activeTab === 'chart' && (
-              <div style={{ animation: 'fadeIn 0.3s ease-in-out' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px', marginLeft: '8px' }}>
-                  Doanh thu theo thời gian
-                </h3>
-                <div style={{ width: "100%", height: 400 }}>
-                  {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
-                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(value) => `${value / 1000}k`} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                          formatter={(value) => [formatCurrency(value), "Doanh thu"]}
-                        />
-                        <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', background: '#f9fafb', borderRadius: '16px' }}>
-                      <div style={{ fontSize: '40px', marginBottom: '10px' }}>📉</div>
-                      <p>Chưa có đủ dữ liệu để vẽ biểu đồ</p>
-                    </div>
-                  )}
+              <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <div style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b', margin: 0 }}>
+                    Doanh thu 30 ngày gần nhất
+                  </h3>
+                  <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>* Dữ liệu tự động cập nhật</div>
+                </div>
+
+                <div style={{ width: "100%", height: 450 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorRevenueNew" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="date"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 500 }}
+                        dy={15}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 500 }}
+                        tickFormatter={(value) => `${value / 1000}k`}
+                        dx={-10}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          borderRadius: '12px',
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                          padding: '12px 16px'
+                        }}
+                        itemStyle={{ color: '#0f172a', fontWeight: '700', fontSize: '14px' }}
+                        labelStyle={{ color: '#64748b', marginBottom: '4px', fontSize: '12px' }}
+                        formatter={(value) => [formatCurrency(value), "Doanh thu"]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="#3b82f6"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorRevenueNew)"
+                        activeDot={{ r: 6, strokeWidth: 0, fill: '#3b82f6' }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             )}
 
-            {/* --- TAB 2: TRANSACTION LIST --- */}
+            {/* --- TAB 2: LIST --- */}
             {activeTab === 'list' && (
-              <div style={{ animation: 'fadeIn 0.3s ease-in-out' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 8px' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
-                    Danh sách chi tiết
-                  </h3>
-                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280', backgroundColor: '#f3f4f6', padding: '6px 16px', borderRadius: '20px' }}>
-                    Tổng: {transactions.length} giao dịch
-                  </span>
-                </div>
-
-                {/* SCROLLABLE TABLE CONTAINER */}
+              <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
                 <div style={{
-                  maxHeight: '500px', // FIX HEIGHT TO PREVENT LONG PAGE
+                  maxHeight: '600px',
                   overflowY: 'auto',
-                  borderRadius: '16px',
-                  border: '1px solid #e5e7eb',
-                  position: 'relative'
+                  border: '1px solid #f1f5f9',
+                  borderRadius: '16px'
                 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#f9fafb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                       <tr>
-                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase' }}>Mã GD</th>
-                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase' }}>Loại</th>
-                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase' }}>Booking ID</th>
-                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'right' }}>Số Tiền</th>
-                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'right' }}>Giảm Giá</th>
-                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'center' }}>Trạng Thái</th>
-                        <th style={{ padding: '16px 20px', fontSize: '12px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', textAlign: 'right' }}>Thời Gian</th>
+                        <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Đơn Hàng</th>
+                        <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>Tổng Giá Trị</th>
+                        <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>Hoa Hồng (Thu)</th>
+                        <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>Voucher (Chi)</th>
+                        <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#166534', textTransform: 'uppercase', textAlign: 'right', backgroundColor: '#f0fdf4' }}>Lợi Nhuận Ròng</th>
+                        <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', textAlign: 'center' }}>Trạng Thái</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.length > 0 ? (
-                        transactions.map((tx) => (
-                          <tr key={tx._id} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: '#fff' }}>
-                            <td style={{ padding: '16px 20px' }}>
-                              <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: '600', color: '#374151', backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: '6px' }}>
-                                #{tx._id.slice(-6).toUpperCase()}
-                              </span>
-                            </td>
-                            <td style={{ padding: '16px 20px' }}>
-                              {/* --- FIX: Logic hiển thị loại giao dịch --- */}
-                              {tx.type === "INCOME" ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#047857' }}>💰</div>
-                                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>Doanh Thu</span>
+                      {bookingGroups.length > 0 ? (
+                        bookingGroups.map((group, index) => {
+                          const netProfit = group.commission - group.voucher;
+                          const isEven = index % 2 === 0;
+                          return (
+                            <tr key={group.booking_id} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: isEven ? '#fff' : '#fafafa' }}>
+                              <td style={{ padding: '20px 24px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                                    #{group.booking_id.slice(-6).toUpperCase()}
+                                  </span>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                                    {new Date(group.createdAt).toLocaleString("vi-VN")}
+                                  </span>
                                 </div>
-                              ) : tx.type === "COMMISSION" ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>%</div>
-                                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>Phí Sàn (Lợi nhuận)</span>
+                              </td>
+
+                              <td style={{ padding: '20px 24px', textAlign: 'right' }}>
+                                <span style={{ fontSize: '14px', fontWeight: '600', color: '#334155' }}>
+                                  {formatCurrency(group.income)}
+                                </span>
+                              </td>
+
+                              <td style={{ padding: '20px 24px', textAlign: 'right' }}>
+                                <span style={{ fontSize: '14px', fontWeight: '600', color: '#3b82f6' }}>
+                                  +{formatCurrency(group.commission)}
+                                </span>
+                              </td>
+
+                              <td style={{ padding: '20px 24px', textAlign: 'right' }}>
+                                {group.voucher > 0 ? (
+                                  <span style={{ fontSize: '14px', fontWeight: '600', color: '#ef4444' }}>
+                                    -{formatCurrency(group.voucher)}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '14px', color: '#cbd5e1' }}>—</span>
+                                )}
+                              </td>
+
+                              <td style={{ padding: '20px 24px', textAlign: 'right', backgroundColor: '#f0fdf4' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                  <span style={{ fontSize: '15px', fontWeight: '800', color: '#166534' }}>
+                                    +{formatCurrency(netProfit)}
+                                  </span>
+                                  {group.voucher > 0 && <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 500 }}>(Sau KM)</span>}
                                 </div>
-                              ) : tx.type === "VOUCHER_COST" ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b91c1c' }}>🏷️</div>
-                                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>Chi phí Voucher</span>
-                                </div>
-                              ) : (
-                                <span style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>{tx.type}</span>
-                              )}
-                            </td>
-                            <td style={{ padding: '16px 20px', fontSize: '14px', color: '#6b7280' }}>
-                              {tx.booking_id ? tx.booking_id.slice(-6).toUpperCase() : "N/A"}
-                            </td>
-                            <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                              {/* --- FIX: Logic hiển thị số tiền và màu sắc --- */}
-                              <span style={{
-                                fontSize: '14px',
-                                fontWeight: '700',
-                                color: tx.type === "INCOME" ? '#059669' : (tx.type === "COMMISSION" ? '#4f46e5' : '#b91c1c')
-                              }}>
-                                {tx.type === "INCOME" ? "+" : (tx.type === "VOUCHER_COST" ? "-" : " ")}{formatCurrency(tx.amount)}
-                              </span>
-                            </td>
-                            <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                              {/* Hiển thị giảm giá - tìm VOUCHER_COST cùng booking_id */}
-                              {(() => {
-                                if (tx.type === "INCOME" && tx.booking_id) {
-                                  const voucherTx = transactions.find(t => t.type === "VOUCHER_COST" && t.booking_id === tx.booking_id);
-                                  if (voucherTx) {
-                                    return (
-                                      <span style={{ fontSize: '14px', fontWeight: '600', color: '#dc2626' }}>
-                                        -{formatCurrency(voucherTx.amount)}
-                                      </span>
-                                    );
-                                  }
-                                }
-                                return <span style={{ fontSize: '13px', color: '#9ca3af' }}>—</span>;
-                              })()}
-                            </td>
-                            <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                              {tx.status === 'COMPLETED' ? (
-                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d', backgroundColor: '#dcfce7', padding: '4px 10px', borderRadius: '20px', border: '1px solid #bbf7d0' }}>
+                              </td>
+
+                              <td style={{ padding: '20px 24px', textAlign: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#166534', backgroundColor: '#dcfce7', padding: '6px 12px', borderRadius: '30px' }}>
                                   HOÀN TẤT
                                 </span>
-                              ) : (
-                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#a16207', backgroundColor: '#fef9c3', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fde047' }}>
-                                  ĐANG XỬ LÝ
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: '16px 20px', textAlign: 'right', fontSize: '13px', color: '#6b7280' }}>
-                              {new Date(tx.createdAt).toLocaleString("vi-VN")}
-                            </td>
-                          </tr>
-                        ))
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
-                          <td colSpan="7" style={{ padding: '60px', textAlign: 'center', color: '#9ca3af' }}>
-                            <div style={{ fontSize: '40px', marginBottom: '10px' }}>📭</div>
-                            Chưa có dữ liệu giao dịch nào.
+                          <td colSpan="6" style={{ padding: '80px', textAlign: 'center', color: '#94a3b8' }}>
+                            Trống trơn! Chưa có đơn hàng nào hoàn tất.
                           </td>
                         </tr>
                       )}
@@ -471,7 +536,6 @@ export default function DashboardAdvanced() {
 
       </div>
 
-      {/* Simple Keyframes for fade animation */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }

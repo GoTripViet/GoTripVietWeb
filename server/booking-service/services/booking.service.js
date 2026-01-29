@@ -118,8 +118,7 @@ class BookingService {
       });
     } catch (error) {
       throw new Error(
-        `Hết hàng hoặc lỗi kho: ${
-          error.response?.data?.message || error.message
+        `Hết hàng hoặc lỗi kho: ${error.response?.data?.message || error.message
         }`,
       );
     }
@@ -159,8 +158,7 @@ class BookingService {
         // Nếu mã lỗi thì bỏ qua hoặc báo lỗi tuỳ nghiệp vụ
         console.warn("Promotion Error:", error.message);
         throw new Error(
-          `Mã giảm giá không hợp lệ: ${
-            error.response?.data?.message || error.message
+          `Mã giảm giá không hợp lệ: ${error.response?.data?.message || error.message
           }`,
         );
       }
@@ -182,12 +180,12 @@ class BookingService {
       passengers: passengers || [],
       customer_details: contactInfo
         ? {
-            fullName: contactInfo.fullName,
-            email: contactInfo.email,
-            phone: contactInfo.phone,
-            address: contactInfo.address,
-            note: contactInfo.note,
-          }
+          fullName: contactInfo.fullName,
+          email: contactInfo.email,
+          phone: contactInfo.phone,
+          address: contactInfo.address,
+          note: contactInfo.note,
+        }
         : {},
     });
 
@@ -243,10 +241,28 @@ class BookingService {
       booking.status = "failed";
       await booking.save();
       throw new Error(
-        `Inventory reservation failed: ${
-          error.response?.data?.message || error.message
-        }`,
+        `Inventory reservation failed: ${error.response?.data?.message || error.message
+        }`
       );
+    }
+
+    // --- REDEEM PROMOTION (if any) ---
+    if (booking.promotion_id) {
+      try {
+        await axios.post(
+          `${INVENTORY_URL}/promotions/internal/redeem`,
+          { id: booking.promotion_id },
+          { headers: { "x-api-key": API_KEY } }
+        );
+        console.log(`🎟️ Promotion ${booking.promotion_id} redeemed.`);
+      } catch (err) {
+        console.error(
+          `⚠️ Failed to redeem promotion ${booking.promotion_id}:`,
+          err.message
+        );
+        // Không throw lỗi chết người ở đây vì khách đã trả tiền rồi.
+        // Admin sẽ phải check thủ công nếu cần.
+      }
     }
 
     // Update status
